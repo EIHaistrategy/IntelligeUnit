@@ -36,10 +36,15 @@ La console ELIS è su `http://localhost:3000/admin`. La finestra mostra anche l'
 
 Dopo la sessione: *Rilascia* il report al referente (lo vede dal suo link), registra l'esito della *call con il leader*.
 
-## 4. Che cosa c'è in questa versione
+## 4. Dashboard live, report e PDF
+
+- **Dashboard del benchmark in tempo reale** (Control room → *Dashboard live*, indirizzo `/live/<sessione>`): da proiettare in sala. Si aggiorna ogni 5 secondi man mano che le aziende consolidano. Mostra contatori di avanzamento e, da 5 aziende in su, mediana e Q1–Q3 per dimensione, aziende per fascia, eterogeneità e distribuzione dei livelli per item. Sotto 5 aziende mostra solo l'avanzamento (§9.1). Non è la versione ufficiale: a fine sessione si congela il benchmark.
+- **Report riservato e PDF per azienda**: dalla Control room *Rilascia* salva una copia del report che l'azienda vede da quel momento e che non cambia più (§9, §17). Un nuovo rilascio crea una versione successiva, marcata come tale. Il PDF si scarica per singola azienda o in uno zip per sessione (le aziende non ancora rilasciate escono come `BOZZA_…`). Il referente vede solo le versioni rilasciate, sessione per sessione.
+
+## 5. Che cosa c'è in questa versione
 
 - Strumento V1 completo come dati (`server/instrument/v1.0.json`): 16 item, descrittori, sotto-opzioni, opzioni valoriali, 30 dati fattuali della scheda, 14 domande di profilo, 6 regole di coerenza. Le quattro sessioni sono già create.
-- Motore di calcolo (`server/engine/index.js`) con 16 test automatici (`npm test`): score 0–100 con sotto-opzioni, dimensioni e fasce 44/70, confidence §7, mediana e override, confronti a coppie, benchmark con soglie 5/15 e leave-one-out, regola dei 5 sui sotto-livelli, quadranti, coerenza C1–C6, ordine delle priorità. Un test verifica anche che nessun punteggio di dimensione ottenibile cada su 44 o 70 (§8.2).
+- Motore di calcolo (`server/engine/index.js`) con 17 test automatici (`npm test`): score 0–100 con sotto-opzioni, dimensioni e fasce 44/70, confidence §7, mediana e override, confronti a coppie, benchmark con soglie 5/15 e leave-one-out, regola dei 5 sui sotto-livelli, quadranti, coerenza C1–C6, ordine delle priorità. Un test verifica anche che nessun punteggio di dimensione ottenibile cada su 44 o 70 (§8.2).
 - Ruoli: admin ELIS (password), referente aziendale (link personale), partecipante (QR, senza account).
 - Storico mai sovrascritto: ogni ri-consolidamento o correzione crea una nuova riga; registro modifiche con autore, prima/dopo e motivo.
 - Benchmark congelati per versione; solo aziende `REALE` con consenso al benchmark. Le aziende `TEST` e `DEMO` compaiono solo nelle **anteprime** (con banner).
@@ -47,11 +52,11 @@ Dopo la sessione: *Rilascia* il report al referente (lo vede dal suo link), regi
 - Sessioni ad hoc per aziende assenti (stesso flusso, modalità registrata).
 - `npm run demo` crea 14 aziende DEMO con dati fittizi per provare plenaria e report in anteprima.
 
-## 5. Non ancora presente (fasi successive)
+## 6. Non ancora presente (fasi successive)
 
-Item pulse (da Efficientare), ordinamento delle 8 dimensioni (Scalare), classificazione degli use case (Allegato D), peer matching operativo con verifica dei contributor, allineamento finale di settembre 2027, distinzione dei ruoli ELIS (Program manager / Methodology owner / Data steward).
+Item pulse (da Efficientare), ordinamento delle 8 dimensioni e tre priorità provvisorie registrabili (Scalare), classificazione degli use case (Allegato D), mappa "Con chi accelerare" e peer matching con verifica dei contributor (§10.4, §13), allineamento finale e benchmark allineato di settembre 2027 (§14.1), distribuzioni del profilo di approccio in plenaria (Allegato C), indicatori di funzionamento del pilot in una vista dedicata (§19.1, oggi ricavabili dall'export), distinzione dei ruoli ELIS (§21).
 
-## 6. Scelte che la piattaforma ha dovuto rendere univoche (da confermare)
+## 7. Scelte che la piattaforma ha dovuto rendere univoche (da confermare)
 
 | Punto della nota | Scelta implementata |
 |---|---|
@@ -65,15 +70,23 @@ Item pulse (da Efficientare), ordinamento delle 8 dimensioni (Scalare), classifi
 | Uso e direzione (§10.5) | Lettura qualitativa nel report, senza soglia automatica |
 | Quadranti delle mappe community e peer | Abbinamento nomi–quadranti proposto (in `scoring-1.0.json`) |
 | Priorità di sessione | Item della sessione (necessario per il pulse) |
+| Ordine delle tre priorità (§11.1) | Criterio 2 reso come "dimensione prerequisito sotto 70"; il criterio 4 (rilevanza strategica, readiness) non è calcolabile e lascia il posto all'ordine per score crescente. Le tre priorità si mostrano solo a Map completa, come provvisorie |
+| Coerenza C6 | Leggibile appena almeno un'abilitante è disponibile; i confronti mancanti sono indicati come non disponibili |
+| Ritorno di fase | Dopo il confronto non si torna alla fase individuale; gli altri ritorni richiedono un motivo, registrato |
+| Sotto-opzione suggerita | Nel consolidamento è preselezionata quella indicata dal dato della scheda pre-sessione; senza dato, la prima opzione |
+| Etichetta "valoriale" | Applicata al livello che contiene un'opzione valoriale |
+| Conteggi per livello in plenaria e dashboard | Mostrati da 5 aziende complessive; la regola dei 5 per categoria è applicata ai sotto-livelli (§9), non ai livelli |
+| Profilo Q11 | "Come si formano i team" diviso in due domande; P_NOMISURA ha anche "Non applicabile" |
+| Elenco aziende al QR di sessione | Visibile a chi ha il codice della sessione (serve per scegliere l'azienda); con il QR del tavolo l'azienda è già selezionata |
 
 Tutte le soglie sono in `server/instrument/scoring-1.0.json` (versione S1.0) e si cambiano lì, con una nuova versione.
 
-## 7. Dati e backup
+## 8. Dati e backup
 
 Tutto è nella cartella `data/` (database SQLite). Backup: copia la cartella a server fermo. L'export Excel è in *Impostazioni*.
 La piattaforma non sostituisce l'informativa privacy: per la rilevazione reale va verificata con il processo privacy/IT (§16).
 
-## 8. Struttura
+## 9. Struttura
 
 ```
 server/instrument/  strumento V1 e regole di scoring (dati versionati)

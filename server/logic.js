@@ -129,6 +129,9 @@ export function confirmConsolidation(sessionId, companyId, payload, actor) {
   const def = baseDef(session);
   const cmp = companyComparison(sessionId, companyId);
   const errors = [];
+  if (cmp.participants === 0) return { ok: false, errors: ['Nessun partecipante registrato per questa azienda: non c\'è nulla da consolidare'] };
+  const sc0 = ensureSessionCompany(sessionId, companyId);
+  if (sc0.consolidated_at && !String(payload.changeReason || '').trim()) errors.push('Il consolidamento era già stato confermato: indicare il motivo della modifica');
   const rows = def.items.map((itemId) => {
     const it = cmp.items.find((x) => x.itemId === itemId);
     const p = payload.items?.[itemId] || {};
@@ -136,6 +139,7 @@ export function confirmConsolidation(sessionId, companyId, payload, actor) {
     let level = p.level == null || p.level === '' ? null : Number(p.level);
     if (s.valid === 0) level = null; // §6.2: nessuna visibilità → resta N.D.
     else if (level == null) errors.push(`${itemId}: scegliere il livello ufficiale`);
+    else if (!Number.isInteger(level) || level < 1 || level > 5) { errors.push(`${itemId}: livello non valido`); level = null; }
     const subs = level ? E.subOptions(itemId, level) : [];
     let sub = subs.length ? (p.sub || subs[0].key) : null;
     if (sub && !subs.some((x) => x.key === sub)) errors.push(`${itemId}: sotto-opzione non valida`);
@@ -156,7 +160,8 @@ export function confirmConsolidation(sessionId, companyId, payload, actor) {
         r.s.median, r.s.valid, r.s.nd, r.s.range, r.s.perspectives, r.override ? 1 : 0, r.overrideReason,
         session.instrument_version, session.scoring_version, actor);
       audit(actor, 'consolidated', `${companyId}/${r.itemId}`, prev ? 'reconsolidate' : 'consolidate',
-        prev ? { level: prev.level, sub: prev.sub, score: prev.score } : null, { level: r.level, sub: r.sub, score: r.score }, r.overrideReason);
+        prev ? { level: prev.level, sub: prev.sub, score: prev.score } : null, { level: r.level, sub: r.sub, score: r.score },
+        [r.overrideReason, sc0.consolidated_at ? `Modifica: ${payload.changeReason}` : null].filter(Boolean).join(' · ') || null);
     }
     q.run(`UPDATE session_company SET consolidated_at = datetime('now'), consolidated_by = ?, draft_json = ? WHERE session_id = ? AND company_id = ?`,
       actor, JSON.stringify(payload), sessionId, companyId);
@@ -183,7 +188,9 @@ export function adminCorrect(companyId, itemId, level, sub, reason, actor) {
   if (!prev) return { ok: false, errors: ['Nessun valore consolidato da correggere'] };
   if (!String(reason || '').trim()) return { ok: false, errors: ['Motivo obbligatorio'] };
   const L = level == null || level === '' ? null : Number(level);
+  if (L != null && (!Number.isInteger(L) || L < 1 || L > 5)) return { ok: false, errors: ['Livello non valido: indicare un intero da 1 a 5'] };
   const subs = L ? E.subOptions(itemId, L) : [];
+  if (sub && subs.length && !subs.some((x) => x.key === sub)) return { ok: false, errors: ['Sotto-opzione non valida per il livello scelto'] };
   const sk = subs.length ? (sub || subs[0].key) : null;
   const score = L == null ? null : E.itemScore(itemId, L, sk);
   tx(() => {
@@ -325,8 +332,41 @@ export function companyReport(companyId, { preview = false } = {}) {
     benchVersions: Object.fromEntries(Object.entries(bench).filter(([, v]) => v).map(([k, v]) => [k, v.label])),
     items, dims, dimsComplete: dims.filter((d) => d.score != null).length, overall: E.overallIndicator(dimScores),
     coherence: coh.filter((c) => c.available), coherencePending: coh.filter((c) => !c.available).map((c) => c.id),
-    usoDirezione: profile.P_USO && cur.Q1 ? { uso: Number(profile.P_USO.value), q1: cur.Q1.level, q1Score: cur.Q1.score } : null,
+    usoDirezione: profile.P_USO && cur.Q1 && cur.Q1.level != null ? { uso: Number(profile.P_USO.value), q1: cur.Q1.level, q1Score: cur.Q1.score } : null,
+    mapComplete: dims.every((d) => d.score != null),
     priorities: E.proposePriorities(itemScores, dimScores, peerMedians),
     pairs, profile, commitments, sessions: sessionsDone,
   };
+}
+
+// ---------- Report consegnati: copia congelata al rilascio (§9 "i report consegnati non cambiano", §12, §17) ----------
+export function releaseReport(sessionId, companyId, actor) {
+  const session = getSession(sessionId);
+  ensureSessionCompany(sessionId, companyId);
+  const R = companyReport(companyId);
+  const version = (q.get('SELECT MAX(version) v FROM report_snapshots WHERE session_id = ? AND company_id = ?', sessionId, companyId).v || 0) + 1;
+  R.snapshot = { version, sessionId: Number(sessionId), sessionTitle: session.title, releasedAt: new Date().toISOString() };
+  const r = q.run('INSERT INTO report_snapshots (session_id, company_id, version, data_json, created_by) VALUES (?,?,?,?,?)', sessionId, companyId, version, JSON.stringify(R), actor);
+  q.run("UPDATE session_company SET report_released_at = datetime('now') WHERE session_id = ? AND company_id = ?", sessionId, companyId);
+  audit(actor, 'report', `${sessionId}/${companyId}`, version > 1 ? 'release_new_version' : 'release', null, { version });
+  return { id: Number(r.lastInsertRowid), version };
+}
+export function listSnapshots(companyId) {
+  return q.all(`SELECT r.id, r.session_id, r.version, r.created_at, s.title session_title FROM report_snapshots r JOIN sessions s ON s.id = r.session_id
+                WHERE r.company_id = ? ORDER BY r.id DESC`, companyId);
+}
+export function getSnapshot(companyId, snapId = null) {
+  const r = snapId
+    ? q.get('SELECT * FROM report_snapshots WHERE id = ? AND company_id = ?', snapId, companyId)
+    : q.get('SELECT * FROM report_snapshots WHERE company_id = ? ORDER BY id DESC LIMIT 1', companyId);
+  return r ? JSON.parse(r.data_json) : null;
+}
+export function setCommitmentStatus(id, status, note, actor) {
+  const ok = ['aperto', 'avviato', 'completato', 'non avviato', 'sospeso'];
+  if (!ok.includes(status)) return { ok: false, errors: ['Stato non valido'] };
+  const before = q.get('SELECT * FROM commitments WHERE id = ?', id);
+  if (!before) return { ok: false, errors: ['Commitment non trovato'] };
+  q.run("UPDATE commitments SET status = ?, status_note = ?, status_updated_at = datetime('now') WHERE id = ?", status, note || '', id);
+  audit(actor, 'commitment', id, 'status', { status: before.status, note: before.status_note }, { status, note });
+  return { ok: true };
 }

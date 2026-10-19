@@ -63,7 +63,7 @@ async function viewControl(id) {
     const others = C.companies.filter((c) => !active.includes(c));
     app.innerHTML = `<p><a href="#/sessioni">← Sessioni</a></p>
       <div class="card"><div class="row between"><div><h1>${esc(s.title)}</h1><p class="small muted">${esc(C.def.items.map((i) => `${i} ${INST.items[i].title}`).join(' · '))}</p></div>${phaseChips(s.phase)}</div>
-        <div class="row"><span class="small muted">Passa alla fase:</span>${PHASES.map((p, i) => `<button class="sm ${i === idx ? '' : 'ghost'}" data-phase="${p.id}" ${i === idx ? 'disabled' : ''}>${i < idx ? '↩ ' : ''}${esc(p.label)}</button>`).join('')}</div>
+        <div class="row"><span class="small muted">Passa alla fase:</span>${PHASES.map((p, i) => { const locked = i < idx && i <= 1 && idx >= 2; return `<button class="sm ${i === idx ? '' : 'ghost'}" data-phase="${p.id}" ${i === idx || locked ? 'disabled' : ''} title="${locked ? 'Dopo il confronto non si torna alla fase individuale (§2)' : ''}">${i < idx ? '↩ ' : ''}${esc(p.label)}</button>`; }).join('')}</div>
         <p class="small muted" style="margin-top:8px">Individuale → Confronto blocca le risposte individuali. Il consolidamento si può confermare solo nella fase Consolidamento.</p></div>
       <div class="grid c3">
         <div class="card" style="text-align:center">${qrImg(C.joinUrl, 180)}<p class="small mono" style="word-break:break-all">${esc(C.joinUrl)}</p><a class="btn sm" href="#/qr/${s.id}">QR a schermo intero</a></div>
@@ -71,7 +71,8 @@ async function viewControl(id) {
           <div class="kpi">${C.companies.filter((c) => c.consolidated_at).length} <small>aziende consolidate</small></div></div>
         <div class="card"><h3>Benchmark ${esc(INST.sessions.find((x) => x.id === s.base).name)}</h3>
           ${C.benchmark.length ? `<p class="small">Ultima versione: <b>${esc(C.benchmark[0].label)}</b> (N=${C.benchmark[0].n_companies})</p>` : '<p class="small muted">Nessuna versione congelata.</p>'}
-          <div class="row"><button class="sm gold" id="freeze">Congela benchmark</button><a class="btn sm ghost" href="/plenaria/${s.base}" target="_blank">Plenaria</a></div>
+          <div class="row"><a class="btn sm" href="/live/${s.id}" target="_blank">Dashboard live</a><button class="sm gold" id="freeze">Congela benchmark</button><a class="btn sm ghost" href="/plenaria/${s.base}" target="_blank">Plenaria</a></div>
+          <div class="row" style="margin-top:8px"><a class="btn sm ghost" href="/api/admin/sessions/${s.id}/pdfs.zip">Scarica tutti i PDF (zip)</a></div>
           <p class="small muted" style="margin-top:6px">Entrano solo aziende REALI con consenso al benchmark. Le versioni consegnate non cambiano.</p></div>
       </div>
       <div class="card"><h2>Aziende</h2><div class="tablewrap"><table>
@@ -81,15 +82,17 @@ async function viewControl(id) {
     $$('[data-phase]').forEach((b) => b.onclick = async () => {
       const to = b.dataset.phase;
       const back = PHASES.findIndex((p) => p.id === to) < idx;
-      if (!confirm(`${back ? 'Tornare' : 'Passare'} alla fase "${to}"?${to === 'confronto' ? '\nLe risposte individuali verranno bloccate.' : ''}`)) return;
-      try { await api(`/api/admin/sessions/${s.id}/phase`, { method: 'PUT', body: { phase: to } }); C = await api(`/api/admin/sessions/${id}/control`); draw(); } catch (e) { toast(e.message, true); }
+      let reason = null;
+      if (back) { reason = prompt(`Motivo per tornare alla fase "${to}" (resta nel registro modifiche)`); if (!reason) return; }
+      else if (!confirm(`Passare alla fase "${to}"?${to === 'confronto' ? '\nLe risposte individuali verranno bloccate e non si potranno riaprire.' : ''}`)) return;
+      try { await api(`/api/admin/sessions/${s.id}/phase`, { method: 'PUT', body: { phase: to, reason } }); C = await api(`/api/admin/sessions/${id}/control`); draw(); } catch (e) { toast(e.message, true); }
     });
     $('#freeze').onclick = async () => {
       if (!confirm('Congelare una nuova versione del benchmark con i dati consolidati attuali?')) return;
       try { const r = await api(`/api/admin/benchmark/${s.base}/freeze`, { method: 'POST' }); toast(`Congelata: ${r.label} (N=${r.n})`); C = await api(`/api/admin/sessions/${id}/control`); draw(); } catch (e) { toast(e.message, true); }
     };
     $$('[data-release]').forEach((b) => b.onclick = async () => {
-      if (!confirm('Rendere il report visibile al referente aziendale?')) return;
+      if (!confirm('Rilasciare il report? Viene salvata una copia che l\'azienda vede da ora in poi e che non cambierà più.')) return;
       await api(`/api/admin/sessions/${s.id}/companies/${b.dataset.release}/release`, { method: 'POST' }); C = await api(`/api/admin/sessions/${id}/control`); draw();
     });
     $$('[data-note]').forEach((b) => b.onclick = async () => {
@@ -107,7 +110,7 @@ async function viewControl(id) {
     <td class="small">${c.functions.length}${c.participants && c.functions.length < 2 ? ' <span class="tag warn">1 sola</span>' : ''}</td>
     <td>${c.consolidated_at ? `<span class="tag ok">✓</span> <span class="small muted">${fmtDate(c.consolidated_at)}</span>` : '—'}</td>
     <td>${c.commitment ? '<span class="tag ok">✓</span>' : '—'}</td>
-    <td class="small">${c.consolidated_at ? `<a href="/report/${c.id}" target="_blank">apri</a> · <a href="/report/${c.id}?preview=1" target="_blank">anteprima</a><br>${c.report_released_at ? `<span class="tag ok">rilasciato</span>` : `<button class="sm ghost" data-release="${c.id}">Rilascia</button>`}` : ''}</td>
+    <td class="small">${c.consolidated_at ? `<a href="/report/${c.id}" target="_blank">apri</a> · <a href="/api/admin/pdf/${c.id}">PDF</a> · <a href="/report/${c.id}?preview=1" target="_blank">anteprima</a><br>${c.report_released_at ? `<span class="tag ok">rilasciato</span> <button class="link small" data-release="${c.id}" title="Crea una nuova versione marcata come tale">nuova versione</button>` : `<button class="sm ghost" data-release="${c.id}">Rilascia</button>`}` : ''}</td>
     <td class="small"><a href="#/tavolo/${C.session.id}:${c.id}">QR tavolo</a>${c.consolidated_at ? `<br><button class="link small" data-note="${c.id}">Call leader${c.leader_call_note ? ' ✓' : ''}</button>` : ''}</td></tr>`;
   draw();
   stopPoll = poll(async () => { const n = await api(`/api/admin/sessions/${id}/control`); if (JSON.stringify(n) !== JSON.stringify(C)) { C = n; if (!document.activeElement || document.activeElement === document.body) draw(); } }, 4000);
@@ -175,14 +178,32 @@ async function viewCompany(id) {
         <div style="margin-top:8px"><button class="sm" id="r_add">Aggiungi referente</button></div>
         <p class="small muted">Il link è personale: chi lo possiede compila la scheda e consolida per l'azienda. Funziona sulla rete locale del computer ELIS.</p></div>
     </div>
+    <div class="card"><h2>Commitment e verifica</h2><p class="small muted">Lo stato si aggiorna nella call con il leader e con l'item pulse della sessione successiva (§11, §12).</p><div id="commits"><p class="muted small">Caricamento…</p></div></div>
+    <div class="card"><h2>Report rilasciati</h2><div id="snaps"><p class="muted small">Caricamento…</p></div></div>
     <div class="card"><h2>Valori consolidati correnti</h2>
       ${R.items.length ? `<table><thead><tr><th>Item</th><th>Livello</th><th class="num">Score</th><th>Confidence</th><th></th></tr></thead><tbody>
         ${R.items.map((it) => `<tr><td>${esc(it.itemId)} ${esc(it.title)}</td><td><b>${levelLabel(it.level, it.sub)}</b>${it.override ? ` <span class="tag warn" title="${esc(it.overrideReason || '')}">override</span>` : ''}</td><td class="num">${fmtScore(it.score)}</td><td class="small">${esc(it.confidence)}</td>
           <td><button class="sm ghost" data-fix="${it.itemId}">Correggi</button></td></tr>`).join('')}</tbody></table>
         <p class="small muted">Una correzione crea una nuova versione del valore e lascia traccia (autore, data, prima/dopo, motivo). I benchmark già congelati non cambiano.</p>
         <a class="btn sm ghost" href="/report/${c.id}" target="_blank">Report</a>` : '<p class="muted">Nessun valore consolidato.</p>'}</div>`;
+  const [cm, sn] = await Promise.all([api(`/api/admin/companies/${id}/commitments`), api(`/api/admin/companies/${id}/reports`)]);
+  $('#commits').innerHTML = cm.length ? `<table><thead><tr><th>Sessione</th><th>Priorità e azione</th><th>Owner · scadenza</th><th>Stato</th></tr></thead><tbody>${cm.map((m) => `<tr>
+    <td class="small">${esc(m.session_title)}</td><td class="small"><b>${esc(m.priority_item)}</b> ${esc(INST.items[m.priority_item]?.title || '')}<br>${esc(m.action)}<br><span class="muted">KPI: ${esc(m.kpi)}</span></td>
+    <td class="small">${esc(m.owner)}<br>${esc(m.due_date)}</td>
+    <td><select data-cstat="${m.id}">${['aperto', 'avviato', 'completato', 'non avviato', 'sospeso'].map((x) => `<option ${m.status === x ? 'selected' : ''}>${x}</option>`).join('')}</select>
+      <input type="text" data-cnote="${m.id}" placeholder="evidenza / nota" value="${esc(m.status_note || '')}" style="margin-top:4px"><button class="sm ghost" data-csave="${m.id}" style="margin-top:4px">Salva</button></td></tr>`).join('')}</tbody></table>` : '<p class="muted small">Nessun commitment.</p>';
+  $$('[data-csave]').forEach((b) => b.onclick = async () => {
+    const mid = b.dataset.csave;
+    try { await api(`/api/admin/commitments/${mid}/status`, { method: 'PUT', body: { status: $(`[data-cstat="${mid}"]`).value, note: $(`[data-cnote="${mid}"]`).value } }); toast('Stato aggiornato'); } catch (e) { toast(e.message, true); }
+  });
+  $('#snaps').innerHTML = sn.length ? `<table><tbody>${sn.map((v) => `<tr><td>v${v.version}</td><td>${esc(v.session_title)}</td><td class="small">${fmtDate(v.created_at)}</td><td><a href="/report/${id}?snap=${v.id}" target="_blank">apri</a> · <a href="/api/admin/pdf/${id}?snap=${v.id}">PDF</a></td></tr>`).join('')}</tbody></table>` : '<p class="muted small">Nessun report rilasciato. Il rilascio si fa dalla control room della sessione.</p>';
   $('#e_save').onclick = async () => { try { await api(`/api/admin/companies/${id}`, { method: 'PUT', body: { name: $('#e_name').value, perimeter: $('#e_per').value, sector: $('#e_sec').value, kind: $('#e_kind').value } }); toast('Salvato'); } catch (e) { toast(e.message, true); } };
-  $$('[data-consent]').forEach((b) => b.onchange = async () => { await api(`/api/admin/companies/${id}/consent`, { method: 'PUT', body: { type: b.dataset.consent, granted: b.checked } }); toast('Consenso aggiornato'); });
+  $$('[data-consent]').forEach((b) => b.onchange = async () => {
+    const reason = prompt('Riferimento o motivo del cambio di consenso (es. "modulo firmato il 10/11", "revoca via email del 3/12")');
+    if (!reason) { b.checked = !b.checked; return; }
+    try { await api(`/api/admin/companies/${id}/consent`, { method: 'PUT', body: { type: b.dataset.consent, granted: b.checked, reason } }); toast('Consenso aggiornato'); }
+    catch (e) { b.checked = !b.checked; toast(e.message, true); }
+  });
   $('#r_add').onclick = async () => { try { await api(`/api/admin/companies/${id}/referents`, { method: 'POST', body: { name: $('#r_name').value, role: $('#r_role').value, email: $('#r_email').value } }); viewCompany(id); } catch (e) { toast(e.message, true); } };
   $$('[data-delref]').forEach((b) => b.onclick = async () => { if (confirm('Eliminare il referente? Il suo link smetterà di funzionare.')) { await api(`/api/admin/referents/${b.dataset.delref}`, { method: 'DELETE' }); viewCompany(id); } });
   $$('[data-copy]').forEach((b) => b.onclick = async () => { try { await navigator.clipboard.writeText(b.dataset.copy); toast('Link copiato'); } catch { prompt('Copia il link', b.dataset.copy); } });

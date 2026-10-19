@@ -9,6 +9,9 @@ import { q, db, DB_PATH, token, shortCode, audit, getSetting, setSetting } from 
 import * as L from './logic.js';
 import * as E from './engine/index.js';
 import { buildExport } from './export.js';
+import { pdfBuffer, pdfFileName } from './pdf.js';
+import { liveDashboard } from './live.js';
+import JSZip from 'jszip';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(here, '../public');
@@ -67,6 +70,7 @@ app.get('/j/:code', page('join.html'));
 app.get('/r/:token', page('ref.html'));
 app.get('/report/:companyId', page('report.html'));
 app.get('/plenaria/:base', page('plenaria.html'));
+app.get('/live/:sid', page('live.html'));
 
 const wrap = (fn) => (req, res) => {
   try { const r = fn(req, res); if (r !== undefined) res.json(r); }
@@ -175,7 +179,7 @@ app.get('/api/r/:t', wrap((req, res) => {
       presession_updated_at: pre.updated_at, participants: L.activeParticipants(s.id, r.company_id).length };
   }).filter((s) => s.mode === 'workshop' || s.participants > 0 || s.consolidated_at || q.get('SELECT 1 FROM session_company WHERE session_id = ? AND company_id = ?', s.id, r.company_id));
   return { referent: { name: r.name, companyId: r.company_id, company: r.company_name, perimeter: r.perimeter, kind: r.company_kind }, sessions,
-    reportAvailable: !!q.get('SELECT 1 FROM session_company WHERE company_id = ? AND report_released_at IS NOT NULL', r.company_id) };
+    reports: L.listSnapshots(r.company_id) };
 }));
 
 app.get('/api/r/:t/presession/:base', wrap((req, res) => {
@@ -227,8 +231,9 @@ app.put('/api/r/:t/session/:sid/commitment', wrap((req, res) => {
 }));
 app.get('/api/r/:t/report', wrap((req, res) => {
   const r = referent(req, res); if (!r) return;
-  if (!q.get('SELECT 1 FROM session_company WHERE company_id = ? AND report_released_at IS NOT NULL', r.company_id)) return bad(res, 'Il report non è ancora stato rilasciato da ELIS', 403);
-  return L.companyReport(r.company_id);
+  const R = L.getSnapshot(r.company_id, req.query.snap ? Number(req.query.snap) : null);
+  if (!R) return bad(res, 'Il report non è ancora stato rilasciato da ELIS', 403);
+  return R;
 }));
 
 // ---------- Admin ELIS ----------
@@ -296,10 +301,11 @@ app.put('/api/admin/companies/:id', wrap((req, res) => {
 app.put('/api/admin/companies/:id/consent', wrap((req, res) => {
   const { type, granted } = req.body || {};
   if (!['benchmark', 'peer', 'testimonianza', 'followup'].includes(type)) return bad(res, 'Tipo di consenso non valido');
+  if (!String(req.body?.reason || '').trim()) return bad(res, 'Indicare il motivo o il riferimento del consenso (es. "modulo firmato il 10/11")');
   const before = q.get('SELECT * FROM consents WHERE company_id = ? AND type = ?', req.params.id, type);
   q.run(`INSERT INTO consents (company_id, type, granted, updated_at) VALUES (?,?,?,datetime('now'))
          ON CONFLICT(company_id, type) DO UPDATE SET granted = excluded.granted, updated_at = excluded.updated_at`, req.params.id, type, granted ? 1 : 0);
-  audit(ADMIN, 'consent', `${req.params.id}/${type}`, granted ? 'grant' : 'revoke', before, { granted: !!granted });
+  audit(ADMIN, 'consent', `${req.params.id}/${type}`, granted ? 'grant' : 'revoke', before, { granted: !!granted }, req.body.reason);
   return { ok: true };
 }));
 app.post('/api/admin/companies/:id/referents', wrap((req, res) => {
@@ -330,8 +336,13 @@ app.post('/api/admin/sessions', wrap((req, res) => {
 app.put('/api/admin/sessions/:id/phase', wrap((req, res) => {
   const s = L.getSession(req.params.id); if (!s) return bad(res, 'Non trovata', 404);
   if (!PHASES.includes(req.body?.phase)) return bad(res, 'Fase non valida');
+  const from = PHASES.indexOf(s.phase), to = PHASES.indexOf(req.body.phase);
+  // §2 indipendenza iniziale: dopo il confronto le risposte individuali non si riaprono
+  if (to < from && to <= PHASES.indexOf('individuale') && from >= PHASES.indexOf('confronto'))
+    return bad(res, 'Dopo il confronto non si può tornare alla fase individuale: le risposte sarebbero influenzate dalla vista dell\'azienda (§2). Per un\'azienda che deve rifare la rilevazione usa una sessione ad hoc.');
+  if (to < from && !String(req.body?.reason || '').trim()) return bad(res, 'Per tornare a una fase precedente indica il motivo');
   q.run('UPDATE sessions SET phase = ? WHERE id = ?', req.body.phase, s.id);
-  audit(ADMIN, 'session', s.id, 'phase', { phase: s.phase }, { phase: req.body.phase });
+  audit(ADMIN, 'session', s.id, 'phase', { phase: s.phase }, { phase: req.body.phase }, req.body?.reason || null);
   return { ok: true };
 }));
 app.get('/api/admin/sessions/:id/control', wrap((req, res) => {
@@ -353,11 +364,15 @@ app.get('/api/admin/sessions/:id/control', wrap((req, res) => {
     benchmark: q.all('SELECT id, label, n_companies, created_at FROM benchmark_versions WHERE base = ? ORDER BY id DESC', s.base) };
 }));
 app.post('/api/admin/sessions/:sid/companies/:cid/release', wrap((req) => {
-  L.ensureSessionCompany(req.params.sid, req.params.cid);
-  q.run("UPDATE session_company SET report_released_at = datetime('now') WHERE session_id = ? AND company_id = ?", req.params.sid, req.params.cid);
-  audit(ADMIN, 'report', `${req.params.sid}/${req.params.cid}`, 'release', null, null);
-  return { ok: true };
+  return { ok: true, ...L.releaseReport(Number(req.params.sid), Number(req.params.cid), ADMIN) };
 }));
+app.put('/api/admin/commitments/:id/status', wrap((req, res) => {
+  const out = L.setCommitmentStatus(Number(req.params.id), req.body?.status, req.body?.note, ADMIN);
+  if (!out.ok) return bad(res, out.errors.join(' · '));
+  return out;
+}));
+app.get('/api/admin/companies/:cid/reports', wrap((req) => L.listSnapshots(Number(req.params.cid))));
+app.get('/api/admin/companies/:cid/commitments', wrap((req) => q.all(`SELECT c.*, s.title session_title FROM commitments c JOIN sessions s ON s.id = c.session_id WHERE c.company_id = ? ORDER BY s.date`, req.params.cid)));
 app.put('/api/admin/sessions/:sid/companies/:cid/note', wrap((req) => {
   L.ensureSessionCompany(req.params.sid, req.params.cid);
   q.run('UPDATE session_company SET leader_call_note = ? WHERE session_id = ? AND company_id = ?', req.body?.note || '', req.params.sid, req.params.cid);
@@ -371,8 +386,43 @@ app.post('/api/admin/benchmark/:base/freeze', wrap((req, res) => {
   return L.freezeBenchmark(req.params.base, ADMIN);
 }));
 app.get('/api/admin/benchmark', wrap(() => q.all('SELECT id, base, kind, label, n_companies, instrument_version, scoring_version, created_at FROM benchmark_versions ORDER BY id DESC')));
+app.get('/api/admin/live/:sid', wrap((req, res) => liveDashboard(Number(req.params.sid), { preview: req.query.preview === '1' }) || bad(res, 'Sessione non trovata', 404)));
+async function sendPdf(res, R) {
+  const buf = await pdfBuffer(R);
+  res.setHeader('Content-Disposition', `attachment; filename="${pdfFileName(R)}"`);
+  res.type('application/pdf').send(buf);
+}
+app.get('/api/admin/pdf/:cid', async (req, res) => {
+  try {
+    if (!q.get('SELECT 1 FROM companies WHERE id = ?', req.params.cid)) return bad(res, 'Azienda non trovata', 404);
+    await sendPdf(res, reportFor(Number(req.params.cid), req, true));
+  } catch (e) { console.error(e); res.status(500).json({ error: e.message }); }
+});
+app.get('/api/admin/sessions/:sid/pdfs.zip', async (req, res) => {
+  try {
+    const s = L.getSession(req.params.sid); if (!s) return bad(res, 'Sessione non trovata', 404);
+    const comps = q.all('SELECT company_id FROM session_company WHERE session_id = ? AND consolidated_at IS NOT NULL', s.id);
+    if (!comps.length) return bad(res, 'Nessuna azienda ha ancora consolidato in questa sessione');
+    const zip = new JSZip();
+    for (const c of comps) {
+      // versione rilasciata per questa sessione se esiste, altrimenti bozza marcata come tale
+      const snap = q.get('SELECT id FROM report_snapshots WHERE session_id = ? AND company_id = ? ORDER BY version DESC LIMIT 1', s.id, c.company_id);
+      const R = snap ? L.getSnapshot(c.company_id, snap.id) : { ...L.companyReport(c.company_id, { preview: req.query.preview === '1' }), draft: true };
+      zip.file((snap ? '' : 'BOZZA_') + pdfFileName(R), await pdfBuffer(R));
+    }
+    const buf = await zip.generateAsync({ type: 'nodebuffer' });
+    res.setHeader('Content-Disposition', `attachment; filename="AITO_Map_report_${s.base}_${new Date().toISOString().slice(0, 10)}.zip"`);
+    res.type('application/zip').send(buf);
+  } catch (e) { console.error(e); res.status(500).json({ error: e.message }); }
+});
 app.get('/api/admin/plenaria/:base', wrap((req) => L.plenaria(req.params.base, { preview: req.query.preview === '1' })));
-app.get('/api/admin/report/:cid', wrap((req) => L.companyReport(Number(req.params.cid), { preview: req.query.preview === '1' })));
+// Report per l'admin: una versione rilasciata (?snap=id) oppure la bozza corrente, marcata come tale.
+function reportFor(cid, req, admin) {
+  if (req.query.snap) { const R = L.getSnapshot(cid, Number(req.query.snap)); if (R) return R; }
+  if (admin) return { ...L.companyReport(cid, { preview: req.query.preview === '1' }), draft: true };
+  return L.getSnapshot(cid);
+}
+app.get('/api/admin/report/:cid', wrap((req) => reportFor(Number(req.params.cid), req, true)));
 app.post('/api/admin/correct', wrap((req, res) => {
   const { companyId, itemId, level, sub, reason } = req.body || {};
   const out = L.adminCorrect(companyId, itemId, level, sub, reason, ADMIN);
@@ -389,12 +439,25 @@ app.get('/api/admin/export.xlsx', async (req, res) => {
 });
 
 // Report e plenaria richiamabili anche dal referente (solo report rilasciato)
+app.get('/api/report/:cid/pdf', async (req, res) => {
+  try {
+    const cid = Number(req.params.cid);
+    if (isAdmin(req)) return await sendPdf(res, reportFor(cid, req, true));
+    const r = q.get('SELECT * FROM referents WHERE token = ?', String(req.query.t || ''));
+    if (!r || r.company_id !== cid) return bad(res, 'Non autorizzato', 401);
+    const R = reportFor(cid, req, false);
+    if (!R) return bad(res, 'Report non ancora rilasciato', 403);
+    await sendPdf(res, R);
+  } catch (e) { console.error(e); res.status(500).json({ error: e.message }); }
+});
 app.get('/api/report/:cid', wrap((req, res) => {
-  if (isAdmin(req)) return L.companyReport(Number(req.params.cid), { preview: req.query.preview === '1' });
+  const cid = Number(req.params.cid);
+  if (isAdmin(req) && !req.query.t) return reportFor(cid, req, true);
   const r = q.get('SELECT * FROM referents WHERE token = ?', String(req.query.t || ''));
-  if (!r || r.company_id !== Number(req.params.cid)) return bad(res, 'Non autorizzato', 401);
-  if (!q.get('SELECT 1 FROM session_company WHERE company_id = ? AND report_released_at IS NOT NULL', r.company_id)) return bad(res, 'Report non ancora rilasciato', 403);
-  return L.companyReport(r.company_id);
+  if (!r || r.company_id !== cid) return bad(res, 'Non autorizzato', 401);
+  const R = reportFor(cid, req, false);
+  if (!R) return bad(res, 'Report non ancora rilasciato', 403);
+  return R;
 }));
 
 export function start(port = PORT) {

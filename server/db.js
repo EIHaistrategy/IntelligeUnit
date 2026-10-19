@@ -150,8 +150,23 @@ CREATE TABLE IF NOT EXISTS audit (       -- traccia di ogni modifica (§15)
   before_json TEXT, after_json TEXT, reason TEXT
 );
 
+CREATE TABLE IF NOT EXISTS report_snapshots (  -- report consegnati: copia congelata al rilascio (§9, §12, §17)
+  id INTEGER PRIMARY KEY,
+  session_id INTEGER NOT NULL REFERENCES sessions(id),
+  company_id INTEGER NOT NULL REFERENCES companies(id),
+  version INTEGER NOT NULL,
+  data_json TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  created_by TEXT
+);
+
 CREATE TABLE IF NOT EXISTS admin_tokens (token TEXT PRIMARY KEY, created_at TEXT NOT NULL DEFAULT (datetime('now')));
 `);
+
+// migrazioni leggere su database già esistenti
+for (const sql of ["ALTER TABLE commitments ADD COLUMN status_note TEXT", "ALTER TABLE commitments ADD COLUMN status_updated_at TEXT"]) {
+  try { db.exec(sql); } catch { /* colonna già presente */ }
+}
 
 export const token = (n = 18) => crypto.randomBytes(n).toString('base64url');
 export const shortCode = (n = 6) => {

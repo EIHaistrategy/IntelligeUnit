@@ -185,3 +185,11 @@ test('§11.1 priorità: coerenza prima del livello', () => {
   assert.equal(p[0].dimension, 'A'); // C1 attiva su A anche se E ha score più basso
   assert.equal(p[0].tier, 1);
 });
+
+test('§10.5 C6 leggibile anche con Governance N.D. (ogni abilitante separatamente)', () => {
+  const c6 = E.coherence({ Q7: 25, Q8: 25, Q12: 87.5 }, { E: null }).find((r) => r.id === 'C6');
+  assert.equal(c6.available, true);
+  assert.equal(c6.complete, false);
+  assert.equal(c6.flagged, true);
+  assert.equal(c6.comparisons.filter((x) => x.available).length, 2);
+});

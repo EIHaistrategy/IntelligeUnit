@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AITO Map · Benchmark live</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%231F3864%22/%3E%3Ctext x=%2216%22 y=%2222%22 font-size=%2216%22 font-family=%22Arial%22 font-weight=%22700%22 fill=%22%23C9A84C%22 text-anchor=%22middle%22%3EA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/css/app.css">
+<style>
+  body { font-size: 16px; }
+  .wrap { max-width: 1400px; }
+  .live-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #2ECC71; margin-right: 6px; animation: pulse 1.6s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
+  .tiles { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 14px; margin-bottom: 14px; }
+  .tile { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .tile .v { font-size: 2.3rem; font-weight: 700; color: var(--navy-deep); font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .tile .l { font-size: .85rem; color: var(--ink-2); font-weight: 600; }
+  .hero { font-size: 3rem; font-weight: 700; color: var(--navy-deep); font-variant-numeric: tabular-nums; line-height: 1; }
+  .seg { display: flex; height: 34px; border-radius: 6px; overflow: hidden; gap: 2px; background: #fff; }
+  .seg > div { display: grid; place-items: center; color: #fff; font-weight: 700; font-size: .82rem; min-width: 0; white-space: nowrap; overflow: hidden; }
+  .seg > div:first-child { border-radius: 6px 0 0 6px; } .seg > div:last-child { border-radius: 0 6px 6px 0; }
+  .l1 { background: #9AA6B6; } .l2 { background: #5FA9C2; } .l3 { background: #1FB5B8; } .l4 { background: #0B7FA0; } .l5 { background: #1F3864; }
+  .b-FOND { background: #D9822B; } .b-COST { background: #B08B2E; } .b-CONS { background: #1E8E5A; }
+  .waiting { text-align: center; padding: 40px 20px; }
+  .waiting .big { font-size: 4rem; font-weight: 700; color: var(--navy); }
+  .meter { height: 14px; background: var(--line-2); border-radius: 7px; overflow: hidden; max-width: 520px; margin: 14px auto; }
+  .meter > div { height: 100%; background: var(--teal); border-radius: 7px; transition: width .6s; }
+  .legend i { border-radius: 2px; }
+  .strip svg { width: 100%; height: 40px; }
+  @media (max-width: 900px) { .tiles { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+</style>
+</head>
+<body>
+<div class="topbar"><span class="brand">A I T O <b>·</b> MAP</span><span class="sub" id="ttl">Benchmark in tempo reale</span><span class="spacer"></span>
+  <span class="small" id="upd" style="color:#fff"></span>
+  <label class="small" style="color:#fff;margin-left:14px"><input type="checkbox" id="prev"> anteprima con dati dimostrativi</label></div>
+<div class="wrap" id="app"><p class="muted">Caricamento…</p></div>
+<script type="module">
+import { api, esc, $, fmtScore } from '/static/js/ui.js';
+const sid = location.pathname.split('/').pop();
+const params = new URLSearchParams(location.search);
+const preview = params.get('preview') === '1';
+$('#prev').checked = preview;
+$('#prev').onchange = (e) => { params.set('preview', e.target.checked ? '1' : '0'); location.search = params.toString(); };
+const PH = { preparazione: 'Preparazione', individuale: 'Fase individuale', confronto: 'Confronto', consolidamento: 'Consolidamento', chiusa: 'Sessione chiusa' };
+
+// fascia mediana / Q1–Q3 su scala 0–100 con le soglie 44 e 70
+function strip(st) {
+  const X = (v) => 10 + (v / 100) * 980;
+  let g = `<line x1="10" y1="20" x2="990" y2="20" stroke="#DDE3EA" stroke-width="4" stroke-linecap="round"/>`;
+  for (const t of [44, 70]) g += `<line x1="${X(t)}" y1="4" x2="${X(t)}" y2="36" stroke="#9AA6B6" stroke-width="2" stroke-dasharray="4 4"/>`;
+  g += `<rect x="${X(st.q1)}" y="11" width="${Math.max(4, X(st.q3) - X(st.q1))}" height="18" rx="4" fill="#1FB5B8" fill-opacity=".35"><title>Q1–Q3: ${fmtScore(st.q1)}–${fmtScore(st.q3)}</title></rect>`;
+  g += `<line x1="${X(st.median)}" y1="8" x2="${X(st.median)}" y2="32" stroke="#005172" stroke-width="5" stroke-linecap="round"><title>Mediana: ${fmtScore(st.median)}</title></line>`;
+  return `<div class="strip"><svg viewBox="0 0 1000 40" preserveAspectRatio="none" role="img" aria-label="Mediana ${fmtScore(st.median)}, Q1–Q3 ${fmtScore(st.q1)}–${fmtScore(st.q3)}">${g}</svg></div>`;
+}
+const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
+
+async function draw() {
+  let D;
+  try { D = await api(`/api/admin/live/${sid}${preview ? '?preview=1' : ''}`); }
+  catch (e) { $('#app').innerHTML = `<div class="card"><p>${esc(e.message)} — accedi prima da <a href="/admin">/admin</a>.</p></div>`; return; }
+  const P = D.progress;
+  $('#ttl').textContent = `${D.session.title} · benchmark in tempo reale`;
+  $('#upd').innerHTML = `<span class="live-dot"></span>aggiornato alle ${new Date(D.updatedAt).toLocaleTimeString('it-IT')}`;
+  const ready = P.benchmarkN >= P.minN;
+  $('#app').innerHTML = `
+    ${D.preview ? '<div class="banner preview">ANTEPRIMA CON DATI DIMOSTRATIVI E DI TEST — non è il benchmark della community</div>' : ''}
+    <div class="row between" style="margin:6px 0 12px"><h1 style="margin:0">${esc(D.def.name)} · come si posiziona la community</h1><span class="tag navy" style="font-size:.9rem;padding:6px 12px">${esc(PH[D.session.phase] || D.session.phase)}</span></div>
+    <div class="tiles">
+      <div class="tile"><div class="v">${P.participants}</div><div class="l">partecipanti registrati · ${P.submitted} hanno inviato</div></div>
+      <div class="tile"><div class="v">${P.active}</div><div class="l">aziende al lavoro in questa sessione</div></div>
+      <div class="tile"><div class="v">${P.consolidatedHere}</div><div class="l">aziende che hanno consolidato</div></div>
+      <div class="tile"><div class="v">${P.benchmarkN}</div><div class="l">aziende nel benchmark · ${P.benchmarkN >= P.stableN ? 'stabile' : P.benchmarkN >= P.minN ? 'indicativo' : `servono ${P.minN}`}</div></div>
+    </div>
+    ${!ready ? `<div class="card waiting"><div class="big">${P.benchmarkN} / ${P.minN}</div>
+        <p style="font-size:1.2rem">Il benchmark compare quando almeno <b>${P.minN} aziende</b> hanno consolidato e dato il consenso.</p>
+        <div class="meter"><div style="width:${pct(P.benchmarkN, P.minN)}%"></div></div>
+        <p class="muted">Sotto questa soglia le singole aziende sarebbero riconoscibili (§9.1).</p></div>` : `
+    <div class="grid c2">${D.dims.map((d) => `<div class="card"><h2><span class="dim-letter">${d.dimension}</span>${esc(d.name)}</h2>
+      ${d.stats.available ? `<div class="row" style="align-items:baseline;gap:14px"><div class="hero">${fmtScore(d.stats.median)}</div><div class="ink2">mediana · Q1–Q3 ${fmtScore(d.stats.q1)}–${fmtScore(d.stats.q3)} · N=${d.stats.n} · ${esc(d.stats.label)}</div></div>
+        ${strip(d.stats)}<div class="small muted">Scala 0–100 · fascia azzurra: metà centrale delle aziende (Q1–Q3) · tratto blu: mediana · linee tratteggiate: soglie 44 e 70</div>
+        <h4 style="margin-top:12px">Aziende per fascia</h4>
+        <div class="seg">${d.bands.filter((b) => b.count).map((b) => `<div class="b-${b.id}" style="flex:${b.count}" title="${esc(b.name)}: ${b.count} aziende">${esc(b.name)} · ${b.count}</div>`).join('')}</div>
+        <div class="legend" style="margin-top:6px">${d.bands.map((b) => `<span><i class="b-${b.id}"></i>${esc(b.name)} ${pct(b.count, d.stats.n)}%</span>`).join('')}</div>
+        ${d.gap?.available ? `<p style="margin-top:10px">Eterogeneità (distanza tra primo e terzo quartile): <b>${fmtScore(d.gap.iqr)} punti</b> → <span class="tag navy">${esc(d.gap.quadrant)}</span></p>` : ''}`
+        : `<div class="banner warn">Non ancora disponibile: N = ${d.stats.n}.</div>`}</div>`).join('')}</div>
+    <div class="grid c2">${D.items.map((it) => `<div class="card"><div class="row between"><h3 style="margin:0">${esc(it.itemId)} · ${esc(it.title)}</h3><span class="small muted">${it.dist.available ? `mediana ${fmtScore(it.stats.median)} · N=${it.stats.n}` : ''}</span></div>
+      ${it.dist.available ? `<div class="seg" style="margin-top:10px">${it.dist.levels.filter((l) => l.count).map((l) => `<div class="l${l.level}" style="flex:${l.count}" title="Livello ${l.level}: ${l.count} aziende">Liv. ${l.level} · ${l.count}</div>`).join('')}</div>
+        <p class="small muted" style="margin-top:6px">${it.dist.levels.filter((l) => l.subDist).map((l) => `Liv. ${l.level}: ${l.subDist.map((s) => `${l.level}${s.key} ${s.count}`).join(' · ')}`).join(' — ') || 'Sotto-livelli aggregati al livello: nessuna sotto-opzione raggiunge 5 aziende.'}${it.nd ? ` · ${it.nd} aziende con N.D.` : ''}</p>`
+        : `<div class="banner warn" style="margin-top:8px">Non ancora disponibile: N = ${it.dist.n}.</div>`}</div>`).join('')}</div>
+    <div class="legend" style="margin:4px 0 10px">${[1, 2, 3, 4, 5].map((l) => `<span><i class="l${l}"></i>Livello ${l}</span>`).join('')}</div>`}
+    <p class="small muted">Dati in tempo reale, anonimi e aggregati: si aggiornano ogni 5 secondi man mano che le aziende consolidano. Non sono ancora la versione ufficiale: il benchmark si congela a fine sessione e i report usano quella versione (§9).${D.frozen ? ` Ultima versione congelata: ${esc(D.frozen.label)} (N=${D.frozen.n_companies}).` : ''}</p>`;
+}
+draw();
+setInterval(draw, 5000);
+</script>
+</body>
+</html>

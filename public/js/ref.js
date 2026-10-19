@@ -36,7 +36,8 @@ async function renderHome() {
     <div class="card"><h1>${esc(me.referent.company)}</h1>
       <p class="ink2">Perimetro valutato: <b>${esc(me.referent.perimeter || 'non indicato')}</b>${me.referent.kind !== 'REALE' ? ` <span class="tag warn">${esc(me.referent.kind)}</span>` : ''}</p>
       <p class="small muted">Da qui compili la scheda pre-sessione (una settimana prima), segui i partecipanti in sala e registri la posizione ufficiale dell'azienda nel consolidamento.</p>
-      ${me.reportAvailable ? `<a class="btn" href="/report/${me.referent.companyId}?t=${T}" target="_blank">Apri il report riservato</a>` : ''}
+      ${me.reports.length ? `<h3>Report riservati</h3><table><tbody>${me.reports.map((v) => `<tr><td><b>${esc(v.session_title)}</b>${v.version > 1 ? ` <span class="tag">versione ${v.version}</span>` : ''}</td><td class="small muted">rilasciato il ${fmtDate(v.created_at)}</td>
+        <td><a href="/report/${me.referent.companyId}?t=${T}&snap=${v.id}" target="_blank">Apri</a> · <a href="/api/report/${me.referent.companyId}/pdf?t=${T}&snap=${v.id}">PDF</a></td></tr>`).join('')}</tbody></table>` : ''}
     </div>
     <div class="card"><h2>Sessioni</h2><div class="tablewrap"><table>
       <thead><tr><th>Sessione</th><th>Fase</th><th>Scheda pre-sessione</th><th>Partecipanti</th><th>Consolidato</th><th></th></tr></thead>
@@ -183,14 +184,14 @@ function drawConsolidation() {
     ${!editable && !done ? '<div class="banner warn">Il consolidamento non è stato completato. Contattate il facilitatore ELIS.</div>' : ''}
     <details class="card"><summary><b>Rivedi la vista di confronto</b></summary><div style="margin-top:12px">${comparisonHtml(C.comparison)}</div></details>
     <div id="items"></div>
-    ${editable ? '<div class="card"><div id="errs"></div><button class="big" id="confirm">Conferma il consolidamento</button><p class="small muted" style="margin-top:8px">Livello ufficiale e sotto-opzione diventano il dato dell\'azienda per questa sessione.</p></div>' : ''}
+    ${editable ? '<div class="card"><div id="errs"></div>' + (done ? '<label class="f">Motivo della modifica (il consolidamento era già confermato) *</label><input type="text" id="chg" style="margin-bottom:10px">' : '') + '<button class="big" id="confirm">Conferma il consolidamento</button><p class="small muted" style="margin-top:8px">Livello ufficiale e sotto-opzione diventano il dato dell\'azienda per questa sessione.</p></div>' : ''}
     <div id="summary"></div><div id="commit"></div>`;
   C.items.forEach((it) => drawItem(it, editable));
   const btn = $('#confirm');
   if (btn) btn.onclick = async () => {
     btn.disabled = true;
     try {
-      await api(`/api/r/${T}/session/${sess.session.id}/confirm`, { method: 'POST', body: { items: form } });
+      await api(`/api/r/${T}/session/${sess.session.id}/confirm`, { method: 'POST', body: { items: form, changeReason: $('#chg')?.value || '' } });
       toast('Consolidamento confermato');
       sess = await api(`/api/r/${T}/session/${sess.session.id}`); drawConsolidation(); $('#summary').scrollIntoView({ behavior: 'smooth' });
     } catch (e) { $('#errs').innerHTML = `<div class="banner risk">${esc(e.message)}</div>`; btn.disabled = false; }

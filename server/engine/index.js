@@ -258,10 +258,13 @@ export function coherence(itemScores, dimScores, sc = SCORING, inst = INSTRUMENT
       else if (!rule.bidirectional && -diff >= T) status = 'prudenza';
       return { enabler: name(en), enablerScore: e, dependentScore: dep, diff, status, available: true };
     });
-    const available = comps.length > 0 && comps.every((c) => c.available);
+    // §10.5: in C6 la dipendente si confronta con ciascuna abilitante → la regola è leggibile
+    // appena almeno un confronto è calcolabile; quelli mancanti restano indicati come non disponibili.
+    const available = comps.some((c) => c.available);
+    const complete = comps.length > 0 && comps.every((c) => c.available);
     const flagged = comps.some((c) => c.status === 'da_esaminare');
     return { id: rule.id, label: rule.label, signal: rule.signal, session: rule.session, dependent: name(rule.dependent),
-      crossSession: !!rule.crossSession, bidirectional: !!rule.bidirectional, available, flagged, comparisons: comps };
+      crossSession: !!rule.crossSession, bidirectional: !!rule.bidirectional, available, complete, flagged, comparisons: comps };
   });
 }
 

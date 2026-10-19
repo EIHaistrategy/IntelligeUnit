@@ -292,6 +292,7 @@
     "Q9": {
       "title": "Governance e classificazione del rischio", "dimension": "E",
       "statement": "Ruoli e processi di governance classificano le iniziative AI in base al rischio.",
+      "factOwner": "Da compilare con la funzione legale o compliance",
       "levels": [
         { "level": 1, "descriptor": "Non esistono policy, ruoli o classificazione del rischio." },
         { "level": 2, "descriptor": "Esistono principi informali applicati caso per caso.",

@@ -10,8 +10,10 @@ const app = $('#app');
 async function boot() {
   const { instrument: I, scoring: SC } = await api('/api/instrument');
   let R;
-  try { R = await api(`/api/report/${cid}?${t ? `t=${encodeURIComponent(t)}&` : ''}${preview ? 'preview=1' : ''}`); }
+  try { R = await api(`/api/report/${cid}?${t ? `t=${encodeURIComponent(t)}&` : ''}${params.get('snap') ? `snap=${params.get('snap')}&` : ''}${preview ? 'preview=1' : ''}`); }
   catch (e) { app.innerHTML = `<div class="card"><h2>Report non disponibile</h2><p>${esc(e.message)}</p></div>`; return; }
+  const snap = params.get('snap');
+  $('#pdfbtn').href = `/api/report/${cid}/pdf?${t ? `t=${encodeURIComponent(t)}&` : ''}${snap ? `snap=${snap}&` : ''}${preview ? 'preview=1' : ''}`;
   if (!t) { $('#prevwrap').classList.remove('hidden'); $('#prev').checked = preview; $('#prev').onchange = (e) => { params.set('preview', e.target.checked ? '1' : '0'); location.search = params.toString(); }; }
 
   const names = SC.quadrantNames[SC.quadrantNamesInUse];
@@ -26,6 +28,9 @@ async function boot() {
 
   app.innerHTML = `
   ${R.preview ? '<div class="banner preview">ANTEPRIMA: il benchmark include aziende DEMO e TEST. Non è un report ufficiale.</div>' : ''}
+  ${R.draft ? '<div class="banner warn noprint"><b>Bozza</b>: versione calcolata ora, non ancora rilasciata. L\'azienda vede solo le versioni rilasciate, che non cambiano più.</div>' : ''}
+  ${R.snapshot ? `<div class="banner ok">Versione rilasciata v${R.snapshot.version} · ${esc(R.snapshot.sessionTitle)} · ${fmtDate(R.snapshot.releasedAt)}</div>` : ''}
+  <div id="versions" class="noprint"></div>
   <div class="cover"><div class="gold">AI TRANSFORMATION &amp; ADOPTION MAP · REPORT RISERVATO</div>
     <h1>${esc(R.company.name)}</h1>
     <div>Perimetro: ${esc(R.company.perimeter || 'non indicato')} · Dimensioni misurate: <b>${R.dimsComplete}/8</b> · Generato il ${fmtDate(R.generatedAt)}</div>
@@ -49,7 +54,7 @@ async function boot() {
     <div class="explain">Ogni regola confronta una capacità abilitante con una capacità che ne dipende. Se l'abilitante è più avanti è prudenza; se la dipendente è più avanti di almeno ${SC.coherenceThreshold} punti (due livelli pieni) è un rischio da esaminare nella call con il leader. La soglia è un'ipotesi del pilot.</div>
     ${R.coherence.length ? R.coherence.map((c) => `<div style="margin-bottom:10px"><b>${c.id} · ${esc(c.label)}</b> ${c.flagged ? '<span class="tag risk">da esaminare</span>' : c.comparisons.some((x) => x.status === 'prudenza') ? '<span class="tag teal">prudenza</span>' : '<span class="tag ok">coerente</span>'}
       ${c.crossSession ? '<span class="tag">confronta sessioni diverse: da validare nella call</span>' : ''}
-      <div class="small ink2">${c.comparisons.map((x) => `${esc(x.enabler)} ${fmtScore(x.enablerScore)} → ${esc(c.dependent)} ${fmtScore(x.dependentScore)} (scarto ${x.diff > 0 ? '+' : ''}${fmtNum(x.diff)})`).join('<br>')}</div>
+      <div class="small ink2">${c.comparisons.map((x) => x.available ? `${esc(x.enabler)} ${fmtScore(x.enablerScore)} → ${esc(c.dependent)} ${fmtScore(x.dependentScore)} (scarto ${x.diff > 0 ? '+' : ''}${fmtNum(x.diff)})${x.status === 'da_esaminare' ? ' <b>· da esaminare</b>' : ''}` : `${esc(x.enabler)} → ${esc(c.dependent)}: non ancora disponibile (abilitante N.D.)`).join('<br>')}</div>
       ${c.flagged ? `<div class="small">Segnale: ${esc(c.signal)}</div>` : ''}</div>`).join('') : '<p class="muted">Nessuna regola ancora leggibile.</p>'}
     ${R.coherencePending.length ? `<p class="small muted">Regole che si attiveranno nelle prossime sessioni: ${R.coherencePending.join(', ')}.</p>` : ''}
     ${R.usoDirezione ? `<p class="small"><b>Uso e direzione.</b> Quota di persone che usano l'AI ogni settimana: <b>${fmtNum(R.usoDirezione.uso)}%</b>; direzione strategica (Q1): livello <b>${R.usoDirezione.q1}</b>. ${R.usoDirezione.q1 <= 2 ? 'Una direzione ancora informale accanto a un uso già presente indica una pratica che può precedere la strategia: da discutere.' : ''} <span class="muted">(Lettura qualitativa: la nota non fissa una soglia.)</span></p>` : ''}
@@ -62,7 +67,7 @@ async function boot() {
       <td><b>${levelLabel(it.level, it.sub)}</b> ${it.valoriale ? '<span class="tag gold">valoriale</span>' : ''}<div class="small">${esc(it.descriptor || '')}${it.subText ? `<br><i>${esc(it.subText)}</i>` : ''}</div>
         ${it.override ? `<div class="small"><span class="tag warn">override</span> ${esc(it.overrideReason || '')}</div>` : ''}</td>
       <td class="num"><b>${fmtScore(it.score)}</b></td>
-      <td class="small">${esc(it.confidence || '')}<br><span class="muted">${it.validN} risposte valide · ${it.ndN} N.D. · range ${it.range ?? '—'}</span></td>
+      <td class="small">${esc(it.confidence || '')}<br><span class="muted">${it.validN} ${it.validN === 1 ? 'risposta valida' : 'risposte valide'} · ${it.ndN} N.D. · range ${it.range ?? '—'}</span></td>
       <td class="small">${benchStrip(it.bench, it.score)}<br>${benchTxt(it.bench)}</td></tr>`).join('')}
     </tbody></table></div>
   </div>
@@ -82,10 +87,12 @@ async function boot() {
 
   <div class="card"><h2>6 · Priorità</h2>
     <div class="explain">L'ordine proposto segue la nota: prima riportare a coerenza, poi i prerequisiti fondativi, poi le dimensioni sotto 70 e sotto la mediana peer. È una proposta trasparente, non sostituisce il giudizio dell'azienda.</div>
-    <ol>${R.priorities.slice(0, 3).map((p) => `<li><b>${p.dimension} · ${esc(p.name)}</b> (${fmtScore(p.score)}) — <span class="small">${esc(p.reasons.join('; ') || 'nessun segnale specifico')}</span></li>`).join('')}</ol>
+    ${R.mapComplete ? `<h3>Tre priorità provvisorie</h3><p class="small muted">Provvisorie dopo Scalare; si confermano dopo l'allineamento finale di settembre 2027, quando tutte le dimensioni hanno la stessa data (§11.1, §14.1).</p>
+      <ol>${R.priorities.slice(0, 3).map((p) => `<li><b>${p.dimension} · ${esc(p.name)}</b> (${fmtScore(p.score)}) — <span class="small">${esc(p.reasons.join('; ') || 'nessun segnale specifico')}</span></li>`).join('')}</ol>`
+      : `<p class="small">Le tre priorità complessive si calcolano a Map completa (${R.dimsComplete}/8 dimensioni misurate finora). In ogni sessione l'azienda sceglie la propria priorità e il commitment, riportati qui sotto.</p>`}
     <h3>Commitment registrati</h3>
-    ${R.commitments.length ? `<table><thead><tr><th>Sessione</th><th>Priorità</th><th>Azione</th><th>Owner</th><th>Scadenza</th><th>KPI / evidenza</th></tr></thead><tbody>
-      ${R.commitments.map((c) => `<tr><td>${esc(c.session_title)}</td><td>${esc(c.priority_item)} ${esc(I.items[c.priority_item]?.title || '')}</td><td>${esc(c.action)}</td><td>${esc(c.owner)}</td><td>${esc(c.due_date)}</td><td>${esc(c.kpi)}${c.peer_interest ? '<br><span class="tag teal">interesse peer</span>' : ''}</td></tr>`).join('')}</tbody></table>` : '<p class="muted">Nessun commitment registrato.</p>'}
+    ${R.commitments.length ? `<table><thead><tr><th>Sessione</th><th>Priorità</th><th>Azione</th><th>Owner</th><th>Scadenza</th><th>KPI / evidenza</th><th>Stato</th></tr></thead><tbody>
+      ${R.commitments.map((c) => `<tr><td>${esc(c.session_title)}</td><td>${esc(c.priority_item)} ${esc(I.items[c.priority_item]?.title || '')}</td><td>${esc(c.action)}</td><td>${esc(c.owner)}</td><td>${esc(c.due_date)}</td><td>${esc(c.kpi)}${c.peer_interest ? '<br><span class="tag teal">interesse peer</span>' : ''}</td><td>${esc(c.status || 'aperto')}${c.status_note ? `<br><span class="small muted">${esc(c.status_note)}</span>` : ''}</td></tr>`).join('')}</tbody></table>` : '<p class="muted">Nessun commitment registrato.</p>'}
   </div>
 
   <div class="card"><h2>7 · Profilo di approccio</h2>
@@ -96,5 +103,9 @@ async function boot() {
   <div class="card"><h2>Note metodologiche e limiti</h2>
     <p class="small ink2">Autovalutazione strutturata e consolidamento aziendale, non audit né certificazione. Il benchmark è "indicativo" sotto le ${SC.benchmark.stableN} aziende e non è mostrato sotto le ${SC.benchmark.minN}; nel report l'azienda è esclusa dal proprio benchmark quando il campione residuo resta di almeno ${SC.benchmark.looMinResidual} aziende. Le soglie (fasce 44/70, coerenza ${SC.coherenceThreshold} punti, quadranti) sono ipotesi del pilot da ratificare. Le dimensioni misurate in sessioni diverse possono riflettere partecipanti diversi; a settembre 2027 l'allineamento finale le riporta a una data unica.</p>
   </div>`;
+  try {
+    const list = t ? (await api(`/api/r/${encodeURIComponent(t)}`)).reports : await api(`/api/admin/companies/${cid}/reports`);
+    if (list.length) $('#versions').innerHTML = `<p class="small">Versioni rilasciate: ${list.map((v) => `<a href="?${t ? `t=${encodeURIComponent(t)}&` : ''}snap=${v.id}">v${v.version} · ${esc(v.session_title)} · ${fmtDate(v.created_at)}</a>`).join(' · ')}${t ? '' : ` · <a href="?">bozza corrente</a>`}</p>`;
+  } catch { /* elenco non disponibile */ }
 }
 boot();
