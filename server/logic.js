@@ -260,7 +260,7 @@ export function currentValues(companyId) {
 
 // ---------- Benchmark ----------
 function eligibleCompanies({ preview = false } = {}) {
-  if (preview) return q.all("SELECT * FROM companies");
+  if (preview) return q.all('SELECT * FROM companies WHERE seeded = 1'); // ambiente di prova: solo i dati dimostrativi
   return q.all(`SELECT c.* FROM companies c JOIN consents k ON k.company_id = c.id AND k.type = 'benchmark' AND k.granted = 1 WHERE c.kind = 'REALE'`);
 }
 
@@ -307,7 +307,7 @@ export function latestBenchmark(base) {
 }
 
 function benchSource(base, preview) {
-  if (preview) return { data: computeBenchmark(base, { preview: true }), label: 'Anteprima con dati dimostrativi e di test (non ufficiale)', preview: true };
+  if (preview) return { data: computeBenchmark(base, { preview: true }), label: 'dati dimostrativi dell\'ambiente di prova (non ufficiali)', preview: true };
   const v = latestBenchmark(base);
   return v ? { data: v.data, label: v.label, created_at: v.created_at, preview: false } : null;
 }
@@ -387,6 +387,7 @@ export function sessionMaps(base, { preview = false } = {}) {
 // ---------- Report aziendale ----------
 export function companyReport(companyId, { preview = false } = {}) {
   const company = q.get('SELECT * FROM companies WHERE id = ?', companyId);
+  if (company?.seeded) preview = true; // un'azienda di prova si confronta con il benchmark di prova, mai con quello ufficiale
   const cur = currentValues(companyId);
   const itemScores = Object.fromEntries(Object.keys(I.items).map((k) => [k, cur[k]?.score ?? null]));
   const dimScores = E.allDimensionScores(itemScores);

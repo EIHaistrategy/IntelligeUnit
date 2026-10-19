@@ -16,16 +16,12 @@
 </style>
 </head>
 <body>
-<div class="topbar"><span class="brand"><svg viewBox="0 0 26 22" aria-hidden="true"><rect x="0" y="16" width="4" height="6" rx="1" fill="#C9A84C" fill-opacity=".45"/><rect x="5.5" y="12" width="4" height="10" rx="1" fill="#C9A84C" fill-opacity=".6"/><rect x="11" y="8" width="4" height="14" rx="1" fill="#C9A84C" fill-opacity=".75"/><rect x="16.5" y="4" width="4" height="18" rx="1" fill="#C9A84C" fill-opacity=".9"/><rect x="22" y="0" width="4" height="22" rx="1" fill="#C9A84C"/></svg>AITO Map</span><span class="sub">Console ELIS</span><span class="spacer"></span><button class="link" id="logout" style="color:#fff">Esci</button></div>
+<div class="topbar"><span class="brand"><svg viewBox="0 0 26 22" aria-hidden="true"><rect x="0" y="16" width="4" height="6" rx="1" fill="#C9A84C" fill-opacity=".45"/><rect x="5.5" y="12" width="4" height="10" rx="1" fill="#C9A84C" fill-opacity=".6"/><rect x="11" y="8" width="4" height="14" rx="1" fill="#C9A84C" fill-opacity=".75"/><rect x="16.5" y="4" width="4" height="18" rx="1" fill="#C9A84C" fill-opacity=".9"/><rect x="22" y="0" width="4" height="22" rx="1" fill="#C9A84C"/></svg>AITO Map</span><span class="sub">Console ELIS</span><span class="spacer"></span>
+  <div class="envswitch hidden" id="envswitch" role="group" aria-label="Ambiente"><button type="button" data-env="prod">Produzione</button><button type="button" data-env="prova">Prova</button></div>
+  <button class="link" id="logout" style="color:#fff;margin-left:16px">Esci</button></div>
+<div class="provabar hidden" id="provabar" role="note">Ambiente di prova: dati dimostrativi, separati da quelli reali e mai nel benchmark ufficiale.</div>
 <div class="layout">
-  <nav class="sidenav" id="nav">
-    <a href="#/sessioni" data-v="sessioni">Sessioni</a>
-    <a href="#/aziende" data-v="aziende">Aziende</a>
-    <a href="#/benchmark" data-v="benchmark">Benchmark</a>
-    <a href="#/mappe" data-v="mappe">Mappe</a>
-    <a href="#/audit" data-v="audit">Registro modifiche</a>
-    <a href="#/impostazioni" data-v="impostazioni">Impostazioni</a>
-  </nav>
+  <nav class="sidenav" id="nav" aria-label="Menu"></nav>
   <main class="main" id="app"><p class="muted">Caricamento…</p></main>
 </div>
 <script type="module" src="/static/js/admin.js"></script>

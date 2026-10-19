@@ -1,7 +1,8 @@
-// Dati dimostrativi per vedere la piattaforma "piena" (dashboard, plenaria, report, PDF).
-// - 14 aziende DEMO con valori consolidati su tutte e quattro le sessioni
+// Dati dimostrativi per l'ambiente di prova della console (dashboard, plenaria, mappe, report, PDF).
+// - 4 sessioni di prova, con le stesse date del calendario
+// - 14 aziende DEMO con valori consolidati su tutte e quattro le sessioni di prova
 // - 1 azienda TEST "vetrina" con referente, scheda, partecipanti, risposte individuali, consolidamento e commitment
-// DEMO e TEST non entrano MAI nel benchmark ufficiale (§9): si vedono solo nelle anteprime.
+// Tutto è marcato seeded = 1: si vede solo nell'ambiente di prova e non entra MAI nel benchmark ufficiale (§9).
 import { q, tx, shortCode, token, audit } from './db.js';
 import * as L from './logic.js';
 import * as E from './engine/index.js';
@@ -17,7 +18,12 @@ const DEMO_NAMES = ['Aurora Energia', 'Borealis Telecom', 'Cassiopea Assicurazio
 export function hasDemo() { return !!q.get('SELECT 1 FROM companies WHERE seeded = 1 LIMIT 1'); }
 
 export function seedDemo() {
-  const sessions = q.all("SELECT * FROM sessions WHERE mode = 'workshop' ORDER BY date");
+  // sessioni di prova parallele a quelle del calendario (mai le sessioni reali)
+  const sessions = q.all("SELECT * FROM sessions WHERE mode = 'workshop' AND seeded = 0 ORDER BY date").map((real) => {
+    const sr = q.run(`INSERT INTO sessions (base, title, date, mode, channel, code, phase, instrument_version, scoring_version, seeded)
+                      VALUES (?, ?, ?, 'workshop', 'presenza', ?, 'chiusa', ?, ?, 1)`, real.base, `${E.sessionDef(real.base).name} · prova`, real.date, shortCode(5), I.version, E.SCORING.version);
+    return L.getSession(Number(sr.lastInsertRowid));
+  });
   tx(() => {
     // ---- 14 aziende DEMO: una "maturità" di fondo per azienda, con scarti diversi per dimensione
     DEMO_NAMES.forEach((name, k) => {
@@ -54,10 +60,7 @@ export function seedDemo() {
   q.run('INSERT INTO referents (company_id, name, email, role, token) VALUES (?, ?, ?, ?, ?)', cid, 'Referente di prova', '', 'Head of Innovation', token());
   const target = { Q1: 3, Q2: 2, Q9: 3, Q10: 2, Q5: 2, Q6: 3, Q13: 3, Q14: 2, Q3: 3, Q4: 2, Q15: 2, Q16: 4, Q7: 3, Q8: 2, Q11: 3, Q12: 4 };
   const people = [['Giulia Rossi', 'CEO'], ['Marco Bianchi', 'IT'], ['Elena Conti', 'HR'], ['Paolo Greco', 'FIN']];
-  for (const real of sessions) {
-    const sr = q.run(`INSERT INTO sessions (base, title, date, mode, channel, code, phase, instrument_version, scoring_version, seeded)
-                      VALUES (?, ?, ?, 'adhoc', 'presenza', ?, 'chiusa', ?, ?, 1)`, real.base, `${E.sessionDef(real.base).name} · dimostrativa`, real.date, shortCode(5), I.version, E.SCORING.version);
-    const s = L.getSession(Number(sr.lastInsertRowid));
+  for (const s of sessions) {
     const def = E.sessionDef(s.base);
     // scheda pre-sessione: dati fattuali e profilo
     const data = {};

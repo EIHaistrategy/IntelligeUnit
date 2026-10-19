@@ -19,28 +19,24 @@
 </style>
 </head>
 <body>
-<div class="topbar"><span class="brand"><svg viewBox="0 0 26 22" aria-hidden="true"><rect x="0" y="16" width="4" height="6" rx="1" fill="#C9A84C" fill-opacity=".45"/><rect x="5.5" y="12" width="4" height="10" rx="1" fill="#C9A84C" fill-opacity=".6"/><rect x="11" y="8" width="4" height="14" rx="1" fill="#C9A84C" fill-opacity=".75"/><rect x="16.5" y="4" width="4" height="18" rx="1" fill="#C9A84C" fill-opacity=".9"/><rect x="22" y="0" width="4" height="22" rx="1" fill="#C9A84C"/></svg>AITO Map</span><span class="sub">Benchmark della community · anonimo e aggregato</span><span class="spacer"></span>
-  <label><input type="checkbox" id="prev"> anteprima dati dimostrativi</label></div>
+<div class="topbar"><span class="brand"><svg viewBox="0 0 26 22" aria-hidden="true"><rect x="0" y="16" width="4" height="6" rx="1" fill="#C9A84C" fill-opacity=".45"/><rect x="5.5" y="12" width="4" height="10" rx="1" fill="#C9A84C" fill-opacity=".6"/><rect x="11" y="8" width="4" height="14" rx="1" fill="#C9A84C" fill-opacity=".75"/><rect x="16.5" y="4" width="4" height="18" rx="1" fill="#C9A84C" fill-opacity=".9"/><rect x="22" y="0" width="4" height="22" rx="1" fill="#C9A84C"/></svg>AITO Map</span><span class="sub">Benchmark della community · anonimo e aggregato</span><span class="spacer"></span></div>
 <div class="wrap pl" id="app"><p class="muted">Caricamento…</p></div>
 <script type="module">
 import { api, esc, $, fmtScore } from '/static/js/ui.js';
 import { gapMapHtml, peerMapHtml } from '/static/js/maps.js';
 const base = location.pathname.split('/').pop();
 const params = new URLSearchParams(location.search);
-const preview = params.get('preview') === '1';
-$('#prev').checked = preview;
-$('#prev').onchange = (e) => { params.set('preview', e.target.checked ? '1' : '0'); location.search = params.toString(); };
 const { scoring: SC } = await api('/api/instrument');
 let P;
-try { P = await api(`/api/admin/plenaria/${base}${preview ? '?preview=1' : ''}`); }
+try { P = await api(`/api/admin/plenaria/${base}`); }
 catch (e) { $('#app').innerHTML = `<div class="card"><p>${esc(e.message)} — accedi prima da <a href="/admin">/admin</a>.</p></div>`; throw e; }
 if (!P.available) { $('#app').innerHTML = `<div class="card"><h1>${esc(P.def.name)}</h1><p>${esc(P.message)}</p></div>`; }
 else {
   const na = (s) => `<div class="banner warn">Non disponibile: N = ${s.n}. Il benchmark si mostra da ${SC.benchmark.minN} aziende in su, per evitare che le singole aziende siano riconoscibili.</div>`;
   $('#app').innerHTML = `
-    ${P.preview ? '<div class="banner preview">Anteprima con dati dimostrativi e di test: non è il benchmark ufficiale</div>' : ''}
+    ${P.preview ? '<div class="banner preview">Ambiente di prova: dati dimostrativi, non sono dati ufficiali</div>' : ''}
     <div class="plhead"><h1>${esc(P.def.name)}</h1>
-      <p>Come si posiziona la community. Versione <b>${esc(P.version)}</b>, ${P.nCompanies} aziende con dati, nessun nome: solo distribuzioni.</p></div>
+      <p>Come si posiziona la community. Fonte: <b>${esc(P.version)}</b>, ${P.nCompanies} aziende con dati, nessun nome: solo distribuzioni.</p></div>
     <div class="grid c2">${P.dims.map((d) => `<div class="card"><h2 style="display:flex;align-items:center"><span class="dim-letter">${d.dimension}</span>${esc(d.name)}</h2>
       ${d.stats.available ? `<div class="kpi">${fmtScore(d.stats.median)} <small>mediana · 1°–3° quartile ${fmtScore(d.stats.q1)}–${fmtScore(d.stats.q3)} · N=${d.stats.n} · ${d.stats.label}</small></div>
         ${d.gap.available ? `<p style="margin-top:8px">In fascia Fondativa: <b>${Math.round(d.gap.fondShare * 100)}%</b> delle aziende · eterogeneità (IQR) <b>${fmtScore(d.gap.iqr)}</b> punti → <span class="tag navy">${esc(d.gap.quadrant)}</span></p>` : ''}` : na(d.stats)}</div>`).join('')}</div>
@@ -51,13 +47,13 @@ else {
     <div class="legend">${[1, 2, 3, 4, 5].map((l) => `<span><i class="l${l}"></i>Livello ${l}</span>`).join('')}</div>`;
   // lettura di community (§10.3, §10.4): solo dati aggregati, si può proiettare
   try {
-    const M = await api(`/api/admin/maps/${base}${preview ? '?preview=1' : ''}`);
+    const M = await api(`/api/admin/maps/${base}`);
     if (M.available) $('#app').insertAdjacentHTML('beforeend', `
       <h2 style="margin:36px 0 4px">Il bisogno è individuale o condiviso?</h2>
       <p class="ink2" style="margin-bottom:14px">Ogni punto è una dimensione: quante aziende sono ancora in fascia Fondativa e quanto sono diverse tra loro.</p>${gapMapHtml(M)}
       <h2 style="margin:28px 0 4px">Con chi accelerare?</h2>
       <p class="ink2" style="margin-bottom:14px">Ogni punto è una dimensione: quante aziende l'hanno scelta come priorità e quante potrebbero portare la propria esperienza.</p>${peerMapHtml(M)}
-      <p class="small muted"><a href="/mappe/${base}${preview ? '?preview=1' : ''}">Tutte le mappe della sessione</a>, compresa la vista per azienda (solo console ELIS).</p>`);
+      <p class="small muted"><a href="/mappe/${base}">Tutte le mappe della sessione</a>, compresa la vista per azienda (solo console ELIS).</p>`);
   } catch { /* mappe non disponibili: la plenaria resta valida */ }
 }
 </script>

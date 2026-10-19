@@ -4,12 +4,29 @@ const app = $('#app');
 let INST, SC, NET;
 let stopPoll = null;
 
+// ---------- Ambiente: Produzione o Prova (cookie del browser, letto anche dal server) ----------
+const PROVA = /(?:^|;\s*)aito_mode=prova/.test(document.cookie);
+function setEnv(env) {
+  document.cookie = `aito_mode=${env === 'prova' ? 'prova' : 'prod'}; Path=/; Max-Age=${60 * 60 * 24 * 30}; SameSite=Lax`;
+  location.hash = '#/programma'; location.reload();
+}
+
+const MONTHS = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
+const shortDate = (d) => (d ? `${Number(d.slice(8, 10))} ${MONTHS[Number(d.slice(5, 7)) - 1]}` : '');
+const longDate = (d) => (d ? new Date(`${d}T12:00:00`).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' }) : '');
+const isoDay = (d) => d.toISOString().slice(0, 10);
+const PHASE_LABEL = { preparazione: 'In preparazione', individuale: 'In sala: risposte individuali', confronto: 'In sala: confronto', consolidamento: 'In sala: consolidamento', chiusa: 'Chiusa' };
+let SESSIONS = [];
+
 async function boot() {
   const me = await api('/api/admin/me');
   if (!me.admin) return login();
   const i = await api('/api/instrument'); INST = i.instrument; SC = i.scoring;
   NET = await api('/api/admin/network');
   $('#logout').onclick = async () => { await api('/api/admin/logout', { method: 'POST' }); location.reload(); };
+  $$('[data-env]').forEach((b) => { const on = (b.dataset.env === 'prova') === PROVA; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); b.onclick = () => { if (!on) setEnv(b.dataset.env); }; });
+  $('#envswitch').classList.remove('hidden');
+  if (PROVA) { document.body.classList.add('prova'); $('#provabar').classList.remove('hidden'); }
   addEventListener('hashchange', route);
   route();
 }
@@ -25,31 +42,191 @@ function login() {
   $('#go').onclick = go; $('#pw').onkeydown = (e) => e.key === 'Enter' && go();
 }
 
-function route() {
-  if (stopPoll) { stopPoll(); stopPoll = null; }
-  const [, view = 'sessioni', arg] = location.hash.split('/');
-  $$('#nav a').forEach((a) => a.classList.toggle('active', a.dataset.v === view || (view === 'sessione' && a.dataset.v === 'sessioni') || (view === 'azienda' && a.dataset.v === 'aziende')));
-  ({ sessioni: viewSessions, sessione: viewControl, aziende: viewCompanies, azienda: viewCompany, benchmark: viewBenchmark,
-    audit: viewAudit, impostazioni: viewSettings, qr: viewQr, tavolo: viewTableCard, tavoli: viewTables, mappe: viewMaps }[view] || viewSessions)(arg);
+// ---------- Menu: segue il flusso della metodologia ----------
+const calendar = () => SESSIONS.filter((s) => s.mode === 'workshop');
+const adhoc = () => SESSIONS.filter((s) => s.mode === 'adhoc');
+async function buildNav(view, arg) {
+  SESSIONS = await api('/api/admin/sessions');
+  const link = (href, label, active, extra = '') => `<a href="${href}" class="${active ? 'active' : ''} ${extra}" ${active ? 'aria-current="page"' : ''}>${label}</a>`;
+  const sid = view === 'sessione' ? Number(String(arg || '').split('/')[0]) : null;
+  const cur = SESSIONS.find((s) => s.id === sid);
+  $('#nav').innerHTML = `
+    ${link('#/programma', 'Programma', view === 'programma')}
+    <div class="navgroup">Sessioni</div>
+    ${calendar().map((s, i) => link(`#/sessione/${s.id}`, `<span class="navnum ph-${s.phase}" aria-hidden="true">${s.phase === 'chiusa' ? '✓' : i + 1}</span><span class="navtxt">${esc(INST.sessions.find((x) => x.id === s.base).name)}<small>${esc(shortDate(s.date))}${['individuale', 'confronto', 'consolidamento'].includes(s.phase) ? ' · in corso' : ''}</small></span>`, sid === s.id, 'navsess')).join('')}
+    ${link('#/adhoc', `Sessioni ad hoc${adhoc().length ? ` <span class="navcount">${adhoc().length}</span>` : ''}`, view === 'adhoc' || (cur && cur.mode === 'adhoc'))}
+    <div class="navgroup">Dopo le sessioni</div>
+    ${link('#/report', 'Report e call con i leader', view === 'report')}
+    ${link('#/commitment', 'Commitment e verifica', view === 'commitment')}
+    <div class="navgroup">Anagrafiche</div>
+    ${link('#/aziende', 'Aziende e referenti', view === 'aziende' || view === 'azienda')}
+    <div class="navsep"></div>
+    ${link('#/audit', 'Registro modifiche', view === 'audit', 'navsmall')}
+    ${link('#/impostazioni', 'Impostazioni', view === 'impostazioni', 'navsmall')}`;
 }
 
-// ---------- Sessioni ----------
-async function viewSessions() {
-  const ss = await api('/api/admin/sessions');
-  app.innerHTML = `<h1>Sessioni</h1>
-    ${NET.baseUrl.includes('localhost') ? '<div class="banner risk">Non è stato trovato un indirizzo di rete: i telefoni non potranno collegarsi. Verifica il Wi-Fi in Impostazioni.</div>' : ''}
-    <div class="grid c2">${ss.map((s) => `<div class="card sesscard"><div class="row between" style="align-items:flex-start"><div><h2 style="margin:0">${esc(s.title)}</h2>
-      <p class="small muted" style="margin:4px 0 0">Item ${esc(INST.sessions.find((x) => x.id === s.base).items.join(', '))} · codice <span class="mono">${esc(s.code)}</span> · ${esc(s.channel)}</p></div>${s.mode === 'adhoc' ? '<span class="tag gold">ad hoc</span>' : ''}</div>
-      <div style="margin:18px 0 12px">${phaseChips(s.phase)}</div><p class="small ink2" style="margin:0 0 14px"><b>${esc(nextStepText(s.phase))}</b></p><a class="btn sm" href="#/sessione/${s.id}">Apri la control room</a></div>`).join('')}</div>
-    <div class="card"><h2>Sessione ad hoc</h2><p class="small ink2">Per un'azienda assente: stesso flusso, stessi descrittori e stessa versione; la modalità viene registrata e i dati entrano nella versione successiva del benchmark (§6.3).</p>
-      <div class="grid c3"><div><label class="f">Sessione di riferimento</label><select id="ah_base">${INST.sessions.map((s) => `<option value="${s.id}">${esc(s.name)}</option>`).join('')}</select></div>
-      <div><label class="f">Data</label><input type="date" id="ah_date"></div>
-      <div><label class="f">Canale</label><select id="ah_ch"><option value="presenza">In presenza</option><option value="remoto">Da remoto</option></select></div></div>
-      <div style="margin-top:12px"><button id="ah_go">Crea sessione ad hoc</button></div></div>`;
+async function route() {
+  if (stopPoll) { stopPoll(); stopPoll = null; }
+  const parts = location.hash.replace(/^#\/?/, '').split('/');
+  let [view = 'programma', ...rest] = parts;
+  view = (view || '').split('?')[0];
+  if (!view || view === 'sessioni') view = 'programma';
+  const arg = rest.join('/');
+  await buildNav(view, arg);
+  ({ programma: viewProgram, sessione: viewControl, adhoc: viewAdhoc, report: viewReports, commitment: viewCommitments, aziende: viewCompanies, azienda: viewCompany,
+    benchmark: viewBenchmark, audit: viewAudit, impostazioni: viewSettings, qr: viewQr, tavolo: viewTableCard, tavoli: viewTables, mappe: viewMaps }[view] || viewProgram)(arg);
+}
+
+// Azioni condivise tra control room e pagina "Report e call"
+async function releaseReport(sid, cid) {
+  if (!confirm('Rilasciare il report? Viene salvata una copia che l\'azienda vede da ora in poi e che non cambierà più.')) return false;
+  const url = `/api/admin/sessions/${sid}/companies/${cid}/release`;
+  try { await api(url, { method: 'POST', body: {} }); toast('Report rilasciato'); return true; }
+  catch (e) {
+    if (e.status === 409 && confirm(`${e.message}\n\nRilasciare comunque, senza confronto con il benchmark?`)) {
+      try { await api(url, { method: 'POST', body: { withoutBenchmark: true } }); toast('Report rilasciato'); return true; } catch (e2) { toast(e2.message, true); }
+    } else if (e.status !== 409) toast(e.message, true);
+  }
+  return false;
+}
+async function noteCall(sid, c) {
+  const note = prompt(`Esito della call con il leader: ${c.name}`, c.leader_call_note || '');
+  if (note == null) return false;
+  await api(`/api/admin/sessions/${sid}/companies/${c.id}/note`, { method: 'PUT', body: { note } }); toast('Esito annotato'); return true;
+}
+const benchUpToDate = (C) => {
+  const lastCons = C.companies.filter((c) => c.consolidated_at).map((c) => c.consolidated_at).sort().pop() || null;
+  const frozen = C.benchmark[0] || null;
+  return !!frozen && (!lastCons || frozen.created_at >= lastCons);
+};
+
+// ---------- Programma: calendario e cose da fare ----------
+async function viewProgram() {
+  const cal = calendar();
+  const ctrl = await Promise.all(SESSIONS.map((s) => api(`/api/admin/sessions/${s.id}/control`)));
+  const byId = Object.fromEntries(ctrl.map((C) => [C.session.id, C]));
+  const commits = await api('/api/admin/commitments');
+  const today = isoDay(new Date());
+  const next = cal.find((s) => s.phase !== 'chiusa');
+  const live = SESSIONS.find((s) => ['individuale', 'confronto', 'consolidamento'].includes(s.phase));
+
+  // ---- linea del tempo: le sessioni del calendario e l'allineamento finale (§14.1)
+  const points = [...cal.map((s) => ({ date: s.date, s })), { date: '2027-09-30', final: true }].filter((p) => p.date);
+  const t0 = new Date(points[0]?.date || today).getTime() - 20 * 864e5, t1 = new Date(points[points.length - 1]?.date || today).getTime() + 10 * 864e5;
+  const pos = (d) => Math.max(0, Math.min(100, ((new Date(d).getTime() - t0) / (t1 - t0)) * 100));
+  const timeline = `<div class="timeline" aria-label="Calendario del programma">
+    <div class="tl-track"><i style="width:${pos(today)}%"></i></div>
+    ${points.map((p, i) => p.final
+      ? `<div class="tl-node final" style="left:${pos(p.date)}%"><span class="tl-dot"></span><div class="tl-lbl"><b>Allineamento finale</b><small>settembre 2027</small></div></div>`
+      : `<a class="tl-node ph-${p.s.phase} ${next && p.s.id === next.id ? 'next' : ''}" style="left:${pos(p.date)}%" href="#/sessione/${p.s.id}"><span class="tl-dot">${p.s.phase === 'chiusa' ? '✓' : i + 1}</span>
+          <div class="tl-lbl"><b>${esc(INST.sessions.find((x) => x.id === p.s.base).name)}</b><small>${esc(longDate(p.s.date))}</small><small class="tl-st">${esc(PHASE_LABEL[p.s.phase])}</small></div></a>`).join('')}
+    <div class="tl-today" style="left:${pos(today)}%"><span>oggi</span></div></div>`;
+
+  // ---- cose da fare, calcolate dai dati
+  const todo = [];
+  const add = (kind, html, href, label) => todo.push({ kind, html, href, label });
+  if (live) add('now', `<b>${esc(live.title)}</b> è in corso: ${esc(PHASE_LABEL[live.phase].toLowerCase())}.`, `#/sessione/${live.id}/sala`, 'Gestisci la sessione');
+  if (next && next.phase === 'preparazione') {
+    const C = byId[next.id];
+    const days = Math.round((new Date(`${next.date}T09:00:00`) - new Date()) / 864e5);
+    const deadline = next.date ? new Date(new Date(`${next.date}T12:00:00`).getTime() - 7 * 864e5) : null;
+    const noRef = C.companies.filter((c) => !c.referents.length), withRef = C.companies.filter((c) => c.referents.length), noPre = withRef.filter((c) => !c.presession);
+    if (noRef.length) add('warn', `<b>${esc(INST.sessions.find((x) => x.id === next.base).name)}</b>: ${noRef.length} ${noRef.length === 1 ? 'azienda senza referente' : 'aziende senza referente'}.`, '#/aziende', 'Aggiungi i referenti');
+    if (noPre.length) add(deadline && isoDay(deadline) < today ? 'warn' : 'info', `Schede pre-sessione compilate: <b>${withRef.length - noPre.length} di ${withRef.length}</b>${deadline ? `, da chiudere entro il ${esc(longDate(isoDay(deadline)))} (una settimana prima)` : ''}.`, `#/sessione/${next.id}/prima`, 'Vedi chi manca');
+    if (days >= 0 && days <= 10) add('info', `Mancano ${days} giorni a ${esc(next.title)}: stampa i cartoncini dei tavoli e prova il QR di sala sulla rete della sala.`, `#/tavoli/${next.id}`, 'Stampa i cartoncini');
+  }
+  for (const s of SESSIONS.filter((x) => ['consolidamento', 'chiusa'].includes(x.phase))) {
+    const C = byId[s.id];
+    const cons = C.companies.filter((c) => c.consolidated_at), rel = cons.filter((c) => c.report_released_at), call = rel.filter((c) => !c.leader_call_note);
+    if (!PROVA && cons.length && !benchUpToDate(C)) add('warn', `<b>${esc(s.title)}</b>: benchmark ${C.benchmark.length ? 'da aggiornare' : 'da congelare'} prima di rilasciare i report.`, `#/sessione/${s.id}/dopo`, 'Congela');
+    if (cons.length > rel.length) add('warn', `<b>${esc(s.title)}</b>: ${cons.length - rel.length} ${cons.length - rel.length === 1 ? 'report da rilasciare' : 'report da rilasciare'}.`, '#/report', 'Rilascia');
+    if (call.length) add('info', `<b>${esc(s.title)}</b>: ${call.length} ${call.length === 1 ? 'call con il leader da annotare' : 'call con i leader da annotare'}.`, '#/report', 'Annota');
+  }
+  const overdue = commits.filter((m) => ['aperto', 'avviato'].includes(m.status) && m.due_date && m.due_date < today);
+  if (overdue.length) add('warn', `${overdue.length} ${overdue.length === 1 ? 'commitment scaduto' : 'commitment scaduti'} da verificare con l'azienda.`, '#/commitment', 'Verifica');
+
+  app.innerHTML = `<div class="pagehead"><div><h1>${PROVA ? 'Programma · ambiente di prova' : 'Programma AITO 3'}</h1>
+      <p>${PROVA ? 'Qui si prova la piattaforma con dati dimostrativi: nulla di quello che fai entra nei dati reali o nel benchmark ufficiale.' : 'Le quattro sessioni del pilot e quello che resta da fare.'}</p></div></div>
+    ${NET.baseUrl.includes('localhost') ? '<div class="banner risk">Non è stato trovato un indirizzo di rete: i telefoni non potranno collegarsi. Verifica in Impostazioni.</div>' : ''}
+    ${cal.length ? `<div class="card">${timeline}</div>` : ''}
+    ${PROVA ? '<div class="card" id="demo"><p class="muted small">…</p></div>' : ''}
+    <div class="card"><h2>Da fare</h2>
+      ${todo.length ? `<ul class="todolist">${todo.map((t) => `<li class="${t.kind}"><span class="tk" aria-hidden="true">${t.kind === 'now' ? '●' : t.kind === 'warn' ? '!' : 'i'}</span><div>${t.html}</div><a class="btn sm ${t.kind === 'info' ? 'ghost' : ''}" href="${t.href}">${esc(t.label)}</a></li>`).join('')}</ul>`
+        : `<p class="muted" style="margin:0">Nessuna attività in sospeso.${next ? ` Prossima sessione: ${esc(next.title)}.` : ''}</p>`}</div>`;
+  if (PROVA) {
+    const D = await api('/api/admin/demo');
+    $('#demo').innerHTML = `<h2>Dati di prova</h2>
+      <p class="ink2">${D.present ? 'Sono caricate 14 aziende dimostrative e un\'azienda vetrina (TEST) con tutto il flusso, distribuite sulle quattro sessioni di prova. Le aziende e le sessioni che crei in questo ambiente sono anch\'esse di prova.' : 'Non ci sono dati di prova. Caricali per vedere dashboard, plenaria, mappe e report pieni.'}</p>
+      <div class="row">${D.present ? `${D.vetrina ? `<a class="btn sm ghost" href="/report/${D.vetrina}" target="_blank">Report della vetrina</a>` : ''}<button class="sm danger" id="demo_rm">Cancella tutti i dati di prova</button>` : '<button class="sm" id="demo_add">Carica i dati di prova</button>'}</div>`;
+    if ($('#demo_add')) $('#demo_add').onclick = async () => { try { await api('/api/admin/demo', { method: 'POST' }); toast('Dati di prova caricati'); route(); } catch (e) { toast(e.message, true); } };
+    if ($('#demo_rm')) $('#demo_rm').onclick = async () => { if (!confirm('Cancellare tutti i dati di prova (aziende, sessioni, risposte e report di prova)? I dati reali non vengono toccati.')) return; await api('/api/admin/demo', { method: 'DELETE' }); toast('Dati di prova cancellati'); route(); };
+  }
+}
+
+// ---------- Sessioni ad hoc ----------
+async function viewAdhoc() {
+  const ss = adhoc();
+  app.innerHTML = `<div class="pagehead"><div><h1>Sessioni ad hoc</h1><p>Per un'azienda assente: stesso flusso, stessi descrittori e stessa versione dello strumento. La modalità viene registrata e i dati entrano nella versione successiva del benchmark (§6.3).</p></div></div>
+    ${ss.length ? `<div class="grid c2">${ss.map((s) => `<div class="card sesscard"><div class="row between" style="align-items:flex-start"><h2 style="margin:0">${esc(s.title)}</h2><span class="tag gold">${esc(s.channel)}</span></div>
+      <div style="margin:16px 0">${phaseChips(s.phase)}</div><a class="btn sm" href="#/sessione/${s.id}">Gestisci la sessione</a></div>`).join('')}</div>` : '<p class="muted">Nessuna sessione ad hoc.</p>'}
+    <div class="card"><h2>Nuova sessione ad hoc</h2>
+      <div class="grid c3"><div><label class="f" for="ah_base">Sessione di riferimento</label><select id="ah_base">${INST.sessions.map((s) => `<option value="${s.id}">${esc(s.name)}</option>`).join('')}</select></div>
+      <div><label class="f" for="ah_date">Data</label><input type="date" id="ah_date"></div>
+      <div><label class="f" for="ah_ch">Canale</label><select id="ah_ch"><option value="presenza">In presenza</option><option value="remoto">Da remoto</option></select></div></div>
+      <div style="margin-top:14px"><button id="ah_go">Crea la sessione</button></div></div>`;
   $('#ah_go').onclick = async () => {
     try { const r = await api('/api/admin/sessions', { method: 'POST', body: { base: $('#ah_base').value, date: $('#ah_date').value, channel: $('#ah_ch').value } }); location.hash = `#/sessione/${r.id}`; }
     catch (e) { toast(e.message, true); }
   };
+}
+
+// ---------- Dopo le sessioni: report e call con i leader ----------
+async function viewReports() {
+  const ss = SESSIONS.filter((s) => ['consolidamento', 'chiusa'].includes(s.phase));
+  const ctrl = await Promise.all(ss.map((s) => api(`/api/admin/sessions/${s.id}/control`)));
+  const blocks = ctrl.map((C) => {
+    const cons = C.companies.filter((c) => c.consolidated_at);
+    if (!cons.length) return '';
+    const upd = benchUpToDate(C);
+    return `<div class="card"><div class="row between"><h2 style="margin:0">${esc(C.session.title)}</h2>
+        <span class="small muted">${cons.filter((c) => c.report_released_at).length} di ${cons.length} rilasciati · ${cons.filter((c) => c.leader_call_note).length} call annotate</span></div>
+      ${!PROVA && !upd ? `<p class="note" style="margin-top:12px">Benchmark ${C.benchmark.length ? 'da aggiornare' : 'non ancora congelato'}: <a href="#/sessione/${C.session.id}/dopo">congelalo prima di rilasciare</a>, così il report contiene il confronto.</p>` : ''}
+      <div class="tablewrap" style="margin-top:12px"><table><thead><tr><th>Azienda</th><th>Report</th><th>Call con il leader</th></tr></thead><tbody>
+      ${cons.map((c) => `<tr><td><a href="#/azienda/${c.id}"><b>${esc(c.name)}</b></a> ${c.kind !== 'REALE' ? `<span class="tag warn">${esc(c.kind)}</span>` : ''}<div class="small muted">consolidato ${fmtDate(c.consolidated_at)}</div></td>
+        <td><div class="row">${c.report_released_at ? `<span class="tag ok">Rilasciato ${fmtDate(c.report_released_at)}</span>` : '<span class="tag">Bozza</span>'}
+          <a class="small" href="/report/${c.id}" target="_blank">apri</a><a class="small" href="/api/admin/pdf/${c.id}">PDF</a>
+          <button class="sm ${c.report_released_at ? 'ghost' : ''}" data-rel="${C.session.id}:${c.id}">${c.report_released_at ? 'Nuova versione' : 'Rilascia'}</button></div></td>
+        <td>${c.report_released_at ? `<div class="row"><span class="small ${c.leader_call_note ? 'ink2' : 'muted'}" style="max-width:360px">${c.leader_call_note ? esc(c.leader_call_note) : 'Esito non annotato'}</span><button class="sm ghost" data-call="${C.session.id}:${c.id}">${c.leader_call_note ? 'Modifica' : 'Annota esito'}</button></div>` : '<span class="small muted">dopo il rilascio del report</span>'}</td></tr>`).join('')}
+      </tbody></table></div></div>`;
+  }).join('');
+  app.innerHTML = `<div class="pagehead"><div><h1>Report e call con i leader</h1><p>Rilasciare salva una copia del report che l'azienda vede dal link del referente e che non cambia più. Dopo il rilascio, la call con il leader discute il report: annota l'esito qui.</p></div></div>
+    ${blocks || '<div class="card"><p class="muted" style="margin:0">Nessuna azienda ha ancora consolidato: i report compaiono qui dopo il consolidamento in sala.</p></div>'}`;
+  const find = (v) => { const [sid, cid] = v.split(':').map(Number); return { sid, c: ctrl.find((C) => C.session.id === sid).companies.find((x) => x.id === cid) }; };
+  $$('[data-rel]').forEach((b) => b.onclick = async () => { const { sid, c } = find(b.dataset.rel); b.disabled = true; if (await releaseReport(sid, c.id)) route(); else b.disabled = false; });
+  $$('[data-call]').forEach((b) => b.onclick = async () => { const { sid, c } = find(b.dataset.call); if (await noteCall(sid, c)) route(); });
+}
+
+// ---------- Dopo le sessioni: commitment e verifica ----------
+async function viewCommitments() {
+  const all = await api('/api/admin/commitments');
+  const today = isoDay(new Date());
+  const params = new URLSearchParams(location.hash.split('?')[1] || '');
+  const only = params.get('tutti') !== '1';
+  const due = (m) => ['aperto', 'avviato'].includes(m.status) && m.due_date && m.due_date < today;
+  const list = only ? all.filter((m) => !['completato'].includes(m.status)) : all;
+  app.innerHTML = `<div class="pagehead"><div><h1>Commitment e verifica</h1><p>Le priorità scelte dalle aziende in sala, con azione, owner e scadenza. Lo stato si aggiorna nella call con il leader e con l'item pulse della sessione successiva (§11, §12).</p></div>
+      <div class="row"><a class="btn sm ${only ? '' : 'ghost'}" href="#/commitment">Da seguire</a><a class="btn sm ${only ? 'ghost' : ''}" href="#/commitment?tutti=1">Tutti</a></div></div>
+    <div class="card">${list.length ? `<div class="tablewrap"><table><thead><tr><th>Azienda</th><th>Priorità e azione</th><th>Owner e scadenza</th><th>Stato</th></tr></thead><tbody>
+      ${list.map((m) => `<tr><td><a href="#/azienda/${m.company_id}"><b>${esc(m.company_name)}</b></a><div class="small muted">${esc(m.session_title)}</div></td>
+        <td class="small"><b>${esc(m.priority_item)}</b> ${esc(INST.items[m.priority_item]?.title || '')}<br>${esc(m.action || '—')}<br><span class="muted">KPI: ${esc(m.kpi || '—')}</span></td>
+        <td class="small">${esc(m.owner || '—')}<br><span class="${due(m) ? 'tag risk' : ''}">${m.due_date ? esc(new Date(`${m.due_date}T12:00:00`).toLocaleDateString('it-IT')) : '—'}${due(m) ? ' · scaduto' : ''}</span></td>
+        <td style="min-width:220px"><select data-cstat="${m.id}">${['aperto', 'avviato', 'completato', 'non avviato', 'sospeso'].map((x) => `<option ${m.status === x ? 'selected' : ''}>${x}</option>`).join('')}</select>
+          <input type="text" data-cnote="${m.id}" placeholder="evidenza o nota" value="${esc(m.status_note || '')}" style="margin-top:6px"><button class="sm ghost" data-csave="${m.id}" style="margin-top:6px">Salva</button></td></tr>`).join('')}
+      </tbody></table></div>` : `<p class="muted" style="margin:0">${only ? 'Nessun commitment da seguire.' : 'Nessun commitment registrato.'}</p>`}</div>`;
+  $$('[data-csave]').forEach((b) => b.onclick = async () => {
+    const id = b.dataset.csave;
+    try { await api(`/api/admin/commitments/${id}/status`, { method: 'PUT', body: { status: $(`[data-cstat="${id}"]`).value, note: $(`[data-cnote="${id}"]`).value } }); toast('Stato aggiornato'); } catch (e) { toast(e.message, true); }
+  });
 }
 
 // ---------- Control room: il percorso della sessione ----------
@@ -73,8 +250,16 @@ const NEXT = {
 const nextStepText = (phase) => ({ preparazione: 'Prossimo passo: aprire le risposte individuali', individuale: 'In corso: risposte individuali', confronto: 'In corso: confronto al tavolo',
   consolidamento: 'In corso: consolidamento', chiusa: 'Sessione chiusa: benchmark, report e call con i leader' }[phase]);
 
-async function viewControl(id) {
+const TABS = [
+  { id: 'prima', label: 'Prima', steps: ['preparazione'] },
+  { id: 'sala', label: 'In sala', steps: ['individuale', 'confronto', 'consolidamento'] },
+  { id: 'dopo', label: 'Dopo', steps: ['benchmark', 'report', 'call'] },
+  { id: 'risultati', label: 'Risultati', steps: [] },
+];
+async function viewControl(arg) {
+  const [id, tabArg] = String(arg).split('/');
   let C = await api(`/api/admin/sessions/${id}/control`);
+  let tab = TABS.some((t) => t.id === tabArg) ? tabArg : null;
   let sel = null;          // passo mostrato nel pannello
   let confirming = false;  // conferma del passaggio di fase aperta
   const names = (list, max = 4) => list.slice(0, max).map((c) => esc(c.name)).join(', ') + (list.length > max ? ` e altre ${list.length - max}` : '');
@@ -97,7 +282,7 @@ async function viewControl(id) {
     const benchDone = !!frozen && (!lastCons || frozen.created_at >= lastCons);
     const state = (f) => {
       if (f.phase) { const i = PHASES.findIndex((p) => p.id === f.phase); return i < idx ? 'done' : i === idx ? 'now' : 'todo'; }
-      if (f.id === 'benchmark') return benchDone ? 'done' : idx >= 3 ? 'now' : 'todo';
+      if (f.id === 'benchmark') return (PROVA ? idx >= 3 : benchDone) ? 'done' : idx >= 3 ? 'now' : 'todo';
       if (f.id === 'report') return consolidated.length && released.length === consolidated.length ? 'done' : idx >= 3 && consolidated.length ? 'now' : 'todo';
       return released.length && called.length === released.length ? 'done' : released.length ? 'now' : 'todo';
     };
@@ -106,13 +291,15 @@ async function viewControl(id) {
       individuale: totP ? `${totS} di ${totP} hanno inviato` : 'nessun partecipante ancora',
       confronto: `${inRoom.length} ${inRoom.length === 1 ? 'azienda' : 'aziende'} al tavolo`,
       consolidamento: `${consolidated.length} di ${inRoom.length || consolidated.length} consolidate`,
-      benchmark: frozen ? `${frozen.label} · N=${frozen.n_companies}${benchDone ? '' : ' · da aggiornare'}` : 'non ancora congelato',
+      benchmark: PROVA ? 'calcolato sui dati di prova' : frozen ? `${frozen.label} · N=${frozen.n_companies}${benchDone ? '' : ' · da aggiornare'}` : 'non ancora congelato',
       report: `${released.length} di ${consolidated.length} rilasciati`,
       call: `${called.length} di ${released.length} annotate`,
     };
-    if (!sel) {
-      sel = idx < 4 ? FLOW[idx].id : (FLOW.slice(4).find((f) => state(f) !== 'done') || FLOW[6]).id;
-    }
+    if (!sel && !tab) sel = idx < 4 ? FLOW[idx].id : (FLOW.slice(4).find((f) => state(f) !== 'done') || FLOW[6]).id;
+    if (!tab) tab = TABS.find((t) => t.steps.includes(sel)).id;
+    const T = TABS.find((t) => t.id === tab);
+    if (T.steps.length && !T.steps.includes(sel)) sel = (T.steps.find((x) => state(FLOW.find((f) => f.id === x)) === 'now') || T.steps.find((x) => state(FLOW.find((f) => f.id === x)) !== 'done') || T.steps[0]);
+    if (!T.steps.length) sel = sel || 'benchmark';
     const f = FLOW.find((x) => x.id === sel);
     const st = state(f);
     const mins = C.phaseSince ? Math.max(0, Math.round((Date.now() - new Date(C.phaseSince.replace(' ', 'T') + 'Z')) / 60000)) : null;
@@ -151,6 +338,9 @@ async function viewControl(id) {
         checks.push(missing.length ? ck('warn', `Non hanno ancora consolidato: ${names(missing)}`) : consolidated.length ? ck('ok', 'Tutte le aziende in sala hanno consolidato') : ck('info', 'Nessun consolidamento ancora'));
         if (consolidated.length) checks.push(noCommit.length ? ck('info', `Commitment ancora da registrare: ${names(noCommit)}. Si può completare anche dopo la sessione.`) : ck('ok', 'Tutte le aziende consolidate hanno registrato il commitment'));
       }
+    } else if (f.id === 'benchmark' && PROVA) {
+      what = 'Nell\'ambiente di prova il benchmark si calcola sempre sui dati di prova e non si congela: dashboard, plenaria, mappe e report lo usano così com\'è. In produzione qui si congela la versione ufficiale.';
+      extra = `<div class="row"><a class="btn ghost" href="/plenaria/${s.base}" target="_blank">Apri la plenaria</a><a class="btn ghost" href="/mappe/${s.base}" target="_blank">Mappe a quadranti</a></div>`;
     } else if (f.id === 'benchmark') {
       what = `Congelare salva una versione datata del benchmark: è quella che entra nei report e non cambia più. Entrano solo aziende REALI con consenso; sotto ${SC.benchmark.minN} aziende il confronto non si mostra.`;
       checks.push(frozen ? ck(benchDone ? 'ok' : 'warn', `Ultima versione: <b>${esc(frozen.label)}</b>, ${frozen.n_companies} aziende, ${fmtDate(frozen.created_at)}${benchDone ? '' : '. Ci sono consolidamenti successivi: congela di nuovo per includerli.'}`) : ck('warn', 'Nessuna versione congelata per questa sessione'));
@@ -189,44 +379,49 @@ async function viewControl(id) {
       <button class="sm ghost" id="goback" style="margin-top:8px">Torna indietro</button></details>`
       : (backFrom && idx >= 2 && idx - 1 <= 1 ? '<p class="small muted" style="margin-top:14px">Dopo il confronto non si torna alle risposte individuali (§2). Per un\'azienda che deve rifare la rilevazione usa una sessione ad hoc.</p>' : '');
 
-    let group = '';
-    app.innerHTML = `<a class="back" href="#/sessioni">← Sessioni</a>
+    const tabState = (t) => { if (!t.steps.length) return ''; const st = t.steps.map((x) => state(FLOW.find((f2) => f2.id === x))); return st.every((x) => x === 'done') ? 'done' : st.includes('now') ? 'now' : ''; };
+    const results = `<div class="grid c3">
+        <div class="card"><h3>Dashboard live</h3><p class="small ink2">Il benchmark in tempo reale, da proiettare in sala mentre le aziende consolidano.</p><a class="btn sm" href="/live/${s.id}" target="_blank">Apri la dashboard</a></div>
+        <div class="card"><h3>Plenaria</h3><p class="small ink2">Come si posiziona la community, con le mappe del bisogno e del peer matching. Solo dati aggregati.</p><a class="btn sm" href="/plenaria/${s.base}" target="_blank">Apri la plenaria</a></div>
+        <div class="card"><h3>Mappe a quadranti</h3><p class="small ink2">Le tre mappe della nota, compresa la vista azienda per azienda. Nomi nascosti finché non li mostri.</p><a class="btn sm" href="/mappe/${s.base}" target="_blank">Apri le mappe</a></div></div>
+      <div class="card"><h2>Versioni del benchmark</h2>${PROVA ? '<p class="muted" style="margin:0">Nell\'ambiente di prova il benchmark si calcola sui dati di prova e non si congela.</p>'
+        : C.benchmark.length ? `<table><thead><tr><th>Versione</th><th class="num">Aziende</th><th>Creata</th></tr></thead><tbody>${C.benchmark.map((v) => `<tr><td>${esc(v.label)}</td><td class="num">${v.n_companies}</td><td>${fmtDate(v.created_at)}</td></tr>`).join('')}</tbody></table>`
+        : '<p class="muted" style="margin:0">Nessuna versione congelata: si congela nella scheda Dopo.</p>'}</div>`;
+    const T2 = TABS.find((t) => t.id === tab);
+    app.innerHTML = `<a class="back" href="#/programma">← Programma</a>
       <div class="pagehead"><div><h1>${esc(s.title)}</h1><p class="small">${esc(C.def.items.map((i) => `${i} ${INST.items[i].title}`).join(' · '))} · codice <span class="mono">${esc(s.code)}</span></p></div>
-        <div class="row"><a class="btn sm ghost" href="/live/${s.id}" target="_blank">Dashboard live</a><a class="btn sm ghost" href="/mappe/${s.base}" target="_blank">Mappe a quadranti</a><a class="btn sm ghost" href="#/qr/${s.id}">QR di sala</a></div></div>
-      <div class="flow">
-        <nav class="flowsteps" aria-label="Passi della sessione">${FLOW.map((x, i) => {
-          const g = x.group !== group ? `<div class="fgroup">${esc((group = x.group))}</div>` : '';
-          const stx = state(x);
-          return `${g}<button type="button" class="fstep ${stx} ${x.id === sel ? 'sel' : ''}" data-step="${x.id}" ${x.id === sel ? 'aria-current="step"' : ''}>
-            <span class="fnum" aria-hidden="true">${stx === 'done' ? '✓' : i + 1}</span><span class="ftxt"><b>${esc(x.title)}</b><small>${summary[x.id]}</small></span>
-            <span class="sr-only">${stx === 'done' ? 'completato' : stx === 'now' ? 'in corso' : 'più avanti'}</span></button>`;
-        }).join('')}</nav>
-        <section class="card flowpanel" aria-live="polite">
-          <div class="fp-head"><div><div class="small muted">${esc(f.group)} · passo ${FLOW.indexOf(f) + 1} di ${FLOW.length}</div><h2>${esc(f.title)}</h2></div>${chip}</div>
-          <p class="lede">${what}</p>
-          ${checks.length ? `<ul class="checks">${checks.join('')}</ul>` : ''}
-          ${extra}
-          ${action}${back}
-        </section>
-      </div>
-      <div class="card"><h2>Aziende in questa sessione</h2><div class="tablewrap"><table>
+        <div class="row"><a class="btn sm ghost" href="#/qr/${s.id}">QR di sala</a><a class="btn sm ghost" href="/live/${s.id}" target="_blank">Dashboard live</a></div></div>
+      <div class="tabs" role="tablist" aria-label="Momenti della sessione">${TABS.map((t) => `<button type="button" role="tab" class="tab ${tabState(t)} ${t.id === tab ? 'on' : ''}" aria-selected="${t.id === tab}" data-tab="${t.id}">
+        <span class="tdot" aria-hidden="true">${tabState(t) === 'done' ? '✓' : ''}</span>${esc(t.label)}${tabState(t) === 'now' ? '<span class="sr-only"> (in corso)</span>' : ''}</button>`).join('')}</div>
+      ${tab === 'risultati' ? results : `
+      ${T2.steps.length > 1 ? `<div class="substeps">${T2.steps.map((x) => { const fx = FLOW.find((f2) => f2.id === x); const stx = state(fx); return `<button type="button" class="fstep ${stx} ${x === sel ? 'sel' : ''}" data-step="${x}" ${x === sel ? 'aria-current="step"' : ''}>
+          <span class="fnum" aria-hidden="true">${stx === 'done' ? '✓' : FLOW.indexOf(fx) + 1}</span><span class="ftxt"><b>${esc(fx.title)}</b><small>${summary[x]}</small></span></button>`; }).join('')}</div>` : ''}
+      <section class="card flowpanel" aria-live="polite">
+        <div class="fp-head"><div><div class="small muted">${esc(f.group)} · passo ${FLOW.indexOf(f) + 1} di ${FLOW.length}</div><h2>${esc(f.title)}</h2></div>${chip}</div>
+        <p class="lede">${what}</p>
+        ${checks.length ? `<ul class="checks">${checks.join('')}</ul>` : ''}
+        ${extra}
+        ${action}${back}
+      </section>`}
+      ${tab === 'risultati' ? '' : `<div class="card"><h2>Aziende in questa sessione</h2><div class="tablewrap"><table>
         <thead><tr><th>Azienda</th><th>Scheda</th><th class="num">Partecipanti</th><th>Risposte</th><th>Funzioni</th><th>Consolidato</th><th>Commitment</th><th>Report</th><th>Tavolo</th></tr></thead>
         <tbody>${cos.filter((c) => c.participants || c.consolidated_at || c.presession).map(row).join('') || '<tr><td colspan="9" class="muted">Nessuna azienda ancora attiva in questa sessione.</td></tr>'}</tbody></table></div>
-        ${cos.some((c) => !(c.participants || c.consolidated_at || c.presession)) ? `<details style="margin-top:10px"><summary class="small">Altre aziende censite (${cos.filter((c) => !(c.participants || c.consolidated_at || c.presession)).length})</summary><table><tbody>${cos.filter((c) => !(c.participants || c.consolidated_at || c.presession)).map(row).join('')}</tbody></table></details>` : ''}</div>`;
+        ${cos.some((c) => !(c.participants || c.consolidated_at || c.presession)) ? `<details style="margin-top:10px"><summary class="small">Altre aziende censite (${cos.filter((c) => !(c.participants || c.consolidated_at || c.presession)).length})</summary><table><tbody>${cos.filter((c) => !(c.participants || c.consolidated_at || c.presession)).map(row).join('')}</tbody></table></details>` : ''}</div>`}`;
 
     const reload = async () => { C = await api(`/api/admin/sessions/${id}/control`); draw(); };
-    $$('[data-step]').forEach((b) => b.onclick = () => { sel = b.dataset.step; confirming = false; draw(); $('.flowpanel h2')?.focus?.(); });
-    $$('[data-goto]').forEach((b) => b.onclick = () => { sel = b.dataset.goto; draw(); });
+    $$('[data-step]').forEach((b) => b.onclick = () => { sel = b.dataset.step; confirming = false; draw(); });
+    $$('[data-tab]').forEach((b) => b.onclick = () => { tab = b.dataset.tab; sel = null; confirming = false; history.replaceState(null, '', `#/sessione/${s.id}/${tab}`); draw(); });
+    $$('[data-goto]').forEach((b) => b.onclick = () => { sel = b.dataset.goto; tab = TABS.find((t) => t.steps.includes(sel)).id; draw(); });
     if ($('#nextphase')) $('#nextphase').onclick = () => { confirming = true; draw(); $('#yes')?.focus(); };
     if ($('#no')) $('#no').onclick = () => { confirming = false; draw(); };
     if ($('#yes')) $('#yes').onclick = async () => {
-      try { await api(`/api/admin/sessions/${s.id}/phase`, { method: 'PUT', body: { phase: nx.to } }); confirming = false; sel = null; toast('Fase aggiornata'); await reload(); }
+      try { await api(`/api/admin/sessions/${s.id}/phase`, { method: 'PUT', body: { phase: nx.to } }); confirming = false; sel = null; tab = null; toast('Fase aggiornata'); await reload(); buildNav('sessione', String(s.id)); }
       catch (e) { toast(e.message, true); }
     };
     if ($('#goback')) $('#goback').onclick = async () => {
       const reason = $('#backreason').value.trim();
       if (!reason) { toast('Indica il motivo per tornare indietro', true); $('#backreason').focus(); return; }
-      try { await api(`/api/admin/sessions/${s.id}/phase`, { method: 'PUT', body: { phase: prev.id, reason } }); sel = null; toast(`Tornati a: ${prev.label}`); await reload(); }
+      try { await api(`/api/admin/sessions/${s.id}/phase`, { method: 'PUT', body: { phase: prev.id, reason } }); sel = null; tab = null; toast(`Tornati a: ${prev.label}`); await reload(); buildNav('sessione', String(s.id)); }
       catch (e) { toast(e.message, true); }
     };
     if ($('#zipbtn')) $('#zipbtn').onclick = async () => {
@@ -241,24 +436,8 @@ async function viewControl(id) {
       if (!confirm('Congelare una nuova versione del benchmark con i dati consolidati attuali? Le versioni già usate nei report non cambiano.')) return;
       try { const r = await api(`/api/admin/benchmark/${s.base}/freeze`, { method: 'POST' }); toast(`Congelata: ${r.label} (N=${r.n})`); await reload(); } catch (e) { toast(e.message, true); }
     };
-    $$('[data-release]').forEach((b) => b.onclick = async () => {
-      if (!confirm('Rilasciare il report? Viene salvata una copia che l\'azienda vede da ora in poi e che non cambierà più.')) return;
-      b.disabled = true;
-      const url = `/api/admin/sessions/${s.id}/companies/${b.dataset.release}/release`;
-      try { await api(url, { method: 'POST', body: {} }); toast('Report rilasciato'); }
-      catch (e) {
-        if (e.status === 409 && confirm(`${e.message}\n\nRilasciare comunque, senza confronto con il benchmark?`)) {
-          try { await api(url, { method: 'POST', body: { withoutBenchmark: true } }); toast('Report rilasciato'); } catch (e2) { toast(e2.message, true); }
-        } else if (e.status !== 409) toast(e.message, true);
-      }
-      await reload();
-    });
-    $$('[data-note]').forEach((b) => b.onclick = async () => {
-      const c = C.companies.find((x) => x.id === Number(b.dataset.note));
-      const note = prompt(`Esito della call con il leader: ${c.name}`, c.leader_call_note || '');
-      if (note == null) return;
-      await api(`/api/admin/sessions/${s.id}/companies/${c.id}/note`, { method: 'PUT', body: { note } }); await reload();
-    });
+    $$('[data-release]').forEach((b) => b.onclick = async () => { b.disabled = true; await releaseReport(s.id, Number(b.dataset.release)); await reload(); });
+    $$('[data-note]').forEach((b) => b.onclick = async () => { if (await noteCall(s.id, C.companies.find((x) => x.id === Number(b.dataset.note)))) await reload(); });
   };
   const row = (c) => `<tr>
     <td><b>${esc(c.name)}</b> ${c.kind !== 'REALE' ? `<span class="tag warn">${esc(c.kind)}</span>` : ''} <span class="small mono muted" title="Codice azienda">${esc(c.joinCode)}</span><div class="small">${c.referents.map((r) => `<a href="/r/${r.token}" target="_blank">referente: ${esc(r.name)}</a>`).join('<br>') || '<span class="muted">nessun referente</span>'}</div></td>
@@ -309,15 +488,15 @@ async function viewTableCard(arg) {
 // ---------- Aziende ----------
 async function viewCompanies() {
   const cs = await api('/api/admin/companies');
-  app.innerHTML = `<h1>Aziende</h1>
+  app.innerHTML = `<div class="pagehead"><div><h1>Aziende e referenti</h1><p>${PROVA ? 'Aziende dell\'ambiente di prova: le nuove aziende create qui sono di tipo TEST e si cancellano con i dati di prova.' : 'Le aziende del programma. Le aziende TEST seguono il flusso vero ma restano sempre fuori dal benchmark.'}</p></div></div>
     <div class="card"><h2>Nuova azienda</h2><div class="grid c4">
       <div><label class="f">Nome *</label><input type="text" id="n_name"></div>
       <div><label class="f">Perimetro valutato</label><input type="text" id="n_per" placeholder="gruppo, società o BU"></div>
       <div><label class="f">Settore</label><input type="text" id="n_sec"></div>
-      <div><label class="f">Tipo</label><select id="n_kind"><option value="REALE">REALE</option><option value="TEST">TEST (prova, fuori benchmark)</option></select></div></div>
+      <div><label class="f">Tipo</label><select id="n_kind" ${PROVA ? 'disabled' : ''}>${PROVA ? '<option value="TEST">TEST (ambiente di prova)</option>' : '<option value="REALE">REALE</option><option value="TEST">TEST (prova del flusso, fuori benchmark)</option>'}</select></div></div>
       <div style="margin-top:12px"><button id="n_go">Aggiungi</button></div></div>
     <div class="card"><div class="tablewrap"><table><thead><tr><th>Azienda</th><th>Tipo</th><th>Perimetro</th><th>Consensi</th><th>Referenti</th><th></th></tr></thead><tbody>
-      ${cs.map((c) => `<tr><td><b>${esc(c.name)}</b></td><td><span class="tag ${c.kind === 'REALE' ? 'ok' : 'warn'}">${esc(c.kind)}</span></td><td class="small">${esc(c.perimeter)}</td>
+      ${cs.map((c) => `<tr><td><a href="#/azienda/${c.id}"><b>${esc(c.name)}</b></a></td><td><span class="tag ${c.kind === 'REALE' ? 'ok' : 'warn'}">${esc(c.kind)}</span></td><td class="small">${esc(c.perimeter)}</td>
         <td class="small"><div class="consents">${['benchmark', 'peer', 'testimonianza', 'followup'].map((k) => `<span class="${c.consents[k]?.granted ? 'yes' : ''}">${c.consents[k]?.granted ? '✓' : '–'} ${k}</span>`).join('')}</div></td>
         <td class="small">${c.referents.map((r) => esc(r.name)).join('<br>') || '—'}</td><td><a class="btn sm" href="#/azienda/${c.id}">Apri</a></td></tr>`).join('')}
     </tbody></table></div></div>`;
@@ -331,13 +510,21 @@ async function viewCompany(id) {
   const cs = await api('/api/admin/companies');
   const c = cs.find((x) => x.id === Number(id));
   const R = await api(`/api/admin/report/${id}`);
-  app.innerHTML = `<a class="back" href="#/aziende">← Aziende</a>
-    <div class="card"><h1>${esc(c.name)}</h1><div class="grid c4">
+  const J = await api(`/api/admin/companies/${id}/journey`);
+  const stp = (ok, label, title = '') => `<li class="${ok ? 'ok' : ''}" title="${esc(title)}"><span aria-hidden="true">${ok ? '✓' : '·'}</span>${label}</li>`;
+  const journey = `<div class="card"><h2>Percorso nelle sessioni</h2><div class="journey">${J.filter((x) => x.mode === 'workshop' || x.consolidated_at || x.participants).map((x) => `<div class="jcol ph-${x.phase}">
+      <a href="#/sessione/${x.id}"><b>${esc(INST.sessions.find((k) => k.id === x.base).name)}</b></a><small>${esc(x.mode === 'adhoc' ? 'ad hoc · ' : '')}${esc(shortDate(x.date))}</small>
+      <ul>${stp(x.presession, 'Scheda pre-sessione')}${stp(x.participants, `Partecipanti${x.participants ? `: ${x.participants}` : ''}`)}${stp(x.consolidated_at, 'Consolidamento')}${stp(x.commitment, `Commitment${x.commitment ? `: ${esc(x.commitment.priority_item)} · ${esc(x.commitment.status)}` : ''}`)}${stp(x.report_released_at, 'Report rilasciato')}${stp(x.leader_call_note, 'Call con il leader', x.leader_call_note)}</ul></div>`).join('')}</div></div>`;
+  app.innerHTML = `<a class="back" href="#/aziende">← Aziende e referenti</a>
+    <div class="pagehead"><div><h1>${esc(c.name)}</h1><p>${esc(c.perimeter || 'Perimetro non indicato')} · ${esc(c.sector || 'settore non indicato')} · <span class="tag ${c.kind === 'REALE' ? 'ok' : 'warn'}">${esc(c.kind)}</span> · codice <span class="mono">${esc(c.join_code)}</span></p></div>
+      <a class="btn sm ghost" href="/report/${c.id}" target="_blank">Report</a></div>
+    ${journey}
+    <details class="card"><summary>Dati dell'azienda</summary><div class="grid c4" style="margin-top:8px">
       <div><label class="f">Nome</label><input type="text" id="e_name" value="${esc(c.name)}"></div>
       <div><label class="f">Perimetro</label><input type="text" id="e_per" value="${esc(c.perimeter)}"></div>
       <div><label class="f">Settore</label><input type="text" id="e_sec" value="${esc(c.sector)}"></div>
-      <div><label class="f">Tipo</label><select id="e_kind">${(c.kind === 'DEMO' ? ['DEMO'] : ['REALE', 'TEST']).map((k) => `<option ${c.kind === k ? 'selected' : ''}>${k}</option>`).join('')}</select></div></div>
-      <div style="margin-top:12px"><button id="e_save">Salva</button></div></div>
+      <div><label class="f">Tipo</label><select id="e_kind" ${PROVA ? 'disabled' : ''}>${(c.kind === 'DEMO' ? ['DEMO'] : PROVA ? [c.kind] : ['REALE', 'TEST']).map((k) => `<option ${c.kind === k ? 'selected' : ''}>${k}</option>`).join('')}</select></div></div>
+      <div style="margin-top:12px"><button id="e_save">Salva</button></div></details>
     <div class="grid c2">
       <div class="card"><h2>Consensi</h2><p class="small muted">Distinti e revocabili (§16). Senza consenso al benchmark l'azienda riceve comunque il proprio report ma non entra nelle distribuzioni.</p>
         ${['benchmark', 'peer', 'testimonianza', 'followup'].map((k) => `<label class="check"><input type="checkbox" data-consent="${k}" ${c.consents[k]?.granted ? 'checked' : ''}> ${{ benchmark: 'Benchmark anonimo', peer: 'Peer matching', testimonianza: 'Testimonianza', followup: 'Follow-up' }[k]} <span class="small muted">${c.consents[k] ? fmtDate(c.consents[k].at) : ''}</span></label>`).join('')}</div>
@@ -406,12 +593,12 @@ async function viewBenchmark() {
 async function viewMaps() {
   const vs = await api('/api/admin/benchmark');
   app.innerHTML = `<h1>Mappe a quadranti</h1>
-    <p class="lede" style="margin-bottom:20px">Una pagina per sessione con le tre mappe della nota (§10.2–10.4): dove intervenire, se il bisogno è individuale o condiviso, con chi accelerare. Usano l'ultima versione congelata del benchmark; l'anteprima usa anche i dati dimostrativi. I nomi delle aziende sono nascosti finché non li mostri.</p>
+    <p class="lede" style="margin-bottom:20px">Una pagina per sessione con le tre mappe della nota (§10.2–10.4): dove intervenire, se il bisogno è individuale o condiviso, con chi accelerare. Usano l'ultima versione congelata del benchmark (nell'ambiente di prova, i dati dimostrativi). I nomi delle aziende sono nascosti finché non li mostri.</p>
     <div class="grid c2">${INST.sessions.map((s) => { const v = vs.find((x) => x.base === s.id); const dims = s.dimensions.map((d) => INST.dimensions.find((x) => x.id === d));
       return `<div class="card sesscard"><h2 style="margin:0">${esc(s.name)}</h2>
         <p class="small muted" style="margin:4px 0 12px">${dims.map((d) => `${d.id} ${esc(d.name)}`).join(' · ')}</p>
         <p class="small" style="margin:0 0 14px">${v ? `Benchmark: <b>${esc(v.label)}</b>, ${v.n_companies} aziende` : '<span class="muted">Benchmark non ancora congelato: per ora solo anteprima</span>'}</p>
-        <div class="row" style="margin-top:auto">${v ? `<a class="btn sm" href="/mappe/${s.id}" target="_blank">Apri le mappe</a>` : ''}<a class="btn sm ghost" href="/mappe/${s.id}?preview=1" target="_blank">Anteprima con dati dimostrativi</a></div></div>`; }).join('')}</div>`;
+        <div class="row" style="margin-top:auto">${v ? `<a class="btn sm" href="/mappe/${s.id}" target="_blank">Apri le mappe</a>` : ''}</div></div>`; }).join('')}</div>`;
 }
 
 // ---------- Audit ----------
@@ -426,31 +613,27 @@ async function viewAudit() {
 // ---------- Impostazioni ----------
 async function viewSettings() {
   NET = await api('/api/admin/network');
-  app.innerHTML = `<h1>Impostazioni</h1>
-    <div class="card"><h2>Rete</h2>
+  app.innerHTML = `<div class="pagehead"><div><h1>Impostazioni</h1></div></div>
+    <h2 class="sethead">Per la sala</h2>
+    <div class="card"><h3>Rete</h3>
       <p>Indirizzo usato nei QR: <b class="mono">${esc(NET.baseUrl)}</b></p>
-      <p class="small ink2">I telefoni devono essere sulla stessa rete Wi-Fi di questo computer. Se il computer ha più indirizzi, scegli quello della rete Wi-Fi della sala. Alcune reti aziendali o per ospiti isolano i dispositivi: in quel caso usa l'hotspot del telefono o un router dedicato.</p>
+      <p class="small ink2">I telefoni devono raggiungere questo indirizzo. In locale devono essere sulla stessa rete Wi-Fi del computer: se il computer ha più indirizzi, scegli quello della rete della sala. Alcune reti aziendali o per ospiti isolano i dispositivi: in quel caso usa l'hotspot del telefono o un router dedicato.</p>
       <table><tbody>${NET.addresses.map((a) => `<tr><td class="mono">http://${esc(a.address)}:${NET.port}</td><td class="small muted">${esc(a.name)}</td><td><button class="sm ghost" data-url="http://${esc(a.address)}:${NET.port}">Usa questo</button></td></tr>`).join('') || '<tr><td class="muted">Nessuna rete trovata</td></tr>'}</tbody></table>
       <div class="row" style="margin-top:10px"><input type="text" id="custom" placeholder="oppure un indirizzo manuale, es. http://192.168.1.20:3000" value="${esc(NET.custom || '')}" style="max-width:420px"><button class="sm" id="savecustom">Salva</button><button class="sm ghost" id="auto">Automatico</button></div></div>
-    <div class="card"><h2>Dati dimostrativi</h2><div id="demo"><p class="muted small">…</p></div></div>
-    <div class="card"><h2>Dati</h2><p class="small">Database: <span class="mono">${esc(NET.db)}</span>. Per un backup basta copiare la cartella <span class="mono">data</span> a server fermo.</p>
-      <a class="btn" href="/api/admin/export.xlsx">Scarica export Excel</a></div>
-    <div class="card"><h2>Registrazione dei partecipanti</h2>
+    <div class="card"><h3>Registrazione dei partecipanti</h3>
       <label class="f" for="o_mode">Come il partecipante indica la sua azienda</label>
-      <select id="o_mode" style="max-width:520px"><option value="codice">Con il codice azienda (QR del tavolo o codice comunicato) — consigliato</option><option value="elenco">Scegliendo dall'elenco delle aziende (chiunque abbia il QR di sala vede l'elenco)</option></select>
+      <select id="o_mode" style="max-width:560px"><option value="codice">Con il codice azienda (QR del tavolo o codice comunicato), consigliato</option><option value="elenco">Scegliendo dall'elenco delle aziende (chiunque abbia il QR di sala vede l'elenco)</option></select>
       <label class="f" for="o_priv">Indirizzo dell'informativa privacy ELIS (https://…)</label>
-      <input type="text" id="o_priv" style="max-width:520px" placeholder="https://www.elis.org/...">
+      <input type="text" id="o_priv" style="max-width:560px" placeholder="https://www.elis.org/...">
       <p class="small muted">Il link compare nella pagina di registrazione, accanto alla spiegazione di chi vede le risposte.</p>
       <button class="sm" id="o_save">Salva</button></div>
-    <div class="card"><h2>Password admin</h2><div class="row"><input type="password" id="pw1" placeholder="Nuova password (min. 8)" style="max-width:280px"><button class="sm" id="pwgo">Cambia</button></div></div>
-    <div class="card"><h2>Versioni</h2><p class="small">Strumento <b>${esc(INST.version)}</b> (${esc(INST.status)}) · Scoring <b>${esc(SC.version)}</b></p></div>`;
-  const D = await api('/api/admin/demo');
-  $('#demo').innerHTML = `<p class="small ink2">14 aziende DEMO con valori su tutte e quattro le sessioni e un'azienda vetrina (TEST) con scheda, partecipanti, consolidamento e commitment. Non entrano mai nel benchmark ufficiale: si vedono con l'opzione "anteprima".</p>
-    ${D.present ? `<div class="row"><a class="btn sm" href="/live/1?preview=1" target="_blank">Dashboard live (anteprima)</a><a class="btn sm ghost" href="/plenaria/GOV?preview=1" target="_blank">Plenaria (anteprima)</a><a class="btn sm ghost" href="/mappe/GOV?preview=1" target="_blank">Mappe (anteprima)</a>
-      ${D.vetrina ? `<a class="btn sm ghost" href="/report/${D.vetrina}?preview=1" target="_blank">Report vetrina</a><a class="btn sm ghost" href="/api/admin/pdf/${D.vetrina}?preview=1">PDF vetrina</a>` : ''}
-      <button class="sm danger" id="demo_rm">Rimuovi dati dimostrativi</button></div>` : '<button class="sm" id="demo_add">Carica dati dimostrativi</button>'}`;
-  if ($('#demo_add')) $('#demo_add').onclick = async () => { try { await api('/api/admin/demo', { method: 'POST' }); toast('Dati dimostrativi caricati'); viewSettings(); } catch (e) { toast(e.message, true); } };
-  if ($('#demo_rm')) $('#demo_rm').onclick = async () => { if (!confirm('Rimuovere tutte le aziende DEMO e l\'azienda vetrina?')) return; await api('/api/admin/demo', { method: 'DELETE' }); toast('Dati dimostrativi rimossi'); viewSettings(); };
+    <h2 class="sethead">Sistema</h2>
+    <div class="grid c2">
+      <div class="card"><h3>Dati ed export</h3><p class="small">Database: <span class="mono">${esc(NET.db)}</span>. Per un backup basta copiare la cartella dei dati a server fermo. L'export contiene solo i dati di produzione.</p>
+        <a class="btn sm" href="/api/admin/export.xlsx">Scarica export Excel</a></div>
+      <div class="card"><h3>Ambiente di prova</h3><p class="small ink2">I dati dimostrativi vivono in un ambiente separato. Per vederli, caricarli o cancellarli scegli <b>Prova</b> nel selettore in alto; per tornare ai dati reali scegli <b>Produzione</b>.</p></div>
+      <div class="card"><h3>Password admin</h3><div class="row"><input type="password" id="pw1" placeholder="Nuova password (min. 8)" style="max-width:280px"><button class="sm" id="pwgo">Cambia</button></div></div>
+      <div class="card"><h3>Versioni</h3><p class="small" style="margin:0">Strumento <b>${esc(INST.version)}</b> (${esc(INST.status)}) · Scoring <b>${esc(SC.version)}</b></p></div></div>`;
   const O = await api('/api/admin/options');
   $('#o_mode').value = O.joinMode; $('#o_priv').value = O.privacyUrl;
   $('#o_save').onclick = async () => { try { await api('/api/admin/options', { method: 'PUT', body: { joinMode: $('#o_mode').value, privacyUrl: $('#o_priv').value } }); toast('Impostazioni salvate'); } catch (e) { toast(e.message, true); } };

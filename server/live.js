@@ -7,11 +7,12 @@ import * as E from './engine/index.js';
 
 const I = E.INSTRUMENT, SC = E.SCORING;
 
-export function liveDashboard(sessionId, { preview = false } = {}) {
+export function liveDashboard(sessionId) {
   const session = L.getSession(sessionId);
   if (!session) return null;
+  const preview = !!session.seeded; // sessione di prova: benchmark calcolato sui dati dimostrativi
   const def = L.baseDef(session);
-  const comps = q.all(`SELECT c.id, c.kind FROM companies c ${preview ? '' : "WHERE c.kind != 'DEMO'"}`);
+  const comps = q.all('SELECT c.id, c.kind FROM companies c WHERE c.seeded = ?', preview ? 1 : 0);
   let active = 0, consolidatedHere = 0, participants = 0, submitted = 0;
   for (const c of comps) {
     const parts = L.activeParticipants(session.id, c.id);

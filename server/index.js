@@ -114,14 +114,15 @@ app.get('/api/qr.svg', async (req, res) => {
 
 // ---------- Partecipanti ----------
 app.get('/api/join/:code', wrap((req, res) => {
-  const s = q.get('SELECT id, title, base, phase FROM sessions WHERE code = ?', req.params.code);
+  const s = q.get('SELECT id, title, base, phase, seeded FROM sessions WHERE code = ?', req.params.code);
   if (!s) return bad(res, 'Sessione non trovata', 404);
+  const env = s.seeded ? 1 : 0; // una sessione di prova accetta solo aziende di prova, e viceversa
   // Di default l'azienda si sceglie con il suo codice (QR del tavolo o codice comunicato dal referente):
   // chi ha il QR di sessione non vede l'elenco delle aziende partecipanti. In modalità "elenco" si mostra la lista.
   const mode = getSetting('join_mode') || 'codice';
-  const pre = req.query.c ? q.get("SELECT id, name, join_code FROM companies WHERE join_code = ? AND kind != 'DEMO'", String(req.query.c).toUpperCase()) : null;
-  const companies = mode === 'elenco' ? q.all("SELECT id, name, join_code FROM companies WHERE kind != 'DEMO' ORDER BY name") : [];
-  return { session: s, mode, preselected: pre ? { id: pre.id, name: pre.name, code: pre.join_code } : null,
+  const pre = req.query.c ? q.get('SELECT id, name, join_code FROM companies WHERE join_code = ? AND seeded = ?', String(req.query.c).toUpperCase(), env) : null;
+  const companies = mode === 'elenco' ? q.all('SELECT id, name, join_code FROM companies WHERE seeded = ? ORDER BY name', env) : [];
+  return { session: { id: s.id, title: s.title, base: s.base, phase: s.phase }, mode, preselected: pre ? { id: pre.id, name: pre.name, code: pre.join_code } : null,
     companies: companies.map((c) => ({ id: c.id, name: c.name, code: c.join_code })), functions: I.functions,
     privacyUrl: getSetting('privacy_url') || null };
 }));
@@ -132,8 +133,8 @@ app.post('/api/join/:code', wrap((req, res) => {
   if (!['preparazione', 'individuale'].includes(s.phase)) return bad(res, 'La fase individuale è chiusa: non è più possibile registrarsi a questa sessione.');
   const { companyId, companyCode, name, func, privacyAck } = req.body || {};
   const c = companyCode
-    ? q.get("SELECT * FROM companies WHERE join_code = ? AND kind != 'DEMO'", txt(companyCode, 10).toUpperCase())
-    : (getSetting('join_mode') === 'elenco' ? q.get("SELECT * FROM companies WHERE id = ? AND kind != 'DEMO'", companyId) : null);
+    ? q.get('SELECT * FROM companies WHERE join_code = ? AND seeded = ?', txt(companyCode, 10).toUpperCase(), s.seeded ? 1 : 0)
+    : (getSetting('join_mode') === 'elenco' ? q.get('SELECT * FROM companies WHERE id = ? AND seeded = ?', companyId, s.seeded ? 1 : 0) : null);
   if (!c) return bad(res, companyCode ? 'Codice azienda non riconosciuto: controlla il cartoncino del tavolo o chiedilo al referente' : 'Inserire il codice azienda');
   if (!txt(name, 120)) return bad(res, 'Inserire nome e cognome');
   if (!I.functions.some((f) => f.id === func)) return bad(res, 'Selezionare la funzione');
@@ -297,6 +298,9 @@ function isAdmin(req) {
   const t = cookie(req, 'aito_admin');
   return t && q.get("SELECT 1 FROM admin_tokens WHERE token = ? AND created_at > datetime('now', '-14 days')", t);
 }
+// Ambiente della console: "prova" (dati dimostrativi) o produzione. Si sceglie nel browser con un cookie.
+const isProva = (req) => cookie(req, 'aito_mode') === 'prova';
+const envOf = (req) => (isProva(req) ? 1 : 0);
 function requireAdmin(req, res, next) { if (isAdmin(req)) return next(); bad(res, 'Accesso admin richiesto', 401); }
 const ADMIN = 'admin';
 
@@ -347,7 +351,7 @@ app.put('/api/admin/options', wrap((req, res) => {
 }));
 
 // Aziende
-app.get('/api/admin/companies', wrap(() => q.all('SELECT * FROM companies ORDER BY kind, name').map((c) => ({
+app.get('/api/admin/companies', wrap((req) => q.all('SELECT * FROM companies WHERE seeded = ? ORDER BY kind, name', envOf(req)).map((c) => ({
   ...c,
   consents: Object.fromEntries(q.all('SELECT type, granted, updated_at FROM consents WHERE company_id = ?', c.id).map((k) => [k.type, { granted: !!k.granted, at: k.updated_at }])),
   referents: q.all('SELECT id, name, email, role, token FROM referents WHERE company_id = ?', c.id),
@@ -355,8 +359,9 @@ app.get('/api/admin/companies', wrap(() => q.all('SELECT * FROM companies ORDER 
 app.post('/api/admin/companies', wrap((req, res) => {
   const { name, perimeter, sector, kind } = req.body || {};
   if (!txt(name, 150)) return bad(res, 'Nome obbligatorio');
-  const k = ['REALE', 'TEST'].includes(kind) ? kind : 'REALE'; // le aziende DEMO le crea solo il caricamento dei dati dimostrativi
-  const r = q.run('INSERT INTO companies (name, perimeter, sector, kind, join_code) VALUES (?,?,?,?,?)', txt(name, 150), txt(perimeter, 200), txt(sector, 100), k, shortCode(4));
+  // le aziende DEMO le crea solo il caricamento dei dati dimostrativi; nell'ambiente di prova ogni nuova azienda è TEST
+  const k = isProva(req) ? 'TEST' : ['REALE', 'TEST'].includes(kind) ? kind : 'REALE';
+  const r = q.run('INSERT INTO companies (name, perimeter, sector, kind, join_code, seeded) VALUES (?,?,?,?,?,?)', txt(name, 150), txt(perimeter, 200), txt(sector, 100), k, shortCode(4), envOf(req));
   audit(ADMIN, 'company', r.lastInsertRowid, 'create', null, req.body);
   return { id: Number(r.lastInsertRowid) };
 }));
@@ -403,12 +408,12 @@ app.delete('/api/admin/referents/:id', wrap((req) => {
 }));
 
 // Sessioni
-app.get('/api/admin/sessions', wrap(() => q.all('SELECT * FROM sessions ORDER BY date, id')));
+app.get('/api/admin/sessions', wrap((req) => q.all('SELECT * FROM sessions WHERE seeded = ? ORDER BY date, id', envOf(req))));
 app.post('/api/admin/sessions', wrap((req, res) => {
   const { base, date, channel, title } = req.body || {};
   const def = E.sessionDef(base); if (!def) return bad(res, 'Sessione base non valida');
-  const r = q.run('INSERT INTO sessions (base, title, date, mode, channel, code, instrument_version, scoring_version) VALUES (?,?,?,?,?,?,?,?)',
-    base, title || `${def.name} · ad hoc · ${(date || '').split('-').reverse().join('/')}`, date || null, 'adhoc', channel === 'remoto' ? 'remoto' : 'presenza', shortCode(5), I.version, E.SCORING.version);
+  const r = q.run('INSERT INTO sessions (base, title, date, mode, channel, code, instrument_version, scoring_version, seeded) VALUES (?,?,?,?,?,?,?,?,?)',
+    base, title || `${def.name} · ad hoc · ${(date || '').split('-').reverse().join('/')}${isProva(req) ? ' · prova' : ''}`, date || null, 'adhoc', channel === 'remoto' ? 'remoto' : 'presenza', shortCode(5), I.version, E.SCORING.version, envOf(req));
   audit(ADMIN, 'session', r.lastInsertRowid, 'create', null, req.body);
   return { id: Number(r.lastInsertRowid) };
 }));
@@ -428,7 +433,7 @@ app.put('/api/admin/sessions/:id/phase', wrap((req, res) => {
 app.get('/api/admin/sessions/:id/control', wrap((req, res) => {
   const s = L.getSession(req.params.id); if (!s) return bad(res, 'Non trovata', 404);
   const def = L.baseDef(s);
-  const comps = q.all("SELECT * FROM companies WHERE kind != 'DEMO' ORDER BY name").map((c) => {
+  const comps = q.all('SELECT * FROM companies WHERE seeded = ? ORDER BY name', s.seeded ? 1 : 0).map((c) => {
     const parts = L.activeParticipants(s.id, c.id);
     const sc = q.get('SELECT * FROM session_company WHERE session_id = ? AND company_id = ?', s.id, c.id);
     const ids = parts.map((p) => p.id);
@@ -442,7 +447,7 @@ app.get('/api/admin/sessions/:id/control', wrap((req, res) => {
   });
   const phaseSince = q.get("SELECT ts FROM audit WHERE entity = 'session' AND entity_id = ? AND action = 'phase' ORDER BY id DESC LIMIT 1", String(s.id))?.ts || null;
   return { session: s, def, baseUrl: baseUrl(), joinUrl: `${baseUrl()}/j/${s.code}`, companies: comps, phaseSince,
-    benchmark: q.all('SELECT id, label, n_companies, created_at FROM benchmark_versions WHERE base = ? ORDER BY id DESC', s.base) };
+    benchmark: s.seeded ? [] : q.all('SELECT id, label, n_companies, created_at FROM benchmark_versions WHERE base = ? ORDER BY id DESC', s.base) };
 }));
 app.post('/api/admin/sessions/:sid/companies/:cid/release', wrap((req, res) => {
   const sc = q.get('SELECT * FROM session_company WHERE session_id = ? AND company_id = ?', req.params.sid, req.params.cid);
@@ -471,8 +476,8 @@ app.post('/api/admin/benchmark/:base/freeze', wrap((req, res) => {
   if (!E.sessionDef(req.params.base)) return bad(res, 'Sessione non valida');
   return L.freezeBenchmark(req.params.base, ADMIN);
 }));
-app.get('/api/admin/benchmark', wrap(() => q.all('SELECT id, base, kind, label, n_companies, instrument_version, scoring_version, created_at FROM benchmark_versions ORDER BY id DESC')));
-app.get('/api/admin/live/:sid', wrap((req, res) => liveDashboard(Number(req.params.sid), { preview: req.query.preview === '1' }) || bad(res, 'Sessione non trovata', 404)));
+app.get('/api/admin/benchmark', wrap((req) => (isProva(req) ? [] : q.all('SELECT id, base, kind, label, n_companies, instrument_version, scoring_version, created_at FROM benchmark_versions ORDER BY id DESC'))));
+app.get('/api/admin/live/:sid', wrap((req, res) => liveDashboard(Number(req.params.sid)) || bad(res, 'Sessione non trovata', 404)));
 async function sendPdf(res, R) {
   const buf = await pdfBuffer(R);
   const fn = pdfFileName(R);
@@ -497,7 +502,7 @@ app.get('/api/admin/sessions/:sid/pdfs.zip', async (req, res) => {
     for (const c of comps) {
       // versione rilasciata per questa sessione se esiste, altrimenti bozza marcata come tale
       const snap = q.get('SELECT id FROM report_snapshots WHERE session_id = ? AND company_id = ? ORDER BY version DESC LIMIT 1', s.id, c.company_id);
-      const R = snap ? L.getSnapshot(c.company_id, snap.id) : { ...L.companyReport(c.company_id, { preview: req.query.preview === '1' }), draft: true };
+      const R = snap ? L.getSnapshot(c.company_id, snap.id) : { ...L.companyReport(c.company_id), draft: true };
       zip.file((snap ? '' : 'BOZZA_') + pdfFileName(R), await pdfBuffer(R));
       await new Promise((r) => setImmediate(r)); // lascia passare le altre richieste tra un PDF e l'altro
     }
@@ -506,12 +511,12 @@ app.get('/api/admin/sessions/:sid/pdfs.zip', async (req, res) => {
     res.type('application/zip').send(buf);
   } catch (e) { console.error(e); res.status(500).json({ error: 'Errore interno: riprova.' }); }
 });
-app.get('/api/admin/plenaria/:base', wrap((req) => L.plenaria(req.params.base, { preview: req.query.preview === '1' })));
-app.get('/api/admin/maps/:base', wrap((req, res) => (I.sessions.some((x) => x.id === req.params.base) ? L.sessionMaps(req.params.base, { preview: req.query.preview === '1' }) : bad(res, 'Sessione non trovata', 404))));
+app.get('/api/admin/plenaria/:base', wrap((req) => L.plenaria(req.params.base, { preview: isProva(req) })));
+app.get('/api/admin/maps/:base', wrap((req, res) => (I.sessions.some((x) => x.id === req.params.base) ? L.sessionMaps(req.params.base, { preview: isProva(req) }) : bad(res, 'Sessione non trovata', 404))));
 // Report per l'admin: una versione rilasciata (?snap=id) oppure la bozza corrente, marcata come tale.
 function reportFor(cid, req, admin) {
   if (req.query.snap) { const R = L.getSnapshot(cid, Number(req.query.snap)); if (R) return R; }
-  if (admin) return { ...L.companyReport(cid, { preview: req.query.preview === '1' }), draft: true };
+  if (admin) return { ...L.companyReport(cid), draft: true };
   return L.getSnapshot(cid);
 }
 app.get('/api/admin/report/:cid', wrap((req) => reportFor(Number(req.params.cid), req, true)));
@@ -521,7 +526,22 @@ app.post('/api/admin/correct', wrap((req, res) => {
   if (!out.ok) return bad(res, out.errors.join(' · '));
   return out;
 }));
-app.get('/api/admin/demo', wrap(() => ({ present: hasDemo(), vetrina: q.get("SELECT id FROM companies WHERE seeded = 1 AND kind = 'TEST'")?.id || null })));
+app.get('/api/admin/demo', wrap(() => ({ present: hasDemo(), vetrina: q.get("SELECT id FROM companies WHERE seeded = 1 AND kind = 'TEST' ORDER BY id LIMIT 1")?.id || null })));
+// Elenco dei commitment dell'ambiente corrente, per la verifica dopo le sessioni (§11, §12)
+app.get('/api/admin/commitments', wrap((req) => q.all(`SELECT m.*, c.name company_name, c.kind company_kind, s.title session_title, s.base, s.date session_date
+  FROM commitments m JOIN companies c ON c.id = m.company_id JOIN sessions s ON s.id = m.session_id WHERE c.seeded = ? ORDER BY s.date, c.name`, envOf(req))));
+// Percorso di un'azienda nelle sessioni dell'ambiente corrente
+app.get('/api/admin/companies/:cid/journey', wrap((req) => {
+  const c = q.get('SELECT * FROM companies WHERE id = ?', req.params.cid); if (!c) return [];
+  return q.all('SELECT * FROM sessions WHERE seeded = ? ORDER BY date, id', c.seeded ? 1 : 0).map((s) => {
+    const sc = q.get('SELECT * FROM session_company WHERE session_id = ? AND company_id = ?', s.id, c.id);
+    const parts = L.activeParticipants(s.id, c.id);
+    return { id: s.id, title: s.title, base: s.base, date: s.date, mode: s.mode, phase: s.phase,
+      presession: L.getPresession(c.id, s.base).updated_at || null, participants: parts.length, submitted: parts.filter((p) => p.submitted_at).length,
+      consolidated_at: sc?.consolidated_at || null, report_released_at: sc?.report_released_at || null, leader_call_note: sc?.leader_call_note || '',
+      commitment: q.get('SELECT priority_item, status FROM commitments WHERE session_id = ? AND company_id = ?', s.id, c.id) || null };
+  });
+}));
 app.post('/api/admin/demo', wrap((req, res) => (hasDemo() ? bad(res, 'Dati dimostrativi già presenti') : seedDemo())));
 app.delete('/api/admin/demo', wrap(() => removeDemo()));
 app.get('/api/admin/audit', wrap(() => q.all('SELECT * FROM audit ORDER BY id DESC LIMIT 500')));

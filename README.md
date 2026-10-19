@@ -25,6 +25,15 @@ La console ELIS è su `http://localhost:3000/admin`. La finestra mostra anche l'
 3. **Impostazioni → Rete**: verifica che l'indirizzo dei QR sia quello della rete Wi-Fi della sala. Prova ad aprirlo da un telefono.
    Le reti per ospiti spesso isolano i dispositivi: in quel caso usa un router dedicato o l'hotspot di un telefono.
 
+## Console ELIS: come è organizzata
+
+- **Produzione | Prova** (selettore in alto). In *Produzione* si vedono solo le aziende reali (e quelle TEST, come l'azienda amica, sempre fuori dal benchmark) e le sessioni del calendario. In *Prova* la barra diventa a strisce oro e si vedono solo i dati dimostrativi: 4 sessioni di prova, 14 aziende DEMO e l'azienda vetrina. Le aziende e le sessioni create in Prova sono di prova e si cancellano con *Cancella tutti i dati di prova*. Il benchmark ufficiale, l'export e le versioni congelate riguardano solo la Produzione. La scelta vale per il browser in uso.
+- **Programma** (pagina iniziale): la linea del tempo delle 4 sessioni fino all'allineamento finale di settembre 2027 e l'elenco *Da fare*, calcolato dai dati (referenti mancanti, schede pre-sessione, cartoncini, benchmark da congelare, report da rilasciare, call da annotare, commitment scaduti).
+- **Sessioni**: le 4 sessioni in ordine di calendario, più le sessioni ad hoc. Ogni sessione ha quattro schede: *Prima* (preparazione), *In sala* (risposte individuali, confronto, consolidamento), *Dopo* (benchmark, report, call con i leader), *Risultati* (dashboard live, plenaria, mappe, versioni del benchmark).
+- **Dopo le sessioni**: *Report e call con i leader* (tutte le sessioni in una pagina) e *Commitment e verifica* (stato di ogni commitment, scadenze superate evidenziate).
+- **Aziende e referenti**: per ogni azienda il percorso nelle 4 sessioni, i consensi, i referenti, i report rilasciati.
+- In fondo: *Registro modifiche* e *Impostazioni* (divise in *Per la sala* e *Sistema*).
+
 ## 3. In sala (Control room della sessione)
 
 La control room segue la sessione in sette passi: **Prima della sessione** (Preparazione), **In sala** (Risposte individuali, Confronto al tavolo, Consolidamento), **Dopo la sessione** (Congelare il benchmark, Rilasciare i report, Call con i leader). A sinistra c'è l'elenco dei passi con lo stato di ciascuno; a destra il passo selezionato: cosa succede, cosa controllare (aziende senza referente, schede mancanti, tavoli con meno di 3 partecipanti, consolidamenti mancanti…) e il pulsante del passo successivo, con le conseguenze scritte prima della conferma. Per tornare indietro serve un motivo, che resta nel registro. *Stampa i cartoncini dei tavoli* prepara un cartoncino con QR e codice per ogni azienda.

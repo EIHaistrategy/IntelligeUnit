@@ -35,8 +35,7 @@
 </head>
 <body>
 <div class="topbar"><span class="brand"><svg viewBox="0 0 26 22" aria-hidden="true"><rect x="0" y="16" width="4" height="6" rx="1" fill="#C9A84C" fill-opacity=".45"/><rect x="5.5" y="12" width="4" height="10" rx="1" fill="#C9A84C" fill-opacity=".6"/><rect x="11" y="8" width="4" height="14" rx="1" fill="#C9A84C" fill-opacity=".75"/><rect x="16.5" y="4" width="4" height="18" rx="1" fill="#C9A84C" fill-opacity=".9"/><rect x="22" y="0" width="4" height="22" rx="1" fill="#C9A84C"/></svg>AITO Map</span><span class="sub" id="ttl">Mappe a quadranti</span><span class="spacer"></span>
-  <label><input type="checkbox" id="names"> mostra i nomi delle aziende</label>
-  <label style="margin-left:14px"><input type="checkbox" id="prev"> anteprima con dati dimostrativi</label></div>
+  <label><input type="checkbox" id="names"> mostra i nomi delle aziende</label></div>
 <div class="wrap" id="app"><p class="muted">Caricamento…</p></div>
 <script type="module">
 import { api, esc, $, fmtScore } from '/static/js/ui.js';
@@ -44,14 +43,12 @@ import { quadrantMap } from '/static/js/charts.js';
 import { gapMapHtml, peerMapHtml } from '/static/js/maps.js';
 const base = location.pathname.split('/').pop();
 const params = new URLSearchParams(location.search);
-const preview = params.get('preview') === '1';
 let showNames = params.get('nomi') === '1';
-$('#prev').checked = preview; $('#names').checked = showNames;
-$('#prev').onchange = (e) => { params.set('preview', e.target.checked ? '1' : '0'); location.search = params.toString(); };
+$('#names').checked = showNames;
 $('#names').onchange = (e) => { showNames = e.target.checked; params.set('nomi', showNames ? '1' : '0'); history.replaceState(null, '', `?${params}`); draw(); };
 
 let M;
-try { M = await api(`/api/admin/maps/${base}${preview ? '?preview=1' : ''}`); }
+try { M = await api(`/api/admin/maps/${base}`); }
 catch (e) { $('#app').innerHTML = `<div class="card"><p>${esc(e.message)}. Accedi prima dalla <a href="/admin">console ELIS</a>.</p></div>`; throw e; }
 document.title = `${M.def.name} · mappe a quadranti`;
 
@@ -89,7 +86,7 @@ function draw() {
 
   const gapHtml = gapMapHtml(M), peerHtml = peerMapHtml(M, { showNames });
   $('#app').innerHTML = `
-    ${M.preview ? '<div class="banner preview">Anteprima con dati dimostrativi e di test: non sono le mappe ufficiali</div>' : ''}
+    ${M.preview ? '<div class="banner preview">Ambiente di prova: dati dimostrativi, non sono dati ufficiali</div>' : ''}
     <div class="mhead"><h1>${esc(M.def.name)}: mappe a quadranti</h1>
       <p>Fonte: ${esc(M.version)}, ${M.nCompanies} aziende. Le soglie (${T.where.score} e 0; ${Math.round(T.community.fondShare * 100)}% e ${T.community.iqr} punti; ${T.peer.need} e ${T.peer.contrib}) sono ipotesi del pilot da validare con l'Intelligence Unit.</p></div>
     <section class="msec"><h2>Dove intervenire</h2><p class="q">§10.2 · Posizionamento azienda–peer</p>

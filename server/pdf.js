@@ -102,7 +102,7 @@ export function buildCompanyPdf(R) {
   }
   if (R.preview) {
     doc.rect(X0, doc.y, W, 22).fill('#FFF3D6');
-    doc.font('Bold').fontSize(9).fillColor('#5E4507').text('Anteprima: il benchmark include aziende DEMO e TEST. Non è un report ufficiale.', X0 + 8, doc.y + 6.5);
+    doc.font('Bold').fontSize(9).fillColor('#5E4507').text('Ambiente di prova: confronto calcolato sui dati dimostrativi. Non è un report ufficiale.', X0 + 8, doc.y + 6.5);
     doc.y += 30;
   }
   explain('Come leggere il report. La Map descrive la capacità dell\'azienda di trasformare l\'AI in pratica governata, adottata e scalabile. Non è una graduatoria e non esiste un livello giusto in assoluto. La lettura principale è la coerenza tra le capacità: livelli bassi ma allineati possono indicare un percorso coerente, mentre una forte distanza tra una capacità e quella da cui dipende segnala un punto da esaminare. Il benchmark confronta l\'azienda con le altre aziende AITO (non con il mercato), esclude l\'azienda stessa quando il campione lo consente e indica sempre su quante aziende si basa.');

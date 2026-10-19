@@ -4,17 +4,15 @@ import { radar, whereMap, benchStrip } from './charts.js';
 const cid = location.pathname.split('/').pop();
 const params = new URLSearchParams(location.search);
 const t = params.get('t');
-const preview = params.get('preview') === '1';
 const app = $('#app');
 
 async function boot() {
   const { instrument: I, scoring: SC } = await api('/api/instrument');
   let R;
-  try { R = await api(`/api/report/${cid}?${t ? `t=${encodeURIComponent(t)}&` : ''}${params.get('snap') ? `snap=${params.get('snap')}&` : ''}${preview ? 'preview=1' : ''}`); }
+  try { R = await api(`/api/report/${cid}?${t ? `t=${encodeURIComponent(t)}&` : ''}${params.get('snap') ? `snap=${params.get('snap')}` : ''}`); }
   catch (e) { app.innerHTML = `<div class="card"><h2>Report non disponibile</h2><p>${esc(e.message)}</p></div>`; return; }
   const snap = params.get('snap');
-  $('#pdfbtn').href = `/api/report/${cid}/pdf?${t ? `t=${encodeURIComponent(t)}&` : ''}${snap ? `snap=${snap}&` : ''}${preview ? 'preview=1' : ''}`;
-  if (!t) { $('#prevwrap').classList.remove('hidden'); $('#prev').checked = preview; $('#prev').onchange = (e) => { params.set('preview', e.target.checked ? '1' : '0'); location.search = params.toString(); }; }
+  $('#pdfbtn').href = `/api/report/${cid}/pdf?${t ? `t=${encodeURIComponent(t)}&` : ''}${snap ? `snap=${snap}` : ''}`;
 
   const names = SC.quadrantNames[SC.quadrantNamesInUse];
   const fnLabel = (id) => I.functions.find((f) => f.id === id)?.label || id;
@@ -31,7 +29,7 @@ async function boot() {
   const dDate = (s) => (s ? `<span class="nowrap">${new Date(s).toLocaleDateString('it-IT')}</span>` : '—');
 
   app.innerHTML = `
-  ${R.preview ? '<div class="banner preview">Anteprima: il benchmark include aziende DEMO e TEST. Non è un report ufficiale.</div>' : ''}
+  ${R.preview ? '<div class="banner preview">Ambiente di prova: confronto calcolato sui dati dimostrativi. Non è un report ufficiale.</div>' : ''}
   ${R.draft ? '<div class="banner warn noprint"><b>Bozza</b>: versione calcolata ora, non ancora rilasciata. L\'azienda vede solo le versioni rilasciate, che non cambiano più.</div>' : ''}
   ${R.snapshot ? `<div class="banner ok">Versione rilasciata v${R.snapshot.version} · ${esc(R.snapshot.sessionTitle)} · ${fmtDate(R.snapshot.releasedAt)}</div>` : ''}
   <div id="versions" class="noprint"></div>

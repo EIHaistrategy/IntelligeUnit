@@ -46,16 +46,12 @@
 </head>
 <body>
 <div class="topbar"><span class="brand"><svg viewBox="0 0 26 22" aria-hidden="true"><rect x="0" y="16" width="4" height="6" rx="1" fill="#C9A84C" fill-opacity=".45"/><rect x="5.5" y="12" width="4" height="10" rx="1" fill="#C9A84C" fill-opacity=".6"/><rect x="11" y="8" width="4" height="14" rx="1" fill="#C9A84C" fill-opacity=".75"/><rect x="16.5" y="4" width="4" height="18" rx="1" fill="#C9A84C" fill-opacity=".9"/><rect x="22" y="0" width="4" height="22" rx="1" fill="#C9A84C"/></svg>AITO Map</span><span class="sub" id="ttl">Benchmark in tempo reale</span><span class="spacer"></span>
-  <span class="small" id="upd" style="color:#fff;white-space:nowrap"></span>
-  <label style="margin-left:16px"><input type="checkbox" id="prev"> anteprima con dati dimostrativi</label></div>
+  <span class="small" id="upd" style="color:#fff;white-space:nowrap"></span></div>
 <div class="wrap" id="app"><p class="muted">Caricamento…</p></div>
 <script type="module">
 import { api, esc, $, fmtScore, phaseChips } from '/static/js/ui.js';
 const sid = location.pathname.split('/').pop();
 const params = new URLSearchParams(location.search);
-const preview = params.get('preview') === '1';
-$('#prev').checked = preview;
-$('#prev').onchange = (e) => { params.set('preview', e.target.checked ? '1' : '0'); location.search = params.toString(); };
 
 // fascia 0–100 con le tre zone del pilot (Fondativa < 44, In costruzione 44–69, Consolidata ≥ 70), Q1–Q3 e mediana
 function strip(st) {
@@ -72,7 +68,7 @@ const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
 
 async function draw() {
   let D;
-  try { D = await api(`/api/admin/live/${sid}${preview ? '?preview=1' : ''}`); }
+  try { D = await api(`/api/admin/live/${sid}`); }
   catch (e) { $('#app').innerHTML = `<div class="card"><p>${esc(e.message)} — accedi prima da <a href="/admin">/admin</a>.</p></div>`; return; }
   const P = D.progress;
   $('#ttl').textContent = `${D.session.title} · benchmark in tempo reale`;
@@ -80,7 +76,7 @@ async function draw() {
   $('#upd').innerHTML = `<span class="live-dot"></span>aggiornato alle ${new Date(D.updatedAt).toLocaleTimeString('it-IT')}`;
   const ready = P.benchmarkN >= P.minN;
   $('#app').innerHTML = `
-    ${D.preview ? '<div class="banner preview">Anteprima con dati dimostrativi e di test: non è il benchmark della community</div>' : ''}
+    ${D.preview ? '<div class="banner preview">Ambiente di prova: dati dimostrativi, non sono dati ufficiali</div>' : ''}
     <div class="lhead"><div><h1>${esc(D.def.name)}</h1><p>Come si posiziona la community, in tempo reale</p></div>${phaseChips(D.session.phase)}</div>
     <div class="tally">
       <div><div class="v">${P.participants}</div><div class="l">partecipanti in sala <em>· ${P.submitted} hanno inviato</em></div></div>
