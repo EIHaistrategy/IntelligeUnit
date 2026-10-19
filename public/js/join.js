@@ -184,9 +184,13 @@ function renderComparison() {
       ${p.discordant ? `<br><span class="tag risk">${p.discordant} ${p.discordant === 1 ? 'risposta' : 'risposte'} in contrasto con i livelli scelti dalla stessa persona</span>` : ''}</p>`).join('')}</div>`;
 }
 
+let tick = 0;
 async function refresh() {
   if (!tok) return;
-  const s = await api(`/api/p/${tok}`);
+  // fuori dalla fase individuale basta accorgersi del cambio di fase: un'interrogazione ogni 8 secondi
+  if (!['preparazione', 'individuale'].includes(state.session.phase) && (tick++ % 2)) return;
+  const s = await api(`/api/p/${tok}?lite=1`);
+  s.items = state.items; s.pairs = state.pairs; s.pairQuestion = state.pairQuestion;
   const changed = s.session.phase !== lastPhase;
   state = s;
   if (changed) { step = 0; renderIndividual.reopened = false; renderPhase(); }

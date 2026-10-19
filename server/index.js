@@ -12,6 +12,7 @@ import { buildExport } from './export.js';
 import { pdfBuffer, pdfFileName } from './pdf.js';
 import { liveDashboard } from './live.js';
 import JSZip from 'jszip';
+import compression from 'compression';
 import { seedDemo, removeDemo, hasDemo } from './demo.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -71,6 +72,7 @@ app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY');
   next();
 });
+app.use(compression());
 app.get('/healthz', (req, res) => res.send('ok'));
 app.use(express.json({ limit: '200kb' }));
 // Protezione CSRF: le richieste che modificano dati devono arrivare da questo stesso sito.
@@ -137,6 +139,7 @@ app.post('/api/join/:code', wrap((req, res) => {
   if (!privacyAck) return bad(res, 'Per proseguire conferma di aver letto come vengono usate le risposte');
   const t = token();
   q.run('INSERT INTO participants (session_id, company_id, name, func, email, token) VALUES (?,?,?,?,NULL,?)', s.id, c.id, txt(name, 120), func, t);
+  L.invalidateComparison(s.id, c.id);
   L.ensureSessionCompany(s.id, c.id);
   return { token: t };
 }));
@@ -154,8 +157,9 @@ app.get('/api/p/:t', wrap((req, res) => {
   const company = q.get('SELECT name FROM companies WHERE id = ?', p.company_id);
   const out = { participant: { name: p.name, func: p.func, submitted_at: p.submitted_at }, company: company.name,
     session: { id: st.session.id, title: st.session.title, base: st.session.base, phase: st.session.phase },
-    items: st.def.items.map((id) => ({ id, ...I.items[id] })), pairs: st.def.pairs, pairQuestion: I.pairQuestion,
     answers: st.answers, answered: st.answered, pairAnswers: st.pairs };
+  // ?lite=1: il telefono ha già le definizioni degli item, si inviano solo fase e dati
+  if (req.query.lite !== '1') Object.assign(out, { items: st.def.items.map((id) => ({ id, ...I.items[id] })), pairs: st.def.pairs, pairQuestion: I.pairQuestion });
   if (['confronto', 'consolidamento', 'chiusa'].includes(st.session.phase)) out.comparison = L.participantComparison(p.session_id, p.company_id);
   return out;
 }));
@@ -170,6 +174,7 @@ app.put('/api/p/:t/answer', wrap((req, res) => {
   if (lv != null && !(Number.isInteger(lv) && lv >= 1 && lv <= 5)) return bad(res, 'Livello non valido');
   q.run(`INSERT INTO answers (participant_id, item_id, level, updated_at) VALUES (?,?,?,datetime('now'))
          ON CONFLICT(participant_id, item_id) DO UPDATE SET level = excluded.level, updated_at = excluded.updated_at`, p.id, itemId, lv);
+  L.invalidateComparison(p.session_id, p.company_id);
   return { ok: true };
 }));
 
@@ -182,6 +187,7 @@ app.put('/api/p/:t/pair', wrap((req, res) => {
   if (!['A', 'B', 'ND'].includes(answer)) return bad(res, 'Risposta non valida');
   q.run(`INSERT INTO pair_answers (participant_id, item_a, item_b, answer, updated_at) VALUES (?,?,?,?,datetime('now'))
          ON CONFLICT(participant_id, item_a, item_b) DO UPDATE SET answer = excluded.answer, updated_at = excluded.updated_at`, p.id, a, b, answer);
+  L.invalidateComparison(p.session_id, p.company_id);
   return { ok: true };
 }));
 
@@ -194,6 +200,7 @@ app.post('/api/p/:t/submit', wrap((req, res) => {
   const np = q.get('SELECT COUNT(*) n FROM pair_answers WHERE participant_id = ?', p.id).n;
   if (n < def.items.length || np < def.pairs.length) return bad(res, 'Rispondere a tutti gli item (anche con N.D.) e ai confronti a coppie');
   q.run("UPDATE participants SET submitted_at = datetime('now') WHERE id = ?", p.id);
+  L.invalidateComparison(p.session_id, p.company_id);
   return { ok: true };
 }));
 
@@ -244,6 +251,7 @@ app.delete('/api/r/:t/session/:sid/participant/:pid', wrap((req, res) => {
   const p = q.get('SELECT * FROM participants WHERE id = ? AND company_id = ? AND session_id = ?', req.params.pid, r.company_id, req.params.sid);
   if (!p) return bad(res, 'Partecipante non trovato', 404);
   q.run('UPDATE participants SET removed = 1 WHERE id = ?', p.id);
+  L.invalidateComparison(p.session_id, p.company_id);
   audit(refActor(r), 'participant', p.id, 'remove', { name: p.name }, null, req.body?.reason || 'Rimosso dal referente');
   return { ok: true };
 }));
@@ -480,12 +488,16 @@ app.get('/api/admin/sessions/:sid/pdfs.zip', async (req, res) => {
     const s = L.getSession(req.params.sid); if (!s) return bad(res, 'Sessione non trovata', 404);
     const comps = q.all('SELECT company_id FROM session_company WHERE session_id = ? AND consolidated_at IS NOT NULL', s.id);
     if (!comps.length) return bad(res, 'Nessuna azienda ha ancora consolidato in questa sessione');
+    // generare molti PDF occupa il server per alcuni secondi: durante una sessione in corso si chiede conferma
+    const live = q.get("SELECT title FROM sessions WHERE phase IN ('individuale', 'confronto', 'consolidamento') LIMIT 1");
+    if (live && req.query.force !== '1') return bad(res, `C'è una sessione in corso (${live.title}): generare lo zip rallenterebbe i telefoni per alcuni secondi. Meglio scaricarlo a sessione chiusa.`, 409);
     const zip = new JSZip();
     for (const c of comps) {
       // versione rilasciata per questa sessione se esiste, altrimenti bozza marcata come tale
       const snap = q.get('SELECT id FROM report_snapshots WHERE session_id = ? AND company_id = ? ORDER BY version DESC LIMIT 1', s.id, c.company_id);
       const R = snap ? L.getSnapshot(c.company_id, snap.id) : { ...L.companyReport(c.company_id, { preview: req.query.preview === '1' }), draft: true };
       zip.file((snap ? '' : 'BOZZA_') + pdfFileName(R), await pdfBuffer(R));
+      await new Promise((r) => setImmediate(r)); // lascia passare le altre richieste tra un PDF e l'altro
     }
     const buf = await zip.generateAsync({ type: 'nodebuffer' });
     res.setHeader('Content-Disposition', `attachment; filename="AITO_Map_report_${s.base}_${new Date().toISOString().slice(0, 10)}.zip"`);

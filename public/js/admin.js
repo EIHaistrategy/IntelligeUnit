@@ -72,7 +72,7 @@ async function viewControl(id) {
         <div class="card"><h3>Benchmark ${esc(INST.sessions.find((x) => x.id === s.base).name)}</h3>
           ${C.benchmark.length ? `<p class="small">Ultima versione: <b>${esc(C.benchmark[0].label)}</b> (N=${C.benchmark[0].n_companies})</p>` : '<p class="small muted">Nessuna versione congelata.</p>'}
           <div class="row"><a class="btn sm" href="/live/${s.id}" target="_blank">Dashboard live</a><button class="sm gold" id="freeze">Congela benchmark</button><a class="btn sm ghost" href="/plenaria/${s.base}" target="_blank">Plenaria</a></div>
-          <div class="row" style="margin-top:8px"><a class="btn sm ghost" href="/api/admin/sessions/${s.id}/pdfs.zip">Scarica tutti i PDF (zip)</a></div>
+          <div class="row" style="margin-top:8px"><button class="sm ghost" id="zipbtn">Scarica tutti i PDF (zip)</button></div>
           <p class="small muted" style="margin-top:6px">Entrano solo aziende REALI con consenso al benchmark. Le versioni consegnate non cambiano.</p></div>
       </div>
       <div class="card"><h2>Aziende</h2><div class="tablewrap"><table>
@@ -87,6 +87,14 @@ async function viewControl(id) {
       else if (!confirm(`Passare alla fase "${to}"?${to === 'confronto' ? '\nLe risposte individuali verranno bloccate e non si potranno riaprire.' : ''}`)) return;
       try { await api(`/api/admin/sessions/${s.id}/phase`, { method: 'PUT', body: { phase: to, reason } }); C = await api(`/api/admin/sessions/${id}/control`); draw(); } catch (e) { toast(e.message, true); }
     });
+    $('#zipbtn').onclick = async () => {
+      const url = `/api/admin/sessions/${s.id}/pdfs.zip`;
+      const res = await fetch(url);
+      if (res.status === 409) { const e = await res.json(); if (confirm(`${e.error}\n\nScaricare comunque?`)) location.href = `${url}?force=1`; return; }
+      if (!res.ok) { const e = await res.json().catch(() => ({})); toast(e.error || 'Errore', true); return; }
+      const name = (res.headers.get('Content-Disposition') || '').match(/filename="([^"]+)"/)?.[1] || 'AITO_Map_report.zip';
+      const a = document.createElement('a'); a.href = URL.createObjectURL(await res.blob()); a.download = name; a.click();
+    };
     $('#freeze').onclick = async () => {
       if (!confirm('Congelare una nuova versione del benchmark con i dati consolidati attuali?')) return;
       try { const r = await api(`/api/admin/benchmark/${s.base}/freeze`, { method: 'POST' }); toast(`Congelata: ${r.label} (N=${r.n})`); C = await api(`/api/admin/sessions/${id}/control`); draw(); } catch (e) { toast(e.message, true); }

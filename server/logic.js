@@ -29,7 +29,20 @@ export function participantState(p) {
 }
 
 // ---------- Vista di confronto intra-azienda (anonima) ----------
+// Cache breve della vista di confronto: con 4 telefoni per azienda che interrogano ogni pochi secondi,
+// lo stesso calcolo si farebbe 4 volte. Si invalida a ogni risposta, registrazione o rimozione.
+const cmpCache = new Map();
+export function invalidateComparison(sessionId, companyId) { cmpCache.delete(`${sessionId}:${companyId}`); }
 export function companyComparison(sessionId, companyId) {
+  const k = `${sessionId}:${companyId}`;
+  const hit = cmpCache.get(k);
+  if (hit && Date.now() - hit.at < 2000) return structuredClone(hit.val);
+  const val = computeComparison(sessionId, companyId);
+  if (cmpCache.size > 2000) cmpCache.clear();
+  cmpCache.set(k, { at: Date.now(), val });
+  return structuredClone(val);
+}
+function computeComparison(sessionId, companyId) {
   const session = getSession(sessionId);
   const def = baseDef(session);
   const parts = activeParticipants(sessionId, companyId);
