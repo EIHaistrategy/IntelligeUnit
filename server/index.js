@@ -404,7 +404,8 @@ export function start(port = PORT) {
     console.log(`  Su questo computer:   http://localhost:${port}/admin`);
     console.log(`  Dai telefoni (Wi-Fi): ${baseUrl()}`);
     console.log(`  Database:             ${DB_PATH}`);
-    if (firstPassword) console.log(`\n  Password admin iniziale: ${firstPassword}   (cambiala da Impostazioni)`);
+    if (firstPassword && !process.env.ADMIN_PASSWORD) console.log(`\n  Password admin iniziale: ${firstPassword}   (cambiala da Impostazioni)`);
+    else if (firstPassword) console.log('\n  Password admin: quella impostata nella variabile ADMIN_PASSWORD');
     console.log('\n  Per fermare il server: Ctrl+C\n');
   });
 }
