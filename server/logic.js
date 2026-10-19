@@ -338,29 +338,30 @@ export function plenaria(base, { preview = false } = {}) {
 // 10.3 Gap della community: ogni dimensione è un punto (quota in fascia Fondativa, IQR).
 // 10.4 Peer matching: ogni dimensione è un punto (aziende che l'hanno scelta come priorità, contributor potenziali).
 //      Contributor potenziale = azienda in fascia Consolidata sulla dimensione con consenso al peer matching (scelta della piattaforma).
+// Una dimensione vista dalla community (§10.3 e §10.4), dai dati di una versione del benchmark.
+// Con `comp` (id → azienda) restituisce anche i nomi, per la sola console ELIS.
+function communityDim(d, data, comp = null) {
+  const rows = data.dims[d] || [];
+  const itemsOfDim = Object.keys(I.items).filter((k) => I.items[k].dimension === d);
+  const inBench = new Set(data.companies);
+  const peerOk = new Set(q.all("SELECT company_id FROM consents WHERE type = 'peer' AND granted = 1").map((r) => r.company_id));
+  const needRows = q.all(`SELECT company_id, MAX(peer_interest) peer FROM commitments WHERE priority_item IN (${itemsOfDim.map(() => '?').join(',')}) GROUP BY company_id`, ...itemsOfDim)
+    .filter((r) => inBench.has(r.company_id));
+  const contrib = rows.filter((r) => r.score >= S.maps.where.score && peerOk.has(r.company));
+  const peer = { need: needRows.length, interest: needRows.filter((r) => r.peer).length, contrib: contrib.length, quadrant: E.peerQuadrant(needRows.length, contrib.length) };
+  if (comp) { peer.needNames = needRows.map((r) => comp[r.company_id]?.name).filter(Boolean); peer.contribNames = contrib.map((r) => comp[r.company]?.name).filter(Boolean); }
+  return {
+    dimension: d, name: I.dimensions.find((x) => x.id === d).name, session: I.sessions.find((x) => x.dimensions.includes(d)).name,
+    stats: E.benchmarkStats(rows), gap: E.communityGap(rows.map((r) => r.score)), peer, rows,
+  };
+}
+
 export function sessionMaps(base, { preview = false } = {}) {
   const def = E.sessionDef(base);
   const src = benchSource(base, preview);
   if (!src) return { base, def, available: false, message: 'Benchmark non ancora congelato per questa sessione: le mappe usano la versione congelata. Usa l\'anteprima per vederle con i dati dimostrativi.' };
   const comp = Object.fromEntries(q.all('SELECT id, name, kind FROM companies').map((c) => [c.id, c]));
-  const peerOk = new Set(q.all("SELECT company_id FROM consents WHERE type = 'peer' AND granted = 1").map((r) => r.company_id));
-  const dimInfo = (d, data) => {
-    const rows = data.dims[d] || [];
-    const itemsOfDim = Object.keys(I.items).filter((k) => I.items[k].dimension === d);
-    const inBench = new Set(data.companies);
-    const ph = itemsOfDim.map(() => '?').join(',');
-    const needRows = q.all(`SELECT DISTINCT company_id, MAX(peer_interest) peer FROM commitments WHERE priority_item IN (${ph}) GROUP BY company_id`, ...itemsOfDim)
-      .filter((r) => inBench.has(r.company_id));
-    const contrib = rows.filter((r) => r.score >= S.maps.where.score && peerOk.has(r.company));
-    return {
-      dimension: d, name: I.dimensions.find((x) => x.id === d).name, session: I.sessions.find((x) => x.dimensions.includes(d)).name,
-      stats: E.benchmarkStats(rows), gap: E.communityGap(rows.map((r) => r.score)),
-      peer: { need: needRows.length, interest: needRows.filter((r) => r.peer).length, contrib: contrib.length,
-        needNames: needRows.map((r) => comp[r.company_id]?.name).filter(Boolean), contribNames: contrib.map((r) => comp[r.company]?.name).filter(Boolean),
-        quadrant: E.peerQuadrant(needRows.length, contrib.length) },
-      rows,
-    };
-  };
+  const dimInfo = (d, data) => communityDim(d, data, comp);
   const b = src.data;
   const dims = def.dimensions.map((d) => {
     const info = dimInfo(d, b);
@@ -410,8 +411,13 @@ export function companyReport(companyId, { preview = false } = {}) {
     const src = bench[d.session];
     const stats = src ? E.benchmarkStats(src.data.dims[d.id] || [], companyId) : null;
     const sc = dimScores[d.id];
+    let community = null;
+    if (sc != null && src) {
+      const cd = communityDim(d.id, src.data);
+      if (cd.gap.available) community = { n: cd.gap.n, fondShare: cd.gap.fondShare, iqr: cd.gap.iqr, gapQuadrant: cd.gap.quadrant, need: cd.peer.need, contrib: cd.peer.contrib, peerQuadrant: cd.peer.quadrant };
+    }
     return { id: d.id, name: d.name, session: d.session, score: sc, band: E.band(sc)?.name || null,
-      bench: stats, quadrant: sc != null && stats?.available ? E.whereQuadrant(sc, stats.median) : null };
+      bench: stats, quadrant: sc != null && stats?.available ? E.whereQuadrant(sc, stats.median) : null, community };
   });
   const peerMedians = Object.fromEntries(dims.map((d) => [d.id, d.bench?.available ? d.bench.median : null]));
   const coh = E.coherence(itemScores, dimScores);

@@ -210,6 +210,19 @@ export function buildCompanyPdf(R) {
     para(noBench('Mappa e confronto per dimensione'), { size: 8.2, color: C.ink3 });
   }
 
+  // ---------- La dimensione nella community (§10.3, §10.4) ----------
+  const comm = R.dims.filter((d) => d.community);
+  if (comm.length) {
+    ensure(90);
+    doc.moveDown(0.6);
+    doc.font('Bold').fontSize(10).fillColor(C.deep).text('La dimensione nella community', X0, doc.y, { width: W });
+    doc.moveDown(0.2);
+    para('Se il bisogno è condiviso da molte aziende e se ci sono aziende da cui imparare. Dati aggregati, senza nomi di altre aziende; soglie ipotesi del pilot.', { size: 7.8, color: C.ink3 });
+    doc.moveDown(0.2);
+    kv(comm.map((d) => [`${d.id} · ${d.name}`,
+      `Bisogno: ${d.community.gapQuadrant} (${Math.round(d.community.fondShare * 100)}% in Fondativa, eterogeneità ${n1(d.community.iqr)} punti).  Con chi accelerare: ${d.community.peerQuadrant} (${d.community.need} con questa priorità, ${d.community.contrib} contributor potenziali).`]), 150);
+  }
+
   // ---------- 5 · Priorità ----------
   h2('5 · Priorità e commitment');
   if (R.mapComplete) {

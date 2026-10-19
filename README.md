@@ -49,6 +49,7 @@ Dopo la sessione: *Rilascia* il report al referente (lo vede dal suo link), regi
 - *Il bisogno è individuale o condiviso?* (§10.3): un punto per dimensione, quota in fascia Fondativa e IQR; le dimensioni delle altre sessioni compaiono in grigio.
 - *Con chi accelerare?* (§10.4): un punto per dimensione, aziende che l'hanno scelta come priorità e contributor potenziali.
 I nomi delle aziende sono nascosti di default (pagina proiettabile); *mostra i nomi* li rivela per l'uso interno ELIS.
+Dove compaiono: voce *Mappe* nel menu della console; pulsante nella control room; la **plenaria** mostra in fondo le mappe §10.3 e §10.4 (solo dati aggregati); il **report aziendale** (web e PDF) ha la sezione *La dimensione nella community*, che per ogni dimensione dell'azienda indica il quadrante delle due mappe di community, senza nomi di altre aziende.
 
 ## 5. Che cosa c'è in questa versione
 

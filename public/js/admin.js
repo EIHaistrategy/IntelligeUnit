@@ -30,7 +30,7 @@ function route() {
   const [, view = 'sessioni', arg] = location.hash.split('/');
   $$('#nav a').forEach((a) => a.classList.toggle('active', a.dataset.v === view || (view === 'sessione' && a.dataset.v === 'sessioni') || (view === 'azienda' && a.dataset.v === 'aziende')));
   ({ sessioni: viewSessions, sessione: viewControl, aziende: viewCompanies, azienda: viewCompany, benchmark: viewBenchmark,
-    audit: viewAudit, impostazioni: viewSettings, qr: viewQr, tavolo: viewTableCard, tavoli: viewTables }[view] || viewSessions)(arg);
+    audit: viewAudit, impostazioni: viewSettings, qr: viewQr, tavolo: viewTableCard, tavoli: viewTables, mappe: viewMaps }[view] || viewSessions)(arg);
 }
 
 // ---------- Sessioni ----------
@@ -400,6 +400,18 @@ async function viewBenchmark() {
       ${vs.map((v) => `<tr><td>${esc(v.label)}</td><td class="num">${v.n_companies}</td><td>${esc(v.instrument_version)}</td><td>${esc(v.scoring_version)}</td><td>${fmtDate(v.created_at)}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Nessuna versione.</td></tr>'}
     </tbody></table></div>`;
   $$('[data-freeze]').forEach((b) => b.onclick = async () => { if (!confirm('Congelare una nuova versione?')) return; const r = await api(`/api/admin/benchmark/${b.dataset.freeze}/freeze`, { method: 'POST' }); toast(`${r.label} · N=${r.n}`); viewBenchmark(); });
+}
+
+// ---------- Mappe a quadranti ----------
+async function viewMaps() {
+  const vs = await api('/api/admin/benchmark');
+  app.innerHTML = `<h1>Mappe a quadranti</h1>
+    <p class="lede" style="margin-bottom:20px">Una pagina per sessione con le tre mappe della nota (§10.2–10.4): dove intervenire, se il bisogno è individuale o condiviso, con chi accelerare. Usano l'ultima versione congelata del benchmark; l'anteprima usa anche i dati dimostrativi. I nomi delle aziende sono nascosti finché non li mostri.</p>
+    <div class="grid c2">${INST.sessions.map((s) => { const v = vs.find((x) => x.base === s.id); const dims = s.dimensions.map((d) => INST.dimensions.find((x) => x.id === d));
+      return `<div class="card sesscard"><h2 style="margin:0">${esc(s.name)}</h2>
+        <p class="small muted" style="margin:4px 0 12px">${dims.map((d) => `${d.id} ${esc(d.name)}`).join(' · ')}</p>
+        <p class="small" style="margin:0 0 14px">${v ? `Benchmark: <b>${esc(v.label)}</b>, ${v.n_companies} aziende` : '<span class="muted">Benchmark non ancora congelato: per ora solo anteprima</span>'}</p>
+        <div class="row" style="margin-top:auto">${v ? `<a class="btn sm" href="/mappe/${s.id}" target="_blank">Apri le mappe</a>` : ''}<a class="btn sm ghost" href="/mappe/${s.id}?preview=1" target="_blank">Anteprima con dati dimostrativi</a></div></div>`; }).join('')}</div>`;
 }
 
 // ---------- Audit ----------

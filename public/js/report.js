@@ -84,6 +84,14 @@ async function boot() {
     ${anyDimBench ? `<table style="margin-top:10px"><thead><tr><th>Dimensione</th><th>Benchmark</th></tr></thead><tbody>${R.dims.filter((d) => d.score != null).map((d) => `<tr><td>${d.id} ${esc(d.name)}</td><td class="small">${d.bench?.available ? `${benchStrip(d.bench, d.score)}<br>` : ''}${benchTxt(d.bench)}</td></tr>`).join('')}</tbody></table>` : noBench('Mappa e confronto per dimensione')}
   </div>
 
+  ${R.dims.some((d) => d.community) ? `<div class="card"><h3>La dimensione nella community</h3>
+    <div class="explain">Dove si colloca ogni dimensione nelle mappe di community della sessione: se il bisogno è condiviso da molte aziende e se ci sono aziende da cui imparare. Sono dati aggregati, senza nomi di altre aziende; le soglie sono ipotesi del pilot.</div>
+    <div class="tablewrap"><table><thead><tr><th>Dimensione</th><th>Il bisogno è individuale o condiviso?</th><th>Con chi accelerare?</th></tr></thead><tbody>
+    ${R.dims.filter((d) => d.community).map((d) => `<tr><td><span class="dim-letter">${d.id}</span>${esc(d.name)}</td>
+      <td><b>${esc(d.community.gapQuadrant)}</b><div class="small muted">${Math.round(d.community.fondShare * 100)}% delle aziende in fascia Fondativa · eterogeneità ${fmtScore(d.community.iqr)} punti · N=${d.community.n}</div></td>
+      <td><b>${esc(d.community.peerQuadrant)}</b><div class="small muted">${d.community.need} ${d.community.need === 1 ? 'azienda l\'ha scelta' : 'aziende l\'hanno scelta'} come priorità · ${d.community.contrib} contributor potenziali</div></td></tr>`).join('')}
+    </tbody></table></div></div>` : ''}
+
   <div class="card"><h2><span class="secnum">5</span>Qualità del dato</h2>
     ${R.pairs.map((p) => `<p><b>${esc(p.session.title)}</b> · ${p.participants} partecipanti · funzioni: ${p.functions.map(fnLabel).map(esc).join(', ') || '—'}</p>
       <ul class="small">${p.pairs.map((x) => `<li>Confronto ${esc(x.a)} vs ${esc(x.b)}: ${x.counts.A} per ${esc(x.a)}, ${x.counts.B} per ${esc(x.b)}, ${x.counts.ND} N.D.${x.discordant ? ` — <b>${x.discordant}</b> ${x.discordant === 1 ? 'risposta' : 'risposte'} in contrasto con i livelli dati dalla stessa persona` : ''}</li>`).join('')}</ul>`).join('') || '<p class="muted">—</p>'}

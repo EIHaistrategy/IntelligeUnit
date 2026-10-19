@@ -16,8 +16,6 @@
   .msec > h2 { font-size: 1.6rem; margin-bottom: 4px; }
   .msec > .q { color: var(--ink-3); font-weight: 600; margin: 0 0 6px; }
   .msec > .lede { margin-bottom: 16px; }
-  .mapgrid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 18px; align-items: start; }
-  .mapgrid .chart svg { width: 100%; height: auto; }
   .qlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
   .qlist li { padding: 12px 14px; border-radius: var(--radius-sm); background: var(--sunken); }
   .qlist .qn { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
@@ -33,7 +31,6 @@
   .mini-f b { color: var(--navy-deep); }
   .dimhead { display: flex; align-items: center; margin-bottom: 12px; }
   .dimhead h3 { margin: 0; font-size: 1.15rem; }
-  @media (max-width: 900px) { .mapgrid { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
@@ -44,6 +41,7 @@
 <script type="module">
 import { api, esc, $, fmtScore } from '/static/js/ui.js';
 import { quadrantMap } from '/static/js/charts.js';
+import { gapMapHtml, peerMapHtml } from '/static/js/maps.js';
 const base = location.pathname.split('/').pop();
 const params = new URLSearchParams(location.search);
 const preview = params.get('preview') === '1';
@@ -57,7 +55,6 @@ try { M = await api(`/api/admin/maps/${base}${preview ? '?preview=1' : ''}`); }
 catch (e) { $('#app').innerHTML = `<div class="card"><p>${esc(e.message)}. Accedi prima dalla <a href="/admin">console ELIS</a>.</p></div>`; throw e; }
 document.title = `${M.def.name} · mappe a quadranti`;
 
-const pct = (v) => `${Math.round(v * 100)}%`;
 const DECIDE = { HH: 'Scalare pratiche, documentare evidenze e contribuire alla community.', HL: 'Migliorare selettivamente usando pratiche dei peer, senza sovrainvestire.',
   LH: 'Rafforzare la capacità: essere sopra la mediana non significa essere consolidati.', LL: 'Attivare priorità, commitment e confronto con i peer.' };
 const POS = { HH: 'TR', HL: 'BR', LH: 'TL', LL: 'BL' };
@@ -67,7 +64,6 @@ function draw() {
   const T = M.thresholds;
   const qnames = M.quadrantNames[M.namesInUse], alt = M.quadrantNames.alternativi;
   const whereQuads = Object.fromEntries(Object.entries(POS).map(([k, p]) => [p, qnames[k]]));
-  const allDims = [...M.dims.map((d) => ({ ...d, main: true })), ...M.others.map((d) => ({ ...d, main: false }))];
 
   // ---- 10.2 Dove intervenire: la mappa è per azienda (un punto per dimensione). Qui: quadro d'insieme e una piccola mappa per azienda.
   const dimsOk = M.dims.filter((d) => d.where.length);
@@ -91,32 +87,7 @@ function draw() {
           quads: whereQuads, x: { min: 0, max: 100, t: T.where.score, label: '' }, y: { min: -lim, max: lim, t: 0, label: '', fmt: (v) => (v > 0 ? `+${v}` : String(v)) } })}</div>
         <div class="mini-f">${c.pts.map((p) => `<span><b>${p.dim}</b> ${esc(p.quadrant)}</span>`).join('')}</div></div>`).join('')}</div>`;
 
-  // ---- 10.3 Gap della community: un punto per dimensione
-  const gapPts = allDims.filter((d) => d.gap.available).map((d) => ({ x: d.gap.fondShare * 100, y: d.gap.iqr, letter: d.dimension, tone: d.main ? 'main' : 'muted',
-    title: `${d.dimension} ${d.name}: ${pct(d.gap.fondShare)} in Fondativa, IQR ${fmtScore(d.gap.iqr)}` }));
-  const cq = M.communityQuadrants;
-  const gapMax = Math.max(40, ...gapPts.map((p) => p.y + 6));
-  const gapHtml = `<div class="card"><div class="mapgrid"><div class="chart">${gapPts.length ? quadrantMap({ points: gapPts, quads: { TR: cq.HF_HI, BR: cq.HF_LI, TL: cq.LF_HI, BL: cq.LF_LI },
-      x: { min: 0, max: 100, t: T.community.fondShare * 100, label: 'Quota di aziende in fascia Fondativa', fmt: (v) => `${v}%` },
-      y: { min: 0, max: Math.ceil(gapMax / 10) * 10, t: T.community.iqr, label: 'Eterogeneità della community (IQR, punti)' } }) : `<div class="banner warn">Servono almeno ${M.minN} aziende per dimensione.</div>`}</div>
-    <div><table><thead><tr><th>Dimensione</th><th class="num">Fondativa</th><th class="num">IQR</th><th>Quadrante</th></tr></thead><tbody>
-      ${allDims.map((d) => `<tr class="${d.main ? '' : 'muted'}"><td><span class="dim-letter" style="${d.main ? '' : 'background:#B5BFCB'}">${d.dimension}</span>${esc(d.name)}</td>
-        ${d.gap.available ? `<td class="num">${pct(d.gap.fondShare)}</td><td class="num">${fmtScore(d.gap.iqr)}</td><td><b>${esc(d.gap.quadrant)}</b></td>` : `<td colspan="3" class="small muted">N = ${d.gap.n}: non disponibile</td>`}</tr>`).join('')}</tbody></table>
-      <p class="small muted" style="margin-top:10px">In blu le dimensioni di questa sessione, in grigio quelle già misurate nelle altre sessioni. ${esc(cq.note || '')}.</p></div></div></div>`;
-
-  // ---- 10.4 Peer matching: un punto per dimensione
-  const pq = M.peerQuadrants;
-  const peerPts = allDims.map((d) => ({ x: d.peer.need, y: d.peer.contrib, letter: d.dimension, tone: d.main ? 'main' : 'muted',
-    title: `${d.dimension} ${d.name}: ${d.peer.need} aziende con la priorità, ${d.peer.contrib} contributor potenziali` }));
-  const peerHtml = `<div class="card"><div class="mapgrid"><div class="chart">${quadrantMap({ points: peerPts, quads: { TR: pq.HN_HC, BR: pq.HN_LC, TL: pq.LN_HC, BL: pq.LN_LC },
-      x: { min: 0, max: Math.max(T.peer.need * 2, ...peerPts.map((p) => p.x + 1)), t: T.peer.need, label: 'Aziende che hanno scelto la dimensione come priorità' },
-      y: { min: 0, max: Math.max(T.peer.contrib * 2, ...peerPts.map((p) => p.y + 1)), t: T.peer.contrib, label: 'Contributor potenziali' } })}</div>
-    <div><table><thead><tr><th>Dimensione</th><th class="num">Con priorità</th><th class="num">Contributor</th><th>Quadrante</th></tr></thead><tbody>
-      ${allDims.map((d) => `<tr class="${d.main ? '' : 'muted'}"><td><span class="dim-letter" style="${d.main ? '' : 'background:#B5BFCB'}">${d.dimension}</span>${esc(d.name)}
-        ${showNames && d.main ? `<div class="small" style="margin-top:4px">Priorità: ${d.peer.needNames.map(esc).join(', ') || '—'}<br>Contributor: ${d.peer.contribNames.map(esc).join(', ') || '—'}</div>` : ''}</td>
-        <td class="num">${d.peer.need}${d.peer.interest ? `<div class="small muted">${d.peer.interest} chiedono un confronto</div>` : ''}</td><td class="num">${d.peer.contrib}</td><td><b>${esc(d.peer.quadrant)}</b></td></tr>`).join('')}</tbody></table>
-      <p class="small muted" style="margin-top:10px">Priorità = commitment registrati su una capacità della dimensione. Contributor potenziale = azienda in fascia Consolidata sulla dimensione che ha dato il consenso al peer matching. ${esc(pq.note || '')}.</p></div></div></div>`;
-
+  const gapHtml = gapMapHtml(M), peerHtml = peerMapHtml(M, { showNames });
   $('#app').innerHTML = `
     ${M.preview ? '<div class="banner preview">Anteprima con dati dimostrativi e di test: non sono le mappe ufficiali</div>' : ''}
     <div class="mhead"><h1>${esc(M.def.name)}: mappe a quadranti</h1>

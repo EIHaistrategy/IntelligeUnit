@@ -24,6 +24,7 @@
 <div class="wrap pl" id="app"><p class="muted">Caricamento…</p></div>
 <script type="module">
 import { api, esc, $, fmtScore } from '/static/js/ui.js';
+import { gapMapHtml, peerMapHtml } from '/static/js/maps.js';
 const base = location.pathname.split('/').pop();
 const params = new URLSearchParams(location.search);
 const preview = params.get('preview') === '1';
@@ -48,6 +49,16 @@ else {
         <p class="small muted" style="margin-top:6px">${it.dist.levels.filter((l) => l.subDist).map((l) => `Liv. ${l.level}: ${l.subDist.map((s) => `${l.level}${s.key} ${s.count}`).join(' · ')}`).join(' — ') || 'Sotto-livelli aggregati al livello (regola dei 5).'}
         · mediana ${fmtScore(it.stats.median)} · N=${it.stats.n}</p>` : na(it.dist)}</div>`).join('')}
     <div class="legend">${[1, 2, 3, 4, 5].map((l) => `<span><i class="l${l}"></i>Livello ${l}</span>`).join('')}</div>`;
+  // lettura di community (§10.3, §10.4): solo dati aggregati, si può proiettare
+  try {
+    const M = await api(`/api/admin/maps/${base}${preview ? '?preview=1' : ''}`);
+    if (M.available) $('#app').insertAdjacentHTML('beforeend', `
+      <h2 style="margin:36px 0 4px">Il bisogno è individuale o condiviso?</h2>
+      <p class="ink2" style="margin-bottom:14px">Ogni punto è una dimensione: quante aziende sono ancora in fascia Fondativa e quanto sono diverse tra loro.</p>${gapMapHtml(M)}
+      <h2 style="margin:28px 0 4px">Con chi accelerare?</h2>
+      <p class="ink2" style="margin-bottom:14px">Ogni punto è una dimensione: quante aziende l'hanno scelta come priorità e quante potrebbero portare la propria esperienza.</p>${peerMapHtml(M)}
+      <p class="small muted"><a href="/mappe/${base}${preview ? '?preview=1' : ''}">Tutte le mappe della sessione</a>, compresa la vista per azienda (solo console ELIS).</p>`);
+  } catch { /* mappe non disponibili: la plenaria resta valida */ }
 }
 </script>
 </body>

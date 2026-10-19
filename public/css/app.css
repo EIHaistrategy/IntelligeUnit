@@ -408,3 +408,9 @@ fieldset.q .small.muted { margin-bottom: 6px; }
 }
 .fstep:has(+ .fgroup)::after { display: none; }
 .tablewrap td:first-child { min-width: 200px; }
+
+/* mappe a quadranti (pagina mappe e plenaria) */
+.mapgrid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+.mapgrid .chart svg { width: 100%; height: auto; }
+tr.muted td { color: var(--ink-3); }
+@media (max-width: 900px) { .mapgrid { grid-template-columns: 1fr; } }
