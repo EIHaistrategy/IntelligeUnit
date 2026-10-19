@@ -24,12 +24,15 @@ export function seedDemo() {
       const r = q.run("INSERT INTO companies (name, perimeter, sector, kind, join_code, seeded) VALUES (?, 'Gruppo', ?, 'DEMO', ?, 1)", `${name} (demo)`, SECTORS[k], shortCode(4));
       const cid = Number(r.lastInsertRowid);
       q.run("INSERT INTO consents (company_id, type, granted) VALUES (?, 'benchmark', 1)", cid);
+      if (Math.random() < 0.7) q.run("INSERT INTO consents (company_id, type, granted) VALUES (?, 'peer', 1)", cid);
       const m = rnd(1.7, 4.1);
       for (const s of sessions) {
         const def = E.sessionDef(s.base);
         const dimShift = Object.fromEntries(def.dimensions.map((d) => [d, rnd(-0.8, 0.8)]));
+        const lv = {};
         for (const itemId of def.items) {
           const level = clamp(Math.round(m + dimShift[I.items[itemId].dimension] + rnd(-0.7, 0.7)));
+          lv[itemId] = level;
           const sub = pickSub(itemId, level);
           q.run(`INSERT INTO consolidated (session_id, company_id, item_id, kind, level, sub, score, confidence, confidence_label, confidence_reason,
                  median, valid_n, nd_n, range_, perspectives, instrument_version, scoring_version, created_by)
@@ -37,6 +40,9 @@ export function seedDemo() {
             s.id, cid, itemId, level, sub, E.itemScore(itemId, level, sub), level, I.version, E.SCORING.version);
         }
         q.run("INSERT OR IGNORE INTO session_company (session_id, company_id, consolidated_at, consolidated_by) VALUES (?, ?, datetime('now'), 'demo')", s.id, cid);
+        // priorità dimostrativa: la capacità più debole della sessione (serve alla mappa del peer matching)
+        const prio = def.items.slice().sort((a, b) => lv[a] - lv[b] || Math.random() - 0.5)[0];
+        q.run("INSERT INTO commitments (session_id, company_id, priority_item, action, owner, kpi, peer_interest) VALUES (?, ?, ?, 'Azione dimostrativa', 'Demo', 'Evidenza dimostrativa', ?)", s.id, cid, prio, Math.random() < 0.5 ? 1 : 0);
       }
     });
   });

@@ -155,7 +155,7 @@ async function viewControl(id) {
       what = `Congelare salva una versione datata del benchmark: è quella che entra nei report e non cambia più. Entrano solo aziende REALI con consenso; sotto ${SC.benchmark.minN} aziende il confronto non si mostra.`;
       checks.push(frozen ? ck(benchDone ? 'ok' : 'warn', `Ultima versione: <b>${esc(frozen.label)}</b>, ${frozen.n_companies} aziende, ${fmtDate(frozen.created_at)}${benchDone ? '' : '. Ci sono consolidamenti successivi: congela di nuovo per includerli.'}`) : ck('warn', 'Nessuna versione congelata per questa sessione'));
       if (frozen && frozen.n_companies < SC.benchmark.minN) checks.push(ck('info', `Con ${frozen.n_companies} aziende il confronto non compare nei report: servono almeno ${SC.benchmark.minN}.`));
-      extra = `<div class="row"><button class="gold" id="freeze">Congela il benchmark ora</button><a class="btn ghost" href="/plenaria/${s.base}" target="_blank">Apri la plenaria</a><a class="btn ghost" href="/live/${s.id}" target="_blank">Dashboard live</a></div>`;
+      extra = `<div class="row"><button class="gold" id="freeze">Congela il benchmark ora</button><a class="btn ghost" href="/plenaria/${s.base}" target="_blank">Apri la plenaria</a><a class="btn ghost" href="/mappe/${s.base}" target="_blank">Mappe a quadranti</a><a class="btn ghost" href="/live/${s.id}" target="_blank">Dashboard live</a></div>`;
     } else if (f.id === 'report') {
       what = 'Rilasciare salva una copia del report che l\'azienda vede dal link del referente e che non cambierà più. Conviene congelare prima il benchmark, così il report contiene il confronto.';
       if (!benchDone) checks.push(ck('warn', 'Il benchmark non è aggiornato: <button class="link" data-goto="benchmark">congelalo prima</button>.'));
@@ -192,7 +192,7 @@ async function viewControl(id) {
     let group = '';
     app.innerHTML = `<a class="back" href="#/sessioni">← Sessioni</a>
       <div class="pagehead"><div><h1>${esc(s.title)}</h1><p class="small">${esc(C.def.items.map((i) => `${i} ${INST.items[i].title}`).join(' · '))} · codice <span class="mono">${esc(s.code)}</span></p></div>
-        <div class="row"><a class="btn sm ghost" href="/live/${s.id}" target="_blank">Dashboard live</a><a class="btn sm ghost" href="#/qr/${s.id}">QR di sala</a></div></div>
+        <div class="row"><a class="btn sm ghost" href="/live/${s.id}" target="_blank">Dashboard live</a><a class="btn sm ghost" href="/mappe/${s.base}" target="_blank">Mappe a quadranti</a><a class="btn sm ghost" href="#/qr/${s.id}">QR di sala</a></div></div>
       <div class="flow">
         <nav class="flowsteps" aria-label="Passi della sessione">${FLOW.map((x, i) => {
           const g = x.group !== group ? `<div class="fgroup">${esc((group = x.group))}</div>` : '';
@@ -434,7 +434,7 @@ async function viewSettings() {
     <div class="card"><h2>Versioni</h2><p class="small">Strumento <b>${esc(INST.version)}</b> (${esc(INST.status)}) · Scoring <b>${esc(SC.version)}</b></p></div>`;
   const D = await api('/api/admin/demo');
   $('#demo').innerHTML = `<p class="small ink2">14 aziende DEMO con valori su tutte e quattro le sessioni e un'azienda vetrina (TEST) con scheda, partecipanti, consolidamento e commitment. Non entrano mai nel benchmark ufficiale: si vedono con l'opzione "anteprima".</p>
-    ${D.present ? `<div class="row"><a class="btn sm" href="/live/1?preview=1" target="_blank">Dashboard live (anteprima)</a><a class="btn sm ghost" href="/plenaria/GOV?preview=1" target="_blank">Plenaria (anteprima)</a>
+    ${D.present ? `<div class="row"><a class="btn sm" href="/live/1?preview=1" target="_blank">Dashboard live (anteprima)</a><a class="btn sm ghost" href="/plenaria/GOV?preview=1" target="_blank">Plenaria (anteprima)</a><a class="btn sm ghost" href="/mappe/GOV?preview=1" target="_blank">Mappe (anteprima)</a>
       ${D.vetrina ? `<a class="btn sm ghost" href="/report/${D.vetrina}?preview=1" target="_blank">Report vetrina</a><a class="btn sm ghost" href="/api/admin/pdf/${D.vetrina}?preview=1">PDF vetrina</a>` : ''}
       <button class="sm danger" id="demo_rm">Rimuovi dati dimostrativi</button></div>` : '<button class="sm" id="demo_add">Carica dati dimostrativi</button>'}`;
   if ($('#demo_add')) $('#demo_add').onclick = async () => { try { await api('/api/admin/demo', { method: 'POST' }); toast('Dati dimostrativi caricati'); viewSettings(); } catch (e) { toast(e.message, true); } };

@@ -44,6 +44,12 @@ Dopo la sessione: *Rilascia* il report al referente (lo vede dal suo link), regi
 - **Dashboard del benchmark in tempo reale** (Control room → *Dashboard live*, indirizzo `/live/<sessione>`): da proiettare in sala. Si aggiorna ogni 5 secondi man mano che le aziende consolidano. Mostra contatori di avanzamento e, da 5 aziende in su, mediana e Q1–Q3 per dimensione, aziende per fascia, eterogeneità e distribuzione dei livelli per item. Sotto 5 aziende mostra solo l'avanzamento (§9.1). Non è la versione ufficiale: a fine sessione si congela il benchmark.
 - **Report riservato e PDF per azienda**: dalla Control room *Rilascia* salva una copia del report che l'azienda vede da quel momento e che non cambia più (§9, §17). Un nuovo rilascio crea una versione successiva, marcata come tale. Il PDF si scarica per singola azienda o in uno zip per sessione (le aziende non ancora rilasciate escono come `BOZZA_…`). Il referente vede solo le versioni rilasciate, sessione per sessione.
 
+**Mappe a quadranti** (`/mappe/GOV`, `/mappe/EFF`, `/mappe/GROW`, `/mappe/SCALE`; dalla control room, pulsante *Mappe a quadranti*). Una pagina per sessione con le tre mappe del §10, sulla versione congelata del benchmark (o in anteprima con i dati dimostrativi):
+- *Dove intervenire* (§10.2): quante aziende cadono in ciascun quadrante per le due dimensioni della sessione e una piccola mappa per azienda (un punto per dimensione). Su una sola dimensione la distanza dalla mediana cresce insieme allo score, quindi la mappa si legge azienda per azienda.
+- *Il bisogno è individuale o condiviso?* (§10.3): un punto per dimensione, quota in fascia Fondativa e IQR; le dimensioni delle altre sessioni compaiono in grigio.
+- *Con chi accelerare?* (§10.4): un punto per dimensione, aziende che l'hanno scelta come priorità e contributor potenziali.
+I nomi delle aziende sono nascosti di default (pagina proiettabile); *mostra i nomi* li rivela per l'uso interno ELIS.
+
 ## 5. Che cosa c'è in questa versione
 
 - Strumento V1 completo come dati (`server/instrument/v1.0.json`): 16 item, descrittori, sotto-opzioni, opzioni valoriali, 30 dati fattuali della scheda, 14 domande di profilo, 6 regole di coerenza. Le quattro sessioni sono già create.
@@ -63,6 +69,8 @@ Item pulse (da Efficientare), ordinamento delle 8 dimensioni e tre priorità pro
 
 | Punto della nota | Scelta implementata |
 |---|---|
+| §10.4 Peer matching: "aziende con bisogno" e "contributor potenziali" | Bisogno = azienda che ha scelto come priorità del commitment una capacità della dimensione. Contributor potenziale = azienda in fascia Consolidata (≥ 70) sulla dimensione che ha dato il consenso al peer matching. |
+| §10.3 e §10.4: abbinamento nomi–quadranti | La nota elenca i nomi ma non dice quale quadrante corrisponde a quale combinazione di soglie: l'abbinamento è in `scoring-1.0.json` e va confermato. |
 | "Almeno 2 prospettive" (§7) | Due funzioni diverse dall'elenco chiuso di 11 funzioni |
 | Confronti a coppie (§6.5) | Risposta A / B / N.D., senza "pari" (`pairAllowsTie` nello strumento). Discordanza calcolata sui livelli individuali della stessa persona; livelli uguali = non valutabile |
 | Mediana frazionaria | Nessun livello proposto; la scelta del gruppo non è un override |

@@ -332,6 +332,57 @@ export function plenaria(base, { preview = false } = {}) {
   };
 }
 
+// ---------- Mappe a quadranti della sessione (§10.2–10.4) ----------
+// Stessa fonte della plenaria: l'ultima versione congelata del benchmark, oppure l'anteprima con DEMO e TEST.
+// 10.2 Dove intervenire: ogni azienda è un punto (score della dimensione, distanza dalla mediana delle altre aziende).
+// 10.3 Gap della community: ogni dimensione è un punto (quota in fascia Fondativa, IQR).
+// 10.4 Peer matching: ogni dimensione è un punto (aziende che l'hanno scelta come priorità, contributor potenziali).
+//      Contributor potenziale = azienda in fascia Consolidata sulla dimensione con consenso al peer matching (scelta della piattaforma).
+export function sessionMaps(base, { preview = false } = {}) {
+  const def = E.sessionDef(base);
+  const src = benchSource(base, preview);
+  if (!src) return { base, def, available: false, message: 'Benchmark non ancora congelato per questa sessione: le mappe usano la versione congelata. Usa l\'anteprima per vederle con i dati dimostrativi.' };
+  const comp = Object.fromEntries(q.all('SELECT id, name, kind FROM companies').map((c) => [c.id, c]));
+  const peerOk = new Set(q.all("SELECT company_id FROM consents WHERE type = 'peer' AND granted = 1").map((r) => r.company_id));
+  const dimInfo = (d, data) => {
+    const rows = data.dims[d] || [];
+    const itemsOfDim = Object.keys(I.items).filter((k) => I.items[k].dimension === d);
+    const inBench = new Set(data.companies);
+    const ph = itemsOfDim.map(() => '?').join(',');
+    const needRows = q.all(`SELECT DISTINCT company_id, MAX(peer_interest) peer FROM commitments WHERE priority_item IN (${ph}) GROUP BY company_id`, ...itemsOfDim)
+      .filter((r) => inBench.has(r.company_id));
+    const contrib = rows.filter((r) => r.score >= S.maps.where.score && peerOk.has(r.company));
+    return {
+      dimension: d, name: I.dimensions.find((x) => x.id === d).name, session: I.sessions.find((x) => x.dimensions.includes(d)).name,
+      stats: E.benchmarkStats(rows), gap: E.communityGap(rows.map((r) => r.score)),
+      peer: { need: needRows.length, interest: needRows.filter((r) => r.peer).length, contrib: contrib.length,
+        needNames: needRows.map((r) => comp[r.company_id]?.name).filter(Boolean), contribNames: contrib.map((r) => comp[r.company]?.name).filter(Boolean),
+        quadrant: E.peerQuadrant(needRows.length, contrib.length) },
+      rows,
+    };
+  };
+  const b = src.data;
+  const dims = def.dimensions.map((d) => {
+    const info = dimInfo(d, b);
+    const where = info.stats.available ? info.rows.map((r) => {
+      const st = E.benchmarkStats(info.rows, r.company);
+      const w = st.available ? E.whereQuadrant(r.score, st.median) : null;
+      return w && { company: r.company, name: comp[r.company]?.name || '—', kind: comp[r.company]?.kind, score: r.score, delta: w.delta, key: w.key, quadrant: w.name, altName: w.altName };
+    }).filter(Boolean) : [];
+    delete info.rows;
+    return { ...info, where };
+  });
+  // le altre dimensioni già misurate, come contesto nelle mappe 10.3 e 10.4
+  const others = [];
+  for (const s2 of I.sessions.filter((x) => x.id !== base)) {
+    const src2 = benchSource(s2.id, preview);
+    if (!src2) continue;
+    for (const d of s2.dimensions) { const info = dimInfo(d, src2.data); delete info.rows; others.push(info); }
+  }
+  return { base, def, available: true, version: src.label, preview: src.preview, nCompanies: b.companies.length, dims, others,
+    thresholds: S.maps, quadrantNames: S.quadrantNames, namesInUse: S.quadrantNamesInUse, communityQuadrants: S.communityQuadrants, peerQuadrants: S.peerQuadrants, minN: S.benchmark.minN };
+}
+
 // ---------- Report aziendale ----------
 export function companyReport(companyId, { preview = false } = {}) {
   const company = q.get('SELECT * FROM companies WHERE id = ?', companyId);

@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AITO Map · Mappe a quadranti</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%227%22 fill=%22%231F3864%22/%3E%3Cg fill=%22%23C9A84C%22%3E%3Crect x=%226%22 y=%2220%22 width=%223.4%22 height=%226%22 rx=%22.8%22/%3E%3Crect x=%2210.4%22 y=%2217%22 width=%223.4%22 height=%229%22 rx=%22.8%22/%3E%3Crect x=%2214.8%22 y=%2214%22 width=%223.4%22 height=%2212%22 rx=%22.8%22/%3E%3Crect x=%2219.2%22 y=%2210%22 width=%223.4%22 height=%2216%22 rx=%22.8%22/%3E%3Crect x=%2223.6%22 y=%226%22 width=%223.4%22 height=%2220%22 rx=%22.8%22/%3E%3C/g%3E%3C/svg%3E">
+<link rel="preload" href="/static/fonts/sans-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/static/fonts/serif-600.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/static/css/app.css">
+<style>
+  .wrap { max-width: 1320px; }
+  .mhead h1 { font-family: var(--display); font-size: clamp(2rem, 3.4vw, 2.8rem); margin: 0; }
+  .mhead p { margin: 8px 0 0; color: var(--ink-2); font-size: 1.05rem; }
+  .msec { margin-top: 34px; }
+  .msec > h2 { font-size: 1.6rem; margin-bottom: 4px; }
+  .msec > .q { color: var(--ink-3); font-weight: 600; margin: 0 0 6px; }
+  .msec > .lede { margin-bottom: 16px; }
+  .mapgrid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+  .mapgrid .chart svg { width: 100%; height: auto; }
+  .qlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .qlist li { padding: 12px 14px; border-radius: var(--radius-sm); background: var(--sunken); }
+  .qlist .qn { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+  .qlist .qn b { color: var(--navy-deep); }
+  .qlist .qn span { font-family: var(--display); font-size: 1.4rem; color: var(--navy-deep); }
+  .qlist p { margin: 4px 0 0; font-size: .9rem; color: var(--ink-2); }
+  .qlist .who { margin-top: 6px; font-size: .86rem; color: var(--ink); }
+  .minis { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+  .mini { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 12px 12px 10px; }
+  .mini-h { font-weight: 700; color: var(--navy-deep); margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mini .chart svg { width: 100%; height: auto; }
+  .mini-f { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: .84rem; color: var(--ink-2); margin-top: 4px; }
+  .mini-f b { color: var(--navy-deep); }
+  .dimhead { display: flex; align-items: center; margin-bottom: 12px; }
+  .dimhead h3 { margin: 0; font-size: 1.15rem; }
+  @media (max-width: 900px) { .mapgrid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="topbar"><span class="brand"><svg viewBox="0 0 26 22" aria-hidden="true"><rect x="0" y="16" width="4" height="6" rx="1" fill="#C9A84C" fill-opacity=".45"/><rect x="5.5" y="12" width="4" height="10" rx="1" fill="#C9A84C" fill-opacity=".6"/><rect x="11" y="8" width="4" height="14" rx="1" fill="#C9A84C" fill-opacity=".75"/><rect x="16.5" y="4" width="4" height="18" rx="1" fill="#C9A84C" fill-opacity=".9"/><rect x="22" y="0" width="4" height="22" rx="1" fill="#C9A84C"/></svg>AITO Map</span><span class="sub" id="ttl">Mappe a quadranti</span><span class="spacer"></span>
+  <label><input type="checkbox" id="names"> mostra i nomi delle aziende</label>
+  <label style="margin-left:14px"><input type="checkbox" id="prev"> anteprima con dati dimostrativi</label></div>
+<div class="wrap" id="app"><p class="muted">Caricamento…</p></div>
+<script type="module">
+import { api, esc, $, fmtScore } from '/static/js/ui.js';
+import { quadrantMap } from '/static/js/charts.js';
+const base = location.pathname.split('/').pop();
+const params = new URLSearchParams(location.search);
+const preview = params.get('preview') === '1';
+let showNames = params.get('nomi') === '1';
+$('#prev').checked = preview; $('#names').checked = showNames;
+$('#prev').onchange = (e) => { params.set('preview', e.target.checked ? '1' : '0'); location.search = params.toString(); };
+$('#names').onchange = (e) => { showNames = e.target.checked; params.set('nomi', showNames ? '1' : '0'); history.replaceState(null, '', `?${params}`); draw(); };
+
+let M;
+try { M = await api(`/api/admin/maps/${base}${preview ? '?preview=1' : ''}`); }
+catch (e) { $('#app').innerHTML = `<div class="card"><p>${esc(e.message)}. Accedi prima dalla <a href="/admin">console ELIS</a>.</p></div>`; throw e; }
+document.title = `${M.def.name} · mappe a quadranti`;
+
+const pct = (v) => `${Math.round(v * 100)}%`;
+const DECIDE = { HH: 'Scalare pratiche, documentare evidenze e contribuire alla community.', HL: 'Migliorare selettivamente usando pratiche dei peer, senza sovrainvestire.',
+  LH: 'Rafforzare la capacità: essere sopra la mediana non significa essere consolidati.', LL: 'Attivare priorità, commitment e confronto con i peer.' };
+const POS = { HH: 'TR', HL: 'BR', LH: 'TL', LL: 'BL' };
+
+function draw() {
+  if (!M.available) { $('#app').innerHTML = `<div class="card"><h1>${esc(M.def.name)}</h1><p>${esc(M.message)}</p></div>`; return; }
+  const T = M.thresholds;
+  const qnames = M.quadrantNames[M.namesInUse], alt = M.quadrantNames.alternativi;
+  const whereQuads = Object.fromEntries(Object.entries(POS).map(([k, p]) => [p, qnames[k]]));
+  const allDims = [...M.dims.map((d) => ({ ...d, main: true })), ...M.others.map((d) => ({ ...d, main: false }))];
+
+  // ---- 10.2 Dove intervenire: la mappa è per azienda (un punto per dimensione). Qui: quadro d'insieme e una piccola mappa per azienda.
+  const dimsOk = M.dims.filter((d) => d.where.length);
+  const companies = new Map();
+  for (const d of dimsOk) for (const p of d.where) {
+    if (!companies.has(p.company)) companies.set(p.company, { id: p.company, name: p.name, pts: [] });
+    companies.get(p.company).pts.push({ ...p, dim: d.dimension, dimName: d.name });
+  }
+  const list = [...companies.values()].sort((a, b) => a.name.localeCompare(b.name, 'it'));
+  const anon = new Map([...companies.keys()].sort((a, b) => a - b).map((id, i) => [id, `Azienda ${i + 1}`]));
+  const lim = Math.ceil((Math.max(20, ...dimsOk.flatMap((d) => d.where.map((p) => Math.abs(p.delta)))) + 5) / 10) * 10;
+  const whereHtml = !dimsOk.length
+    ? `<div class="banner warn">Non disponibile: servono almeno ${M.minN} aziende con la dimensione completa.</div>`
+    : `<div class="card"><h3 style="margin-bottom:12px">Aziende per quadrante</h3><div class="tablewrap"><table><thead><tr><th>Quadrante</th><th>Che cosa fare</th>${dimsOk.map((d) => `<th class="num"><span class="dim-letter">${d.dimension}</span></th>`).join('')}</tr></thead><tbody>
+        ${['HH', 'HL', 'LH', 'LL'].map((k) => `<tr><td><b>${esc(qnames[k])}</b><div class="small muted">alternativo: ${esc(alt[k])}</div></td><td class="small">${esc(DECIDE[k])}</td>
+          ${dimsOk.map((d) => { const n = d.where.filter((p) => p.key === k); return `<td class="num"><span class="kpi" style="font-size:1.4rem">${n.length}</span>${showNames && n.length ? `<div class="small" style="text-align:left;max-width:220px;margin-left:auto">${n.map((p) => esc(p.name)).join(', ')}</div>` : ''}</td>`; }).join('')}</tr>`).join('')}
+        </tbody></table></div>
+        <p class="small muted" style="margin-top:10px">Mediane della community: ${dimsOk.map((d) => `${d.dimension} ${fmtScore(d.stats.median)}`).join(', ')}. Su una sola dimensione la distanza dalla mediana cresce insieme allo score, per questo la mappa si legge azienda per azienda, confrontando le dimensioni tra loro.</p></div>
+      <div class="minis">${list.map((c) => `<div class="mini"><div class="mini-h">${esc(showNames ? c.name : anon.get(c.id))}</div>
+        <div class="chart">${quadrantMap({ compact: true, w: 300, h: 230, points: c.pts.map((p) => ({ x: p.score, y: p.delta, letter: p.dim, title: `${p.dim} ${p.dimName}: score ${fmtScore(p.score)}, ${p.delta >= 0 ? '+' : ''}${fmtScore(p.delta)} dalla mediana` })),
+          quads: whereQuads, x: { min: 0, max: 100, t: T.where.score, label: '' }, y: { min: -lim, max: lim, t: 0, label: '', fmt: (v) => (v > 0 ? `+${v}` : String(v)) } })}</div>
+        <div class="mini-f">${c.pts.map((p) => `<span><b>${p.dim}</b> ${esc(p.quadrant)}</span>`).join('')}</div></div>`).join('')}</div>`;
+
+  // ---- 10.3 Gap della community: un punto per dimensione
+  const gapPts = allDims.filter((d) => d.gap.available).map((d) => ({ x: d.gap.fondShare * 100, y: d.gap.iqr, letter: d.dimension, tone: d.main ? 'main' : 'muted',
+    title: `${d.dimension} ${d.name}: ${pct(d.gap.fondShare)} in Fondativa, IQR ${fmtScore(d.gap.iqr)}` }));
+  const cq = M.communityQuadrants;
+  const gapMax = Math.max(40, ...gapPts.map((p) => p.y + 6));
+  const gapHtml = `<div class="card"><div class="mapgrid"><div class="chart">${gapPts.length ? quadrantMap({ points: gapPts, quads: { TR: cq.HF_HI, BR: cq.HF_LI, TL: cq.LF_HI, BL: cq.LF_LI },
+      x: { min: 0, max: 100, t: T.community.fondShare * 100, label: 'Quota di aziende in fascia Fondativa', fmt: (v) => `${v}%` },
+      y: { min: 0, max: Math.ceil(gapMax / 10) * 10, t: T.community.iqr, label: 'Eterogeneità della community (IQR, punti)' } }) : `<div class="banner warn">Servono almeno ${M.minN} aziende per dimensione.</div>`}</div>
+    <div><table><thead><tr><th>Dimensione</th><th class="num">Fondativa</th><th class="num">IQR</th><th>Quadrante</th></tr></thead><tbody>
+      ${allDims.map((d) => `<tr class="${d.main ? '' : 'muted'}"><td><span class="dim-letter" style="${d.main ? '' : 'background:#B5BFCB'}">${d.dimension}</span>${esc(d.name)}</td>
+        ${d.gap.available ? `<td class="num">${pct(d.gap.fondShare)}</td><td class="num">${fmtScore(d.gap.iqr)}</td><td><b>${esc(d.gap.quadrant)}</b></td>` : `<td colspan="3" class="small muted">N = ${d.gap.n}: non disponibile</td>`}</tr>`).join('')}</tbody></table>
+      <p class="small muted" style="margin-top:10px">In blu le dimensioni di questa sessione, in grigio quelle già misurate nelle altre sessioni. ${esc(cq.note || '')}.</p></div></div></div>`;
+
+  // ---- 10.4 Peer matching: un punto per dimensione
+  const pq = M.peerQuadrants;
+  const peerPts = allDims.map((d) => ({ x: d.peer.need, y: d.peer.contrib, letter: d.dimension, tone: d.main ? 'main' : 'muted',
+    title: `${d.dimension} ${d.name}: ${d.peer.need} aziende con la priorità, ${d.peer.contrib} contributor potenziali` }));
+  const peerHtml = `<div class="card"><div class="mapgrid"><div class="chart">${quadrantMap({ points: peerPts, quads: { TR: pq.HN_HC, BR: pq.HN_LC, TL: pq.LN_HC, BL: pq.LN_LC },
+      x: { min: 0, max: Math.max(T.peer.need * 2, ...peerPts.map((p) => p.x + 1)), t: T.peer.need, label: 'Aziende che hanno scelto la dimensione come priorità' },
+      y: { min: 0, max: Math.max(T.peer.contrib * 2, ...peerPts.map((p) => p.y + 1)), t: T.peer.contrib, label: 'Contributor potenziali' } })}</div>
+    <div><table><thead><tr><th>Dimensione</th><th class="num">Con priorità</th><th class="num">Contributor</th><th>Quadrante</th></tr></thead><tbody>
+      ${allDims.map((d) => `<tr class="${d.main ? '' : 'muted'}"><td><span class="dim-letter" style="${d.main ? '' : 'background:#B5BFCB'}">${d.dimension}</span>${esc(d.name)}
+        ${showNames && d.main ? `<div class="small" style="margin-top:4px">Priorità: ${d.peer.needNames.map(esc).join(', ') || '—'}<br>Contributor: ${d.peer.contribNames.map(esc).join(', ') || '—'}</div>` : ''}</td>
+        <td class="num">${d.peer.need}${d.peer.interest ? `<div class="small muted">${d.peer.interest} chiedono un confronto</div>` : ''}</td><td class="num">${d.peer.contrib}</td><td><b>${esc(d.peer.quadrant)}</b></td></tr>`).join('')}</tbody></table>
+      <p class="small muted" style="margin-top:10px">Priorità = commitment registrati su una capacità della dimensione. Contributor potenziale = azienda in fascia Consolidata sulla dimensione che ha dato il consenso al peer matching. ${esc(pq.note || '')}.</p></div></div></div>`;
+
+  $('#app').innerHTML = `
+    ${M.preview ? '<div class="banner preview">Anteprima con dati dimostrativi e di test: non sono le mappe ufficiali</div>' : ''}
+    <div class="mhead"><h1>${esc(M.def.name)}: mappe a quadranti</h1>
+      <p>Fonte: ${esc(M.version)}, ${M.nCompanies} aziende. Le soglie (${T.where.score} e 0; ${Math.round(T.community.fondShare * 100)}% e ${T.community.iqr} punti; ${T.peer.need} e ${T.peer.contrib}) sono ipotesi del pilot da validare con l'Intelligence Unit.</p></div>
+    <section class="msec"><h2>Dove intervenire</h2><p class="q">§10.2 · Posizionamento azienda–peer</p>
+      <p class="lede">Ogni piccola mappa è un'azienda e ogni punto una dimensione della sessione. Orizzontale: lo score della dimensione. Verticale: quanto è sopra o sotto la mediana delle altre aziende (l'azienda stessa è esclusa dal calcolo). È la mappa del report aziendale, vista per tutte le aziende insieme.${showNames ? '' : ' I nomi sono nascosti: attiva "mostra i nomi" solo se lo schermo non è proiettato.'}</p>
+      ${whereHtml}</section>
+    <section class="msec"><h2>Il bisogno è individuale o condiviso?</h2><p class="q">§10.3 · Gap della community</p>
+      <p class="lede">Ogni punto è una dimensione. Orizzontale: quante aziende sono ancora in fascia Fondativa. Verticale: quanto le aziende sono diverse tra loro. Molte aziende indietro e simili tra loro suggeriscono un'azione comune; aziende molto diverse chiedono percorsi differenziati.</p>
+      ${gapHtml}</section>
+    <section class="msec"><h2>Con chi accelerare?</h2><p class="q">§10.4 · Peer matching</p>
+      <p class="lede">Ogni punto è una dimensione. Orizzontale: quante aziende l'hanno scelta come priorità nel commitment. Verticale: quante aziende potrebbero portare la propria esperienza. Dove entrambi sono alti conviene attivare la rete.</p>
+      ${peerHtml}</section>`;
+}
+draw();
+</script>
+</body>
+</html>

@@ -67,3 +67,65 @@ export function benchStrip(stats, own, { w = 220, h = 26 } = {}) {
   if (own != null) g += `<circle cx="${X(own)}" cy="${h / 2}" r="6" fill="${NAVY}" stroke="#fff" stroke-width="2"/>`;
   return `<svg viewBox="0 0 ${w} ${h}" style="max-width:${w}px">${g}</svg>`;
 }
+
+// Mappa a quattro quadranti generica (§10.2–10.4).
+// x / y: { min, max, t (soglia), label, fmt }; quads: { TR, TL, BR, BL } nomi dei quadranti;
+// points: [{ x, y, label, title, tone: 'main' | 'muted', letter }] — i punti con le stesse coordinate si raggruppano.
+export function quadrantMap({ points, x, y, quads, w = 600, h = 440, labels = false, compact = false }) {
+  const m = compact ? { l: 30, r: 8, t: 8, b: 24 } : { l: 56, r: 18, t: 18, b: 50 };
+  const pad = compact ? 12 : 18;
+  const pw = w - m.l - m.r, ph = h - m.t - m.b;
+  const X = (v) => m.l + pad + ((Math.min(x.max, Math.max(x.min, v)) - x.min) / (x.max - x.min)) * (pw - 2 * pad);
+  const Y = (v) => m.t + ph - pad - ((Math.min(y.max, Math.max(y.min, v)) - y.min) / (y.max - y.min)) * (ph - 2 * pad);
+  const fx = x.fmt || ((v) => String(v)), fy = y.fmt || ((v) => String(v));
+  const tx = X(x.t), ty = Y(y.t);
+  // conteggio per quadrante
+  const q = (p) => (p.x >= x.t ? (p.y >= y.t ? 'TR' : 'BR') : (p.y >= y.t ? 'TL' : 'BL'));
+  const count = { TR: 0, TL: 0, BR: 0, BL: 0 };
+  points.filter((p) => p.tone !== 'muted').forEach((p) => count[q(p)]++);
+  let g = '';
+  const tint = { TL: '#F4F7FA', TR: '#EEF5F8', BL: '#F9F7F1', BR: '#F4F7FA' };
+  g += `<rect x="${m.l}" y="${m.t}" width="${tx - m.l}" height="${ty - m.t}" fill="${tint.TL}"/><rect x="${tx}" y="${m.t}" width="${m.l + pw - tx}" height="${ty - m.t}" fill="${tint.TR}"/>`;
+  g += `<rect x="${m.l}" y="${ty}" width="${tx - m.l}" height="${m.t + ph - ty}" fill="${tint.BL}"/><rect x="${tx}" y="${ty}" width="${m.l + pw - tx}" height="${m.t + ph - ty}" fill="${tint.BR}"/>`;
+  g += `<rect x="${m.l}" y="${m.t}" width="${pw}" height="${ph}" fill="none" stroke="${GRID}"/>`;
+  g += `<line x1="${tx}" y1="${m.t}" x2="${tx}" y2="${m.t + ph}" stroke="${GOLD}" stroke-width="1.6" stroke-dasharray="5 4"/>`;
+  g += `<line x1="${m.l}" y1="${ty}" x2="${m.l + pw}" y2="${ty}" stroke="${GOLD}" stroke-width="1.6" stroke-dasharray="5 4"/>`;
+  const halo = 'paint-order="stroke" stroke="#fff" stroke-width="3" stroke-linejoin="round"';
+  const qn = (key, xx, yy, anchor) => (compact
+    ? `<text x="${xx}" y="${yy}" font-size="10" font-weight="600" fill="${INK3}" text-anchor="${anchor}" ${halo}>${esc(quads[key])}</text>`
+    : `<text x="${xx}" y="${yy}" font-size="13" font-weight="700" fill="#44505F" text-anchor="${anchor}" ${halo}>${esc(quads[key])}</text>`
+      + `<text x="${xx}" y="${yy + 16}" font-size="11.5" fill="${INK3}" text-anchor="${anchor}" ${halo}>${count[key]} ${count[key] === 1 ? 'punto' : 'punti'}</text>`);
+  const qlabels = compact
+    ? qn('TL', m.l + 5, m.t + 12, 'start') + qn('TR', m.l + pw - 5, m.t + 12, 'end') + qn('BL', m.l + 5, ty + 14, 'start') + qn('BR', m.l + pw - 5, ty + 14, 'end')
+    : qn('TL', m.l + 10, m.t + 20, 'start') + qn('TR', m.l + pw - 10, m.t + 20, 'end') + qn('BL', m.l + 10, ty + 22, 'start') + qn('BR', m.l + pw - 10, ty + 22, 'end');
+  // assi
+  const fs = compact ? 9.5 : 11;
+  for (const v of [x.min, x.t, x.max]) g += `<text x="${X(v)}" y="${m.t + ph + (compact ? 12 : 16)}" font-size="${fs}" text-anchor="middle" fill="${v === x.t ? '#6F5718' : INK3}" font-weight="${v === x.t ? 700 : 400}">${esc(fx(v))}</text>`;
+  for (const v of [y.min, y.t, y.max]) g += `<text x="${m.l - (compact ? 4 : 8)}" y="${Y(v) + 4}" font-size="${fs}" text-anchor="end" fill="${v === y.t ? '#6F5718' : INK3}" font-weight="${v === y.t ? 700 : 400}">${esc(fy(v))}</text>`;
+  if (!compact) {
+    g += `<text x="${m.l + pw / 2}" y="${h - 8}" font-size="12" text-anchor="middle" fill="#44505F">${esc(x.label)}</text>`;
+    g += `<text x="14" y="${m.t + ph / 2}" font-size="12" text-anchor="middle" fill="#44505F" transform="rotate(-90 14 ${m.t + ph / 2})">${esc(y.label)}</text>`;
+  }
+  // punti, raggruppati per coordinate uguali
+  const groups = new Map();
+  for (const p of points) { const k = `${Math.round(X(p.x))}:${Math.round(Y(p.y))}:${p.tone || 'main'}:${p.letter || ''}`; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(p); }
+  const sorted = [...groups.values()].sort((a, b) => (a[0].tone === 'muted' ? -1 : 1) - (b[0].tone === 'muted' ? -1 : 1));
+  for (const grp of sorted) {
+    const p = grp[0], cx = X(p.x), cy = Y(p.y), muted = p.tone === 'muted';
+    const fill = muted ? '#B5BFCB' : NAVY;
+    const title = grp.map((z) => z.title || z.label).join('\n');
+    if (p.letter) {
+      const rr = compact ? 11 : 15;
+      g += `<g><title>${esc(title)}</title><circle cx="${cx}" cy="${cy}" r="${rr}" fill="${fill}" stroke="#fff" stroke-width="2"/><text x="${cx}" y="${cy}" font-size="${compact ? 11 : 13}" fill="#fff" text-anchor="middle" dominant-baseline="central" font-weight="700">${esc(p.letter)}</text></g>`;
+    } else {
+      const r = grp.length > 1 ? 9 + Math.min(6, grp.length) : 7;
+      g += `<g><title>${esc(title)}</title><circle cx="${cx}" cy="${cy}" r="${r}" fill="${fill}" fill-opacity=".88" stroke="#fff" stroke-width="1.5"/>${grp.length > 1 ? `<text x="${cx}" y="${cy}" font-size="10.5" fill="#fff" text-anchor="middle" dominant-baseline="central" font-weight="700">${grp.length}</text>` : ''}</g>`;
+      if (labels) {
+        const t = grp.map((z) => z.label).join(', ');
+        const right = cx < m.l + pw * 0.7;
+        g += `<text x="${cx + (right ? r + 5 : -r - 5)}" y="${cy + 4}" font-size="10.5" fill="#16202D" text-anchor="${right ? 'start' : 'end'}" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(t.length > 42 ? t.slice(0, 40) + '…' : t)}</text>`;
+      }
+    }
+  }
+  return `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="Mappa a quattro quadranti">${g}${qlabels}</svg>`;
+}

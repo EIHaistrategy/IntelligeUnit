@@ -92,6 +92,7 @@ app.get('/j/:code', page('join.html'));
 app.get('/r/:token', page('ref.html'));
 app.get('/report/:companyId', page('report.html'));
 app.get('/plenaria/:base', page('plenaria.html'));
+app.get('/mappe/:base', page('mappe.html'));
 app.get('/live/:sid', page('live.html'));
 
 const wrap = (fn) => async (req, res) => {
@@ -506,6 +507,7 @@ app.get('/api/admin/sessions/:sid/pdfs.zip', async (req, res) => {
   } catch (e) { console.error(e); res.status(500).json({ error: 'Errore interno: riprova.' }); }
 });
 app.get('/api/admin/plenaria/:base', wrap((req) => L.plenaria(req.params.base, { preview: req.query.preview === '1' })));
+app.get('/api/admin/maps/:base', wrap((req, res) => (I.sessions.some((x) => x.id === req.params.base) ? L.sessionMaps(req.params.base, { preview: req.query.preview === '1' }) : bad(res, 'Sessione non trovata', 404))));
 // Report per l'admin: una versione rilasciata (?snap=id) oppure la bozza corrente, marcata come tale.
 function reportFor(cid, req, admin) {
   if (req.query.snap) { const R = L.getSnapshot(cid, Number(req.query.snap)); if (R) return R; }
