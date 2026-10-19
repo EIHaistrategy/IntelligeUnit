@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AITO Map · Plenaria</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%231F3864%22/%3E%3Ctext x=%2216%22 y=%2222%22 font-size=%2216%22 font-family=%22Arial%22 font-weight=%22700%22 fill=%22%23C9A84C%22 text-anchor=%22middle%22%3EA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/css/app.css">
+<style>
+  body { font-size: 17px; }
+  .pl h1 { font-size: 1.9rem; }
+  .stack-bar { display: flex; height: 38px; border-radius: 8px; overflow: hidden; background: var(--line-2); }
+  .stack-bar div { display: grid; place-items: center; color: #fff; font-weight: 700; font-size: .85rem; min-width: 0; }
+  .l1 { background: #9AA6B6; } .l2 { background: #5FA9C2; } .l3 { background: #1FB5B8; } .l4 { background: #0B7FA0; } .l5 { background: #1F3864; }
+</style>
+</head>
+<body>
+<div class="topbar"><span class="brand">A I T O <b>·</b> MAP</span><span class="sub">Benchmark della community · anonimo e aggregato</span><span class="spacer"></span>
+  <label class="small" style="color:#fff"><input type="checkbox" id="prev"> anteprima dati dimostrativi</label></div>
+<div class="wrap pl" id="app"><p class="muted">Caricamento…</p></div>
+<script type="module">
+import { api, esc, $, fmtScore } from '/static/js/ui.js';
+const base = location.pathname.split('/').pop();
+const params = new URLSearchParams(location.search);
+const preview = params.get('preview') === '1';
+$('#prev').checked = preview;
+$('#prev').onchange = (e) => { params.set('preview', e.target.checked ? '1' : '0'); location.search = params.toString(); };
+const { scoring: SC } = await api('/api/instrument');
+let P;
+try { P = await api(`/api/admin/plenaria/${base}${preview ? '?preview=1' : ''}`); }
+catch (e) { $('#app').innerHTML = `<div class="card"><p>${esc(e.message)} — accedi prima da <a href="/admin">/admin</a>.</p></div>`; throw e; }
+if (!P.available) { $('#app').innerHTML = `<div class="card"><h1>${esc(P.def.name)}</h1><p>${esc(P.message)}</p></div>`; }
+else {
+  const na = (s) => `<div class="banner warn">Non disponibile: N = ${s.n}. Il benchmark si mostra da ${SC.benchmark.minN} aziende in su, per evitare che le singole aziende siano riconoscibili.</div>`;
+  $('#app').innerHTML = `
+    ${P.preview ? '<div class="banner preview">ANTEPRIMA CON DATI DIMOSTRATIVI E DI TEST — non è il benchmark ufficiale</div>' : ''}
+    <div class="card"><h1>${esc(P.def.name)} · come si posiziona la community</h1>
+      <p class="ink2">Versione: <b>${esc(P.version)}</b> · aziende con dati: <b>${P.nCompanies}</b>. Nessun nome di azienda: solo distribuzioni.</p></div>
+    <div class="grid c2">${P.dims.map((d) => `<div class="card"><h2><span class="dim-letter">${d.dimension}</span>${esc(d.name)}</h2>
+      ${d.stats.available ? `<div class="kpi">${fmtScore(d.stats.median)} <small>mediana · Q1–Q3 ${fmtScore(d.stats.q1)}–${fmtScore(d.stats.q3)} · N=${d.stats.n} · ${d.stats.label}</small></div>
+        ${d.gap.available ? `<p style="margin-top:8px">In fascia Fondativa: <b>${Math.round(d.gap.fondShare * 100)}%</b> delle aziende · eterogeneità (IQR) <b>${fmtScore(d.gap.iqr)}</b> punti → <span class="tag navy">${esc(d.gap.quadrant)}</span></p>` : ''}` : na(d.stats)}</div>`).join('')}</div>
+    ${P.items.map((it) => `<div class="card"><h3>${esc(it.itemId)} · ${esc(it.title)}</h3>
+      ${it.dist.available ? `<div class="stack-bar">${it.dist.levels.filter((l) => l.count).map((l) => `<div class="l${l.level}" style="flex:${l.count}">Liv. ${l.level} · ${l.count}</div>`).join('')}</div>
+        <p class="small muted" style="margin-top:6px">${it.dist.levels.filter((l) => l.subDist).map((l) => `Liv. ${l.level}: ${l.subDist.map((s) => `${l.level}${s.key} ${s.count}`).join(' · ')}`).join(' — ') || 'Sotto-livelli aggregati al livello (regola dei 5).'}
+        · mediana ${fmtScore(it.stats.median)} · N=${it.stats.n}</p>` : na(it.dist)}</div>`).join('')}`;
+}
+</script>
+</body>
+</html>

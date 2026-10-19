@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AITO Map · Report riservato</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%231F3864%22/%3E%3Ctext x=%2216%22 y=%2222%22 font-size=%2216%22 font-family=%22Arial%22 font-weight=%22700%22 fill=%22%23C9A84C%22 text-anchor=%22middle%22%3EA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/css/app.css">
+<style>
+  .rep h2 { margin-top: 6px; border-bottom: 2px solid var(--gold); padding-bottom: 4px; }
+  .cover { background: var(--navy-deep); color: #fff; border-radius: var(--radius); padding: 22px; margin-bottom: 14px; }
+  .cover h1 { color: #fff; font-size: 1.6rem; margin-bottom: 4px; }
+  .cover .gold { color: var(--gold); letter-spacing: .18em; font-weight: 700; font-size: .8rem; }
+  .explain { font-size: .86rem; color: var(--ink-2); background: #F7F9FB; border-left: 3px solid var(--teal); padding: 8px 12px; margin: 8px 0 12px; }
+  @media print {
+    body { background: #fff; font-size: 11.5px; }
+    .noprint { display: none !important; }
+    .card { box-shadow: none; break-inside: avoid; }
+    .wrap { max-width: none; padding: 0; }
+    .cover { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .tag, .banner, .bar .fill, th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .pb { break-before: page; }
+  }
+</style>
+</head>
+<body>
+<div class="topbar noprint"><span class="brand">A I T O <b>·</b> MAP</span><span class="sub">Report riservato</span><span class="spacer"></span>
+  <label class="small hidden" id="prevwrap" style="color:#fff"><input type="checkbox" id="prev"> anteprima con dati dimostrativi</label>
+  <button class="gold sm" onclick="print()">Stampa / salva PDF</button></div>
+<div class="wrap rep" id="app"><p class="muted">Caricamento…</p></div>
+<script type="module" src="/static/js/report.js"></script>
+</body>
+</html>

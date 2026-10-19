@@ -1,0 +1,31 @@
+{
+  "version": "S1.0",
+  "source": "Nota metodologica V1 §7–§11 (soglie operative del pilot, da ratificare)",
+  "bands": [
+    { "id": "FOND", "name": "Fondativa", "lt": 44, "reading": "Capacità assente, locale o non ancora governata." },
+    { "id": "COST", "name": "In costruzione", "lt": 70, "reading": "Capacità definita ma non uniforme o non pienamente scalabile." },
+    { "id": "CONS", "name": "Consolidata", "reading": "Capacità diffusa, governata e misurata." }
+  ],
+  "weights": "uguali",
+  "coherenceThreshold": 50,
+  "benchmark": { "minN": 5, "stableN": 15, "subLevelMinN": 5, "looMinResidual": 5, "quartiles": "QUARTILE.INC (come Excel)" },
+  "maps": {
+    "where": { "score": 70, "delta": 0 },
+    "community": { "fondShare": 0.5, "iqr": 22 },
+    "peer": { "need": 6, "contrib": 5 }
+  },
+  "quadrantNames": {
+    "attuali": { "HH": "Scalare e valorizzare", "HL": "Ottimizzare", "LH": "Consolidare", "LL": "Recuperare" },
+    "alternativi": { "HH": "Condividere", "HL": "Affinare", "LH": "Rafforzare", "LL": "Costruire le basi" }
+  },
+  "quadrantNamesInUse": "attuali",
+  "communityQuadrants": {
+    "note": "Assegnazione ai quadranti proposta dalla piattaforma: da confermare (la nota elenca i nomi ma non l'abbinamento)",
+    "HF_LI": "Azione comune", "HF_HI": "Percorsi differenziati", "LF_HI": "Intervento mirato", "LF_LI": "Valorizzare e monitorare"
+  },
+  "peerQuadrants": {
+    "note": "Assegnazione ai quadranti proposta dalla piattaforma: da confermare",
+    "HN_HC": "Attivare la rete", "HN_LC": "Integrare competenze", "LN_HC": "Valorizzare i contributor", "LN_LC": "Matching mirato"
+  },
+  "foundationalPrerequisites": ["Q2", "E", "C", "D", "F"]
+}

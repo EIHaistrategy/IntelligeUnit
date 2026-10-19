@@ -1,0 +1,23 @@
+{
+  "name": "aito-map",
+  "version": "0.1.0",
+  "description": "AITO — AI Transformation & Adoption Map (piattaforma locale per il pilot AITO 3)",
+  "scripts": {
+    "start": "node --no-warnings server/start.js",
+    "test": "node --no-warnings --test test/*.test.js",
+    "demo": "node --no-warnings server/seed-demo.js",
+    "reset-password": "node --no-warnings server/reset-password.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "exceljs": "4.4.0",
+    "express": "4.21.2",
+    "qrcode": "1.5.4"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  }
+}

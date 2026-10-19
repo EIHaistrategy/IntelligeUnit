@@ -1,0 +1,15 @@
+# Deploy su Render (regione Francoforte, disco persistente per il database)
+services:
+  - type: web
+    name: aito-map
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    healthCheckPath: /healthz
+    envVars:
+      - key: ADMIN_PASSWORD
+        generateValue: true
+    disk:
+      name: aito-data
+      mountPath: /data
+      sizeGB: 1

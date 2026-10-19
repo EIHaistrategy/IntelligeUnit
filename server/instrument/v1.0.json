@@ -1,0 +1,567 @@
+{
+  "version": "1.0",
+  "name": "AI Transformation & Adoption Map — Strumento V1",
+  "source": "Nota metodologica V1 — Pilot AITO 3 Session-Based (ottobre 2026), Allegato A e Allegato C",
+  "status": "bozza (da congelare il 06/11/2026)",
+  "levelsGeneral": {
+    "1": "Assente / dipendente da iniziative individuali.",
+    "2": "Sperimentale / informale / limitato.",
+    "3": "Strutturato sulle priorità, ma non uniforme.",
+    "4": "Scalabile, governato e misurato.",
+    "5": "Integrato nel modello operativo e migliorato continuativamente."
+  },
+  "functions": [
+    { "id": "CEO", "label": "CEO / Direzione generale" },
+    { "id": "STRAT", "label": "Strategia, Innovazione, Trasformazione" },
+    { "id": "IT", "label": "IT / CIO / CTO" },
+    { "id": "FIN", "label": "Finance / CFO / Dirigente preposto" },
+    { "id": "HR", "label": "HR / CHRO" },
+    { "id": "LEGAL", "label": "Legale / Compliance / Audit" },
+    { "id": "RISK", "label": "Rischio / Sicurezza (CRO, CISO)" },
+    { "id": "PROC", "label": "Acquisti / CPO" },
+    { "id": "MKT", "label": "Marketing / Vendite / Prodotto" },
+    { "id": "OPS", "label": "Operations / Business unit" },
+    { "id": "OTHER", "label": "Altro" }
+  ],
+  "dimensions": [
+    { "id": "A", "name": "Strategia e sponsorship", "items": ["Q1", "Q2"], "session": "GOV" },
+    { "id": "B", "name": "Portfolio e prioritizzazione", "items": ["Q3", "Q4"], "session": "GROW" },
+    { "id": "C", "name": "Dati e knowledge readiness", "items": ["Q5", "Q6"], "session": "EFF" },
+    { "id": "D", "name": "Tecnologia e architettura", "items": ["Q7", "Q8"], "session": "SCALE" },
+    { "id": "E", "name": "Governance, rischio e compliance", "items": ["Q9", "Q10"], "session": "GOV" },
+    { "id": "F", "name": "Operating model e delivery", "items": ["Q11", "Q12"], "session": "SCALE" },
+    { "id": "G", "name": "Persone, competenze e adozione", "items": ["Q13", "Q14"], "session": "EFF" },
+    { "id": "H", "name": "Valore, impatto e scalabilità", "items": ["Q15", "Q16"], "session": "GROW" }
+  ],
+  "sessions": [
+    {
+      "id": "GOV", "name": "Governare", "date": "2026-11-19", "order": 1,
+      "dimensions": ["A", "E"], "items": ["Q1", "Q2", "Q9", "Q10"],
+      "pairs": [["Q1", "Q2"], ["Q9", "Q10"]],
+      "protagonists": "CEO, CIO e CTO, Transformation e Innovation, CFO; il CHRO come membro del comitato"
+    },
+    {
+      "id": "EFF", "name": "Efficientare", "date": "2027-02-03", "order": 2,
+      "dimensions": ["C", "G"], "items": ["Q5", "Q6", "Q13", "Q14"],
+      "pairs": [["Q5", "Q6"], ["Q13", "Q14"]],
+      "protagonists": "CFO e dirigente preposto, CPO, General Counsel, Chief Audit Executive, CHRO"
+    },
+    {
+      "id": "GROW", "name": "Crescere", "date": "2027-05-26", "order": 3,
+      "dimensions": ["B", "H"], "items": ["Q3", "Q4", "Q15", "Q16"],
+      "pairs": [["Q3", "Q4"], ["Q15", "Q16"]],
+      "protagonists": "CEO, Strategia e Innovazione, CMO, Vendite, Prodotto"
+    },
+    {
+      "id": "SCALE", "name": "Scalare", "date": "2027-07-14", "order": 4,
+      "dimensions": ["D", "F"], "items": ["Q7", "Q8", "Q11", "Q12"],
+      "pairs": [["Q8", "Q12"], ["Q11", "Q12"]],
+      "protagonists": "CIO, CTO, CISO, CRO, con il CFO per i costi IT"
+    }
+  ],
+  "pairQuestion": "Nella vostra azienda è più avanti {a} o {b}?",
+  "pairAllowsTie": false,
+  "items": {
+    "Q1": {
+      "title": "Direzione strategica", "dimension": "A",
+      "statement": "L'azienda ha definito una direzione sull'AI collegata alle priorità di business.",
+      "levels": [
+        { "level": 1, "descriptor": "Non esiste una direzione comune; le iniziative sono locali." },
+        { "level": 2, "descriptor": "Esiste una visione informale, non approvata dal vertice.",
+          "sub": [
+            { "key": "A", "text": "La visione è espressa da singoli manager o funzioni." },
+            { "key": "B", "text": "La visione è stata portata all'attenzione del vertice, ma non è ancora approvata." }
+          ], "note": "La quota di persone che usano l'AI è nel profilo (Allegato C)" },
+        { "level": 3, "descriptor": "La direzione è approvata e collegata ad alcune priorità aziendali.",
+          "sub": [
+            { "key": "A", "text": "Non esistono indicatori specifici per misurare l'impatto dell'AI rispetto alla direzione." },
+            { "key": "B", "text": "Esistono indicatori specifici per misurare l'impatto dell'AI rispetto alla direzione." }
+          ],
+          "fact": { "id": "Q1_L3", "q": "Esistono indicatori specifici per misurare l'impatto dell'AI rispetto alla direzione strategica?", "type": "choice",
+            "options": [ { "label": "No", "maps": "A" }, { "label": "Sì", "maps": "B" } ] } },
+        { "level": 4, "descriptor": "È integrata nel piano industriale, comunicata e rivista periodicamente.", "valoriale": true,
+          "sub": [
+            { "key": "A", "text": "Non è prevista una rilevazione del clima aziendale sull'uso dell'AI." },
+            { "key": "B", "text": "È prevista una rilevazione periodica del clima aziendale sull'uso dell'AI." }
+          ],
+          "fact": { "id": "Q1_L4", "q": "È prevista una rilevazione periodica del clima aziendale sull'uso dell'AI?", "type": "choice",
+            "options": [ { "label": "No", "maps": "A" }, { "label": "Sì", "maps": "B" } ] } },
+        { "level": 5, "descriptor": "Orienta portafoglio, offerta e modello operativo dell'azienda." }
+      ]
+    },
+    "Q2": {
+      "title": "Mandato esecutivo", "dimension": "A",
+      "statement": "Uno sponsor executive ha mandato, responsabilità e risorse per guidare l'adozione AI.",
+      "levels": [
+        { "level": 1, "descriptor": "Non esistono sponsor né risorse riconosciute." },
+        { "level": 2, "descriptor": "Esiste uno sponsor informale e le risorse sono occasionali.",
+          "sub": [
+            { "key": "A", "text": "Lo sponsor risponde soprattutto della tecnologia." },
+            { "key": "B", "text": "Lo sponsor risponde dei risultati di business." }
+          ] },
+        { "level": 3, "descriptor": "Sponsor e risorse sono definiti per alcune iniziative prioritarie.", "valoriale": true,
+          "sub": [
+            { "key": "A", "text": "Non esiste un comitato AI." },
+            { "key": "B", "text": "Esiste un comitato AI." },
+            { "key": "C", "text": "Il comitato AI comprende stabilmente anche legale/compliance e HR." }
+          ], "note": "C ammessa · valoriale",
+          "fact": { "id": "Q2_L3", "q": "Esiste un comitato AI? Con quale composizione?", "type": "choice",
+            "options": [
+              { "label": "Non esiste un comitato AI", "maps": "A" },
+              { "label": "Esiste un comitato AI", "maps": "B" },
+              { "label": "Esiste e comprende stabilmente legale/compliance e HR", "maps": "C" }
+            ] } },
+        { "level": 4, "descriptor": "Mandato, budget, obiettivi e momenti di verifica sono formalizzati.",
+          "sub": [
+            { "key": "A", "text": "Il mandato copre un solo tipo di progetto (efficienza, innovazione o trasformazione del business)." },
+            { "key": "B", "text": "Il mandato copre due tipi di progetto." },
+            { "key": "C", "text": "Il mandato copre tutti e tre i tipi di progetto." }
+          ], "note": "C ammessa (ampiezza)",
+          "fact": { "id": "Q2_L4", "q": "Quali tipi di progetto copre il mandato dello sponsor executive?", "type": "multi",
+            "options": [ { "label": "Efficienza" }, { "label": "Innovazione" }, { "label": "Trasformazione del business" } ],
+            "countMaps": { "0": "A", "1": "A", "2": "B", "3": "C" } } },
+        { "level": 5, "descriptor": "La responsabilità executive è collegata a risultati aziendali misurabili." }
+      ]
+    },
+    "Q3": {
+      "title": "Selezione delle opportunità", "dimension": "B",
+      "statement": "Gli use case vengono selezionati con criteri comuni di valore, fattibilità e rischio.",
+      "levels": [
+        { "level": 1, "descriptor": "Le opportunità nascono in modo casuale o dai fornitori." },
+        { "level": 2, "descriptor": "Alcune funzioni utilizzano criteri propri.",
+          "sub": [
+            { "key": "A", "text": "Negli ultimi 12 mesi non si sono tenuti confronti tra le funzioni che usano l'AI." },
+            { "key": "B", "text": "Negli ultimi 12 mesi si è tenuto un confronto tra le funzioni." },
+            { "key": "C", "text": "Negli ultimi 12 mesi si sono tenuti più confronti tra le funzioni." }
+          ], "note": "C ammessa (frequenza)",
+          "fact": { "id": "Q3_L2", "q": "Quanti confronti tra le funzioni che usano l'AI si sono tenuti negli ultimi 12 mesi?", "type": "count",
+            "thresholds": [ { "lte": 0, "maps": "A" }, { "lte": 1, "maps": "B" }, { "maps": "C" } ] } },
+        { "level": 3, "descriptor": "Criteri comuni sono applicati alle iniziative principali.", "valoriale": true,
+          "sub": [
+            { "key": "A", "text": "I criteri non considerano l'impatto sulle persone." },
+            { "key": "B", "text": "I criteri comprendono anche l'impatto su persone, equità e trasparenza." }
+          ] },
+        { "level": 4, "descriptor": "Tutte le iniziative seguono un processo uniforme e documentato.",
+          "sub": [
+            { "key": "A", "text": "Il processo copre i progetti AI sviluppati internamente o commissionati." },
+            { "key": "B", "text": "Il processo copre anche le funzionalità AI incluse nei software già in uso (ad esempio gli assistenti integrati nelle suite)." }
+          ], "note": "Top-down / bottom-up è nel profilo" },
+        { "level": 5, "descriptor": "I criteri guidano dinamicamente la riallocazione delle risorse." }
+      ]
+    },
+    "Q4": {
+      "title": "Governo del portafoglio", "dimension": "B",
+      "statement": "Il portafoglio AI ha owner, momenti di riesame e decisioni di go, stop o scale.",
+      "levels": [
+        { "level": 1, "descriptor": "Non esiste una vista unica delle iniziative." },
+        { "level": 2, "descriptor": "Esistono responsabili di progetto, ma non un governo di portafoglio.",
+          "sub": [
+            { "key": "A", "text": "Non esiste un censimento delle iniziative AI." },
+            { "key": "B", "text": "Esiste un censimento aggiornato delle iniziative, senza decisioni comuni." }
+          ],
+          "fact": { "id": "Q4_L2", "q": "Esiste un censimento aggiornato delle iniziative AI?", "type": "choice",
+            "options": [ { "label": "No", "maps": "A" }, { "label": "Sì", "maps": "B" } ] } },
+        { "level": 3, "descriptor": "Le iniziative prioritarie hanno business owner e riesami periodici.",
+          "sub": [
+            { "key": "A", "text": "Negli ultimi 12 mesi meno del 10% delle iniziative avviate è arrivato in produzione o è stato esteso." },
+            { "key": "B", "text": "Negli ultimi 12 mesi il 10% o più delle iniziative avviate è arrivato in produzione o è stato esteso." }
+          ], "note": "Soglia da calibrare nel dry run",
+          "fact": { "id": "Q4_L3", "q": "Negli ultimi 12 mesi, quale percentuale delle iniziative AI avviate è arrivata in produzione o è stata estesa?", "type": "percent",
+            "thresholds": [ { "lt": 10, "maps": "A" }, { "maps": "B" } ] } },
+        { "level": 4, "descriptor": "Esiste un portafoglio aziendale con decisioni di go, stop e scale.",
+          "sub": [
+            { "key": "A", "text": "Le decisioni di go, stop e scale non seguono criteri scritti." },
+            { "key": "B", "text": "Esistono soglie di ritorno e criteri di stop scritti, uguali per tutte le iniziative." },
+            { "key": "C", "text": "Soglie e criteri scritti sono differenziati per tipo di iniziativa (efficienza, crescita, sperimentazione)." }
+          ], "note": "C ammessa. Il motivo degli stop è nel profilo",
+          "fact": { "id": "Q4_L4", "q": "Le decisioni di go, stop e scale seguono criteri scritti?", "type": "choice",
+            "options": [
+              { "label": "Non seguono criteri scritti", "maps": "A" },
+              { "label": "Criteri scritti, uguali per tutte le iniziative", "maps": "B" },
+              { "label": "Criteri scritti, differenziati per tipo di iniziativa", "maps": "C" }
+            ] } },
+        { "level": 5, "descriptor": "Il portafoglio è integrato con pianificazione e allocazione del budget." }
+      ]
+    },
+    "Q5": {
+      "title": "Readiness dei dati", "dimension": "C",
+      "statement": "I dati necessari agli use case prioritari sono conosciuti, accessibili e di qualità nota.",
+      "levels": [
+        { "level": 1, "descriptor": "Dati necessari e responsabilità non sono identificati." },
+        { "level": 2, "descriptor": "I dati vengono raccolti manualmente per singoli pilot.",
+          "sub": [
+            { "key": "A", "text": "Non esiste una funzione di data management unitaria." },
+            { "key": "B", "text": "Esiste una funzione di data management unitaria." }
+          ],
+          "fact": { "id": "Q5_L2", "q": "Esiste una funzione di data management unitaria?", "type": "choice",
+            "options": [ { "label": "No", "maps": "A" }, { "label": "Sì", "maps": "B" } ] } },
+        { "level": 3, "descriptor": "Per gli use case prioritari dati, owner e criticità sono mappati.",
+          "sub": [
+            { "key": "A", "text": "La mappatura è fatta progetto per progetto." },
+            { "key": "B", "text": "La mappatura è raccolta in un catalogo condiviso tra i progetti." }
+          ], "note": "L'ostacolo principale è nel profilo",
+          "fact": { "id": "Q5_L3", "q": "La mappatura dei dati è raccolta in un catalogo condiviso tra i progetti?", "type": "choice",
+            "options": [ { "label": "No, è fatta progetto per progetto", "maps": "A" }, { "label": "Sì, catalogo condiviso", "maps": "B" } ] } },
+        { "level": 4, "descriptor": "I dati sono governati, accessibili e riutilizzabili.",
+          "sub": [
+            { "key": "A", "text": "Si utilizzano solo dati interni." },
+            { "key": "B", "text": "Si integrano anche dati esterni, con regole di qualità e di utilizzo." }
+          ] },
+        { "level": 5, "descriptor": "Sono gestiti come prodotti, con livelli di servizio e qualità misurata." }
+      ]
+    },
+    "Q6": {
+      "title": "Conoscenza pronta per l'AI", "dimension": "C",
+      "statement": "La conoscenza aziendale necessaria ai casi d'uso AI è formalizzata, aggiornata e accessibile agli strumenti AI.",
+      "help": "Le quattro conoscenze: (1) regole e procedure; (2) conoscenza di prodotto, servizio e tecnica; (3) esperienza registrata nei sistemi (casi risolti, ticket, FAQ); (4) sapere degli esperti, raccolto e trascritto. Formalizzata = scritta, con versione corrente riconoscibile, in un archivio digitale leggibile da uno strumento AI. I livelli sono cumulativi.",
+      "levels": [
+        { "level": 1, "descriptor": "Nessuna delle 4 conoscenze è formalizzata in uno o più documenti." },
+        { "level": 2, "descriptor": "Solo alcune delle 4 conoscenze sono formalizzate in uno o più documenti.",
+          "sub": [
+            { "key": "A", "text": "1 conoscenza." }, { "key": "B", "text": "2 conoscenze." }, { "key": "C", "text": "3 conoscenze." }
+          ], "note": "C ammessa (conteggio)",
+          "fact": { "id": "Q6_L2", "q": "Quante delle 4 conoscenze sono formalizzate?", "type": "count",
+            "thresholds": [ { "lte": 1, "maps": "A" }, { "lte": 2, "maps": "B" }, { "maps": "C" } ] } },
+        { "level": 3, "descriptor": "Tutte le 4 conoscenze sono formalizzate in uno o più documenti con aggiornamento periodico.",
+          "sub": [
+            { "key": "A", "text": "1 volta all'anno." }, { "key": "B", "text": "Più di una volta all'anno." }
+          ],
+          "fact": { "id": "Q6_L3", "q": "Con quale frequenza vengono aggiornate le conoscenze formalizzate?", "type": "choice",
+            "options": [ { "label": "Una volta all'anno o meno", "maps": "A" }, { "label": "Più di una volta all'anno", "maps": "B" } ] } },
+        { "level": 4, "descriptor": "Alcune delle 4 conoscenze sono aggiornate in occasione di ogni nuovo caso d'uso.",
+          "sub": [
+            { "key": "A", "text": "1 conoscenza." }, { "key": "B", "text": "2 conoscenze." }, { "key": "C", "text": "3 conoscenze." }
+          ], "note": "C ammessa (conteggio)",
+          "fact": { "id": "Q6_L4", "q": "Quante delle 4 conoscenze sono aggiornate in occasione di ogni nuovo caso d'uso?", "type": "count",
+            "thresholds": [ { "lte": 1, "maps": "A" }, { "lte": 2, "maps": "B" }, { "maps": "C" } ] } },
+        { "level": 5, "descriptor": "Tutte le conoscenze sono aggiornate in occasione di ogni nuovo caso d'uso." }
+      ]
+    },
+    "Q7": {
+      "title": "Architettura di riferimento", "dimension": "D",
+      "statement": "L'azienda dispone di piattaforme e criteri architetturali per integrare le soluzioni AI.",
+      "levels": [
+        { "level": 1, "descriptor": "Strumenti isolati e scelte tecnologiche non coordinate." },
+        { "level": 2, "descriptor": "Piattaforme utilizzate solo in ambienti pilota.",
+          "sub": [
+            { "key": "A", "text": "La scelta è guidata dai fornitori." },
+            { "key": "B", "text": "La scelta è guidata dal personale interno." }
+          ] },
+        { "level": 3, "descriptor": "Esistono piattaforme e criteri per i casi più comuni.",
+          "sub": [
+            { "key": "A", "text": "I criteri non considerano la dipendenza dai fornitori." },
+            { "key": "B", "text": "I criteri comprendono portabilità e condizioni di uscita (esportazione di dati, istruzioni e agenti)." }
+          ], "note": "Chi guida la scelta delle piattaforme è nel profilo",
+          "fact": { "id": "Q7_L3", "q": "I criteri architetturali comprendono portabilità e condizioni di uscita dai fornitori?", "type": "choice",
+            "options": [ { "label": "No", "maps": "A" }, { "label": "Sì", "maps": "B" } ] } },
+        { "level": 4, "descriptor": "L'architettura è integrata, scalabile e governata.",
+          "sub": [
+            { "key": "A", "text": "Gli aggiornamenti sono legati alla durata dei contratti." },
+            { "key": "B", "text": "Gli aggiornamenti sono indipendenti dalla durata dei contratti." }
+          ] },
+        { "level": 5, "descriptor": "Componenti, modelli e servizi sono modulari e riutilizzabili." }
+      ]
+    },
+    "Q8": {
+      "title": "Controllo in esercizio", "dimension": "D",
+      "statement": "Le soluzioni in produzione sono monitorate per qualità, prestazioni, sicurezza e costo.",
+      "levels": [
+        { "level": 1, "descriptor": "Non esiste monitoraggio strutturato." },
+        { "level": 2, "descriptor": "I controlli sono manuali e attivati in caso di problema.",
+          "sub": [
+            { "key": "A", "text": "I problemi sono rilevati soprattutto dagli utilizzatori." },
+            { "key": "B", "text": "I problemi sono rilevati soprattutto dal team che gestisce la soluzione." }
+          ] },
+        { "level": 3, "descriptor": "Qualità e costi sono monitorati sulle soluzioni principali.",
+          "sub": [
+            { "key": "A", "text": "Non esistono confronti documentati tra i processi con e senza AI." },
+            { "key": "B", "text": "Esistono confronti documentati tra i processi con e senza AI." }
+          ],
+          "fact": { "id": "Q8_L3", "q": "Esistono confronti documentati tra i processi con e senza AI?", "type": "choice",
+            "options": [ { "label": "No", "maps": "A" }, { "label": "Sì", "maps": "B" } ] } },
+        { "level": 4, "descriptor": "Il monitoraggio è continuo e comprende sicurezza e incidenti.",
+          "sub": [
+            { "key": "A", "text": "Il CISO non interviene sui temi AI." },
+            { "key": "B", "text": "Il CISO interviene anche sui temi AI." }
+          ],
+          "fact": { "id": "Q8_L4", "q": "Il CISO interviene sui temi AI?", "type": "choice",
+            "options": [ { "label": "No", "maps": "A" }, { "label": "Sì", "maps": "B" } ] } },
+        { "level": 5, "descriptor": "Le evidenze operative guidano ottimizzazione e rinnovo delle soluzioni." }
+      ]
+    },
+    "Q9": {
+      "title": "Governance e classificazione del rischio", "dimension": "E",
+      "statement": "Ruoli e processi di governance classificano le iniziative AI in base al rischio.",
+      "levels": [
+        { "level": 1, "descriptor": "Non esistono policy, ruoli o classificazione del rischio." },
+        { "level": 2, "descriptor": "Esistono principi informali applicati caso per caso.",
+          "sub": [
+            { "key": "A", "text": "I principi restano all'interno del gruppo di lavoro." },
+            { "key": "B", "text": "I principi sono resi noti all'interno dell'azienda." }
+          ] },
+        { "level": 3, "descriptor": "Policy, responsabilità e classificazione coprono i casi principali.", "valoriale": true,
+          "sub": [
+            { "key": "A", "text": "HR non è coinvolta nella redazione della policy." },
+            { "key": "B", "text": "HR è consultata nella redazione della policy." },
+            { "key": "C", "text": "HR co-firma la policy." }
+          ], "note": "C ammessa · valoriale",
+          "fact": { "id": "Q9_L3", "q": "Qual è il ruolo di HR nella policy AI?", "type": "choice",
+            "options": [
+              { "label": "Non coinvolta", "maps": "A" },
+              { "label": "Consultata nella redazione", "maps": "B" },
+              { "label": "Co-firma la policy", "maps": "C" }
+            ] } },
+        { "level": 4, "descriptor": "Inventario e classificazione sono applicati sistematicamente.",
+          "sub": [
+            { "key": "A", "text": "La policy è rivista una volta all'anno o meno spesso." },
+            { "key": "B", "text": "La policy è rivista ogni sei mesi o più spesso." }
+          ],
+          "fact": { "id": "Q9_L4", "q": "Con quale frequenza è rivista la policy AI?", "type": "choice",
+            "options": [ { "label": "Una volta all'anno o meno spesso", "maps": "A" }, { "label": "Ogni sei mesi o più spesso", "maps": "B" } ] } },
+        { "level": 5, "descriptor": "La governance è integrata in acquisti, progettazione e pianificazione." }
+      ]
+    },
+    "Q10": {
+      "title": "Controlli sul ciclo di vita", "dimension": "E",
+      "statement": "Gli use case rilevanti prevedono approvazione, supervisione umana e gestione post-rilascio.",
+      "factOwner": "Da compilare con la funzione legale o compliance",
+      "levels": [
+        { "level": 1, "descriptor": "Non esistono controlli definiti." },
+        { "level": 2, "descriptor": "I controlli vengono stabiliti progetto per progetto.",
+          "sub": [
+            { "key": "A", "text": "I controlli non sono documentati." },
+            { "key": "B", "text": "I controlli sono documentati per ciascun progetto." }
+          ], "note": "Chi definisce i controlli è nel profilo",
+          "fact": { "id": "Q10_L2", "q": "I controlli sui progetti AI sono documentati per ciascun progetto?", "type": "choice",
+            "options": [ { "label": "No", "maps": "A" }, { "label": "Sì", "maps": "B" } ] } },
+        { "level": 3, "descriptor": "I casi rilevanti prevedono approvazione e supervisione umana.",
+          "sub": [
+            { "key": "A", "text": "Chi esercita la supervisione umana non ha ricevuto una formazione specifica." },
+            { "key": "B", "text": "Chi esercita la supervisione umana ha ricevuto una formazione specifica." }
+          ],
+          "fact": { "id": "Q10_L3", "q": "Chi esercita la supervisione umana ha ricevuto una formazione specifica?", "type": "choice",
+            "options": [ { "label": "No", "maps": "A" }, { "label": "Sì", "maps": "B" } ] } },
+        { "level": 4, "descriptor": "I controlli coprono l'intero ciclo di vita e lasciano evidenze.", "valoriale": true,
+          "sub": [
+            { "key": "A", "text": "Le evidenze non sono esaminate da un comitato etico o equivalente." },
+            { "key": "B", "text": "Le evidenze sono esaminate da un comitato etico o equivalente." }
+          ],
+          "fact": { "id": "Q10_L4", "q": "Le evidenze dei controlli sono esaminate da un comitato etico o equivalente?", "type": "choice",
+            "options": [ { "label": "No", "maps": "A" }, { "label": "Sì", "maps": "B" } ] } },
+        { "level": 5, "descriptor": "L'organizzazione esegue assurance continua e revisioni periodiche." }
+      ]
+    },
+    "Q11": {
+      "title": "Operating model", "dimension": "F",
+      "statement": "Business, tecnologia e funzioni di controllo collaborano attraverso responsabilità definite.",
+      "levels": [
+        { "level": 1, "descriptor": "Le funzioni lavorano separatamente." },
+        { "level": 2, "descriptor": "Si formano team temporanei per singoli progetti.",
+          "sub": [
+            { "key": "A", "text": "I team comprendono solo business e tecnologia." },
+            { "key": "B", "text": "I team comprendono anche le funzioni di controllo (legale, compliance, rischio)." }
+          ] },
+        { "level": 3, "descriptor": "Esiste un modello cross-funzionale per le iniziative prioritarie.",
+          "sub": [
+            { "key": "A", "text": "Ruoli e responsabilità non sono scritti." },
+            { "key": "B", "text": "Ruoli e responsabilità sono scritti in una matrice condivisa." }
+          ] },
+        { "level": 4, "descriptor": "Il modello è stabile, federato o centralizzato, con responsabilità chiare.",
+          "sub": [
+            { "key": "A", "text": "Il modello non ha obiettivi e indicatori propri." },
+            { "key": "B", "text": "Il modello ha obiettivi e indicatori propri (tempi, capacità, soddisfazione delle funzioni servite)." }
+          ] },
+        { "level": 5, "descriptor": "L'operating model viene adattato dinamicamente al portafoglio." }
+      ]
+    },
+    "Q12": {
+      "title": "Processo di industrializzazione", "dimension": "F",
+      "statement": "Esiste un processo ripetibile per passare dal pilot alla produzione e alla diffusione.",
+      "levels": [
+        { "level": 1, "descriptor": "Le sperimentazioni si fermano senza una decisione formale." },
+        { "level": 2, "descriptor": "Alcuni pilot arrivano in produzione per eccezione.",
+          "sub": [
+            { "key": "A", "text": "Il passaggio in produzione dipende dall'iniziativa del singolo team." },
+            { "key": "B", "text": "Il passaggio in produzione è deciso da un responsabile identificato, caso per caso." }
+          ], "note": "Chi decide il passaggio (vertice o collegiale) è nel profilo" },
+        { "level": 3, "descriptor": "Esiste un percorso definito per le iniziative prioritarie.",
+          "sub": [
+            { "key": "A", "text": "Il comitato che decide i passaggi di stato si riunisce una volta al trimestre o meno." },
+            { "key": "B", "text": "Il comitato che decide i passaggi di stato si riunisce più volte al trimestre." }
+          ],
+          "fact": { "id": "Q12_L3", "q": "Con quale frequenza si riunisce il comitato che decide i passaggi di stato?", "type": "choice",
+            "options": [ { "label": "Una volta al trimestre o meno", "maps": "A" }, { "label": "Più volte al trimestre", "maps": "B" } ] } },
+        { "level": 4, "descriptor": "Conversione, tempi e responsabilità sono misurati e governati.",
+          "sub": [
+            { "key": "A", "text": "Non esistono obiettivi di miglioramento del processo." },
+            { "key": "B", "text": "Esistono obiettivi di miglioramento del processo (tempi, quota di passaggi in produzione)." }
+          ],
+          "fact": { "id": "Q12_L4", "q": "Esistono obiettivi di miglioramento del processo di industrializzazione?", "type": "choice",
+            "options": [ { "label": "No", "maps": "A" }, { "label": "Sì", "maps": "B" } ] } },
+        { "level": 5, "descriptor": "Il processo riutilizza componenti e scala continuamente le soluzioni." }
+      ]
+    },
+    "Q13": {
+      "title": "Competenze role-based", "dimension": "G",
+      "statement": "Le persone ricevono formazione e supporto coerenti con ruolo e responsabilità.",
+      "levels": [
+        { "level": 1, "descriptor": "Non esistono percorsi strutturati." },
+        { "level": 2, "descriptor": "È disponibile formazione generale e volontaria.",
+          "sub": [
+            { "key": "A", "text": "A fine 2026 meno dell'1% delle persone ha ricevuto formazione sull'AI." },
+            { "key": "B", "text": "A fine 2026 tra l'1% e il 10% delle persone ha ricevuto formazione sull'AI." },
+            { "key": "C", "text": "A fine 2026 oltre il 10% delle persone ha ricevuto formazione sull'AI." }
+          ], "note": "C ammessa (dato HR) · data di riferimento fissa · fasce da calibrare",
+          "fact": { "id": "Q13_L2", "q": "Quale percentuale delle persone avrà ricevuto formazione sull'AI a fine 2026 (dato HR)?", "type": "percent",
+            "thresholds": [ { "lt": 1, "maps": "A" }, { "lte": 10, "maps": "B" }, { "maps": "C" } ] } },
+        { "level": 3, "descriptor": "Esistono percorsi differenziati per le popolazioni prioritarie.", "valoriale": true,
+          "sub": [
+            { "key": "A", "text": "Alcune categorie di lavoratori non sono considerate (ad esempio chi è vicino alla pensione o ha basse qualifiche)." },
+            { "key": "B", "text": "Tutte le categorie di lavoratori sono considerate." }
+          ] },
+        { "level": 4, "descriptor": "Competenze e fabbisogni vengono valutati e aggiornati periodicamente.", "valoriale": true,
+          "sub": [
+            { "key": "A", "text": "I fabbisogni sono coperti soprattutto con turnover e nuove assunzioni." },
+            { "key": "B", "text": "I fabbisogni sono coperti soprattutto con la formazione delle persone presenti." }
+          ] },
+        { "level": 5, "descriptor": "Le competenze AI sono integrate in ruoli, carriere e workforce planning." }
+      ]
+    },
+    "Q14": {
+      "title": "Gestione dell'adozione", "dimension": "G",
+      "statement": "L'adozione è misurata e accompagnata dal ridisegno delle attività e del lavoro.",
+      "levels": [
+        { "level": 1, "descriptor": "Non si conosce l'utilizzo effettivo." },
+        { "level": 2, "descriptor": "Accessi e formazione sono usati come proxy dell'adozione.",
+          "sub": [
+            { "key": "A", "text": "L'obiettivo è l'uso individuale dell'AI, senza modificare i processi." },
+            { "key": "B", "text": "L'obiettivo è usare l'AI per cambiare i processi." }
+          ] },
+        { "level": 3, "descriptor": "Utilizzo, barriere e popolazioni attive vengono misurati.",
+          "sub": [
+            { "key": "A", "text": "La misura copre solo gli strumenti forniti dall'azienda." },
+            { "key": "B", "text": "La misura comprende anche l'uso di strumenti non forniti dall'azienda." }
+          ], "note": "L'ostacolo principale è nel profilo",
+          "fact": { "id": "Q14_L3", "q": "La misura dell'adozione comprende anche l'uso di strumenti AI non forniti dall'azienda?", "type": "choice",
+            "options": [ { "label": "No, solo strumenti forniti dall'azienda", "maps": "A" }, { "label": "Sì, anche strumenti non forniti", "maps": "B" } ] } },
+        { "level": 4, "descriptor": "Manager e process owner ridisegnano attività e workflow.",
+          "sub": [
+            { "key": "A", "text": "Il ridisegno non stabilisce come usare il tempo liberato." },
+            { "key": "B", "text": "Il ridisegno stabilisce come usare il tempo liberato (riqualificazione, nuove attività, mancato turnover)." }
+          ], "note": "Top-down / bottom-up è nel profilo" },
+        { "level": 5, "descriptor": "Adozione e organizzazione del lavoro vengono ottimizzate continuamente." }
+      ]
+    },
+    "Q15": {
+      "title": "Misurazione del valore", "dimension": "H",
+      "statement": "Le iniziative prioritarie hanno baseline, KPI, benefici attesi e costi complessivi.",
+      "levels": [
+        { "level": 1, "descriptor": "Non esistono baseline né indicatori." },
+        { "level": 2, "descriptor": "I benefici vengono stimati senza misurazione successiva.",
+          "sub": [
+            { "key": "A", "text": "Le stime non sono documentate." },
+            { "key": "B", "text": "Le stime sono documentate in un business case." }
+          ], "note": "Il motivo dell'assenza di misura è nel profilo",
+          "fact": { "id": "Q15_L2", "q": "Le stime dei benefici sono documentate in un business case?", "type": "choice",
+            "options": [ { "label": "No", "maps": "A" }, { "label": "Sì", "maps": "B" } ] } },
+        { "level": 3, "descriptor": "Baseline e KPI sono definiti per le iniziative prioritarie.", "valoriale": true,
+          "sub": [
+            { "key": "A", "text": "Non esistono KPI sull'impatto per le persone e sugli aspetti etici." },
+            { "key": "B", "text": "Esistono anche KPI sull'impatto per le persone e sugli aspetti etici." }
+          ],
+          "fact": { "id": "Q15_L3", "q": "Esistono KPI sull'impatto per le persone e sugli aspetti etici?", "type": "choice",
+            "options": [ { "label": "No", "maps": "A" }, { "label": "Sì", "maps": "B" } ] } },
+        { "level": 4, "descriptor": "Benefici e costo complessivo sono misurati dopo il rilascio.",
+          "sub": [
+            { "key": "A", "text": "Si usano gli stessi KPI per tutti i progetti." },
+            { "key": "B", "text": "Esistono KPI differenziati per progetti di efficienza, di innovazione e di trasformazione." }
+          ],
+          "fact": { "id": "Q15_L4", "q": "I KPI sono differenziati per tipo di progetto (efficienza, innovazione, trasformazione)?", "type": "choice",
+            "options": [ { "label": "No, stessi KPI per tutti", "maps": "A" }, { "label": "Sì, differenziati", "maps": "B" } ] } },
+        { "level": 5, "descriptor": "I risultati guidano finanziamento, rinnovo, interruzione e scaling." }
+      ]
+    },
+    "Q16": {
+      "title": "Replica e scaling", "dimension": "H",
+      "statement": "Le soluzioni efficaci vengono industrializzate e replicate in più aree.",
+      "levels": [
+        { "level": 1, "descriptor": "Nessuna soluzione è stata replicata." },
+        { "level": 2, "descriptor": "Le repliche avvengono occasionalmente per iniziativa locale.",
+          "sub": [
+            { "key": "A", "text": "Le repliche avvengono nella stessa funzione, su sedi o territori diversi." },
+            { "key": "B", "text": "Le pratiche passano anche tra funzioni o settori diversi." }
+          ],
+          "fact": { "id": "Q16_L2", "q": "Le repliche delle soluzioni AI avvengono anche tra funzioni o settori diversi?", "type": "choice",
+            "options": [ { "label": "No, solo nella stessa funzione", "maps": "A" }, { "label": "Sì, anche tra funzioni o settori", "maps": "B" } ] } },
+        { "level": 3, "descriptor": "Alcune soluzioni vengono estese con adattamenti.",
+          "sub": [
+            { "key": "A", "text": "Le estensioni partono senza verificare i risultati della soluzione d'origine." },
+            { "key": "B", "text": "Le estensioni partono dai risultati misurati della soluzione d'origine." }
+          ] },
+        { "level": 4, "descriptor": "Esiste un processo di scaling con componenti riutilizzabili.",
+          "sub": [
+            { "key": "A", "text": "I componenti riutilizzabili non sono censiti." },
+            { "key": "B", "text": "Esiste un catalogo dei componenti riutilizzabili (modelli, prompt, connettori, agenti)." }
+          ], "note": "Che cosa si riutilizza (caso d'uso o metodo) è nel profilo",
+          "fact": { "id": "Q16_L4", "q": "Esiste un catalogo dei componenti riutilizzabili (modelli, prompt, connettori, agenti)?", "type": "choice",
+            "options": [ { "label": "No", "maps": "A" }, { "label": "Sì", "maps": "B" } ] } },
+        { "level": 5, "descriptor": "Le soluzioni vengono progettate fin dall'inizio per essere replicate." }
+      ]
+    }
+  },
+  "profile": [
+    { "id": "P_USO", "session": "GOV", "item": "Q1", "type": "percent",
+      "q": "Ampiezza d'uso: quale quota di persone usa strumenti AI nel proprio lavoro almeno una volta alla settimana, oggi?" },
+    { "id": "P_AMBIZIONE", "session": "GOV", "item": "Q1, Q2", "type": "choice",
+      "q": "Ambizione prevalente sull'AI nei prossimi tre anni",
+      "options": ["Efficienza dei processi", "Crescita dei ricavi", "Trasformazione del modello di business"] },
+    { "id": "P_CONTROLLI", "session": "GOV", "item": "Q10", "type": "choice",
+      "q": "Chi definisce i controlli sui progetti AI",
+      "options": ["Esperti AI", "Esperti di processo", "Funzioni di controllo"] },
+    { "id": "P_OSTACOLO", "session": "EFF", "item": "Q5, Q14", "type": "choice",
+      "q": "Ostacolo principale alla diffusione dell'AI",
+      "options": ["Dati", "Uso individuale", "Cambiamento dei processi", "Competenze", "Rischio"] },
+    { "id": "P_RIDISEGNO", "session": "EFF", "item": "Q14", "type": "choice",
+      "q": "Metodo prevalente di ridisegno del lavoro", "options": ["Dal vertice", "Dal basso", "Misto"] },
+    { "id": "P_ORIGINE", "session": "GROW", "item": "Q3", "type": "choice",
+      "q": "Origine prevalente delle iniziative", "options": ["Dal vertice", "Dalle funzioni", "Mista"] },
+    { "id": "P_STOP", "session": "GROW", "item": "Q4", "type": "choice",
+      "q": "Motivo prevalente delle decisioni di stop", "options": ["Economico", "Tecnico", "Di rischio", "Organizzativo"] },
+    { "id": "P_KPI", "session": "GROW", "item": "Q15", "type": "choice",
+      "q": "Tipo di KPI prevalente", "options": ["Economico-finanziari", "Operativi", "Sulle persone"] },
+    { "id": "P_NOMISURA", "session": "GROW", "item": "Q15", "type": "choice",
+      "q": "Motivo dell'eventuale assenza di misura dei benefici",
+      "options": ["Mancanza di strumenti", "Scelta di diffondere prima di misurare", "Non applicabile (i benefici sono misurati)"] },
+    { "id": "P_RIUSO", "session": "GROW", "item": "Q16", "type": "choice",
+      "q": "Che cosa si riutilizza nella replica", "options": ["Il caso d'uso", "Il metodo"] },
+    { "id": "P_PIATTAFORME", "session": "SCALE", "item": "Q7", "type": "choice",
+      "q": "Chi guida la scelta delle piattaforme", "options": ["Procedure di acquisto", "IT", "Utilizzatori"] },
+    { "id": "P_TEAM", "session": "SCALE", "item": "Q11", "type": "choice",
+      "q": "Come si formano i team", "options": ["Designazione dall'alto", "Volontari"] },
+    { "id": "P_OPMODEL", "session": "SCALE", "item": "Q11", "type": "choice",
+      "q": "Il modello operativo è stato creato per l'AI o era già esistente?", "options": ["Creato per l'AI", "Già esistente"] },
+    { "id": "P_PRODUZIONE", "session": "SCALE", "item": "Q12", "type": "choice",
+      "q": "Come si decide il passaggio in produzione", "options": ["Dal vertice", "In modo collegiale"] }
+  ],
+  "coherence": [
+    { "id": "C1", "enablers": [{ "type": "item", "ref": "Q2" }], "dependent": { "type": "item", "ref": "Q1" },
+      "label": "Mandato → Direzione", "signal": "Strategia dichiarata senza chi la guida.", "session": "GOV" },
+    { "id": "C2", "enablers": [{ "type": "item", "ref": "Q13" }], "dependent": { "type": "item", "ref": "Q14" }, "bidirectional": true,
+      "label": "Competenze ↔ Adozione", "signal": "Uso fragile senza competenze, o formazione che non si traduce in lavoro.", "session": "EFF" },
+    { "id": "C3", "enablers": [{ "type": "item", "ref": "Q4" }], "dependent": { "type": "item", "ref": "Q3" },
+      "label": "Governo del portafoglio → Selezione", "signal": "Criteri senza decisioni di go/stop.", "session": "GROW" },
+    { "id": "C4", "enablers": [{ "type": "item", "ref": "Q15" }], "dependent": { "type": "item", "ref": "Q16" },
+      "label": "Valore → Replica", "signal": "Si replica senza sapere che cosa funziona.", "session": "GROW" },
+    { "id": "C5", "enablers": [{ "type": "dimension", "ref": "E" }], "dependent": { "type": "item", "ref": "Q16" },
+      "label": "Governance → Replica", "signal": "Si replica senza presidio del rischio.", "session": "GROW", "crossSession": true },
+    { "id": "C6", "enablers": [{ "type": "dimension", "ref": "E" }, { "type": "item", "ref": "Q7" }, { "type": "item", "ref": "Q8" }],
+      "dependent": { "type": "item", "ref": "Q12" },
+      "label": "Governance, Architettura e Controllo → Industrializzazione", "signal": "Si porta in produzione ciò che non si sa governare o gestire.", "session": "SCALE", "crossSession": true }
+  ],
+  "useCaseCategories": [
+    { "id": "SOST", "name": "Sostitutivi", "def": "La macchina svolge il lavoro umano mantenendo lo stesso risultato.", "people": "Da indicare sempre: che cosa accade alle persone e al tempo liberato." },
+    { "id": "MIGL", "name": "Di miglioramento", "def": "La persona supportata dall'AI ottiene maggiore efficacia o efficienza.", "people": "Le persone restano al centro del risultato." },
+    { "id": "INNO", "name": "Innovativi", "def": "Cambia il risultato o nasce un'attività nuova.", "people": "Nuove competenze e nuovi ruoli." },
+    { "id": "RIVO", "name": "Rivoluzionari", "def": "Emerge un nuovo core business o una capacità prima impensabile.", "people": "Valorizzazione delle persone anche quando il risultato è radicalmente nuovo." }
+  ]
+}
