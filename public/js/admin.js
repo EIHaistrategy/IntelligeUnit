@@ -63,7 +63,7 @@ async function viewControl(id) {
     const others = C.companies.filter((c) => !active.includes(c));
     app.innerHTML = `<p><a href="#/sessioni">← Sessioni</a></p>
       <div class="card"><div class="row between"><div><h1>${esc(s.title)}</h1><p class="small muted">${esc(C.def.items.map((i) => `${i} ${INST.items[i].title}`).join(' · '))}</p></div>${phaseChips(s.phase)}</div>
-        <div class="row"><span class="small muted">Passa alla fase:</span>${PHASES.map((p, i) => { const locked = i < idx && i <= 1 && idx >= 2; return `<button class="sm ${i === idx ? '' : 'ghost'}" data-phase="${p.id}" ${i === idx || locked ? 'disabled' : ''} title="${locked ? 'Dopo il confronto non si torna alla fase individuale (§2)' : ''}">${i < idx ? '↩ ' : ''}${esc(p.label)}</button>`; }).join('')}</div>
+        <div class="row"><span class="small muted">Passa alla fase:</span>${PHASES.map((p, i) => { const locked = (i < idx && i <= 1 && idx >= 2) || i > idx + 1; return `<button class="sm ${i === idx + 1 ? '' : 'ghost'}" data-phase="${p.id}" ${i === idx || locked ? 'disabled' : ''} title="${i > idx + 1 ? 'Le fasi si aprono una alla volta' : locked ? 'Dopo il confronto non si torna alla fase individuale (§2)' : ''}">${i < idx ? '↩ ' : ''}${esc(p.label)}</button>`; }).join('')}</div>
         <p class="small muted" style="margin-top:8px">Individuale → Confronto blocca le risposte individuali. Il consolidamento si può confermare solo nella fase Consolidamento.</p></div>
       <div class="grid c3">
         <div class="card" style="text-align:center">${qrImg(C.joinUrl, 180)}<p class="small mono" style="word-break:break-all">${esc(C.joinUrl)}</p><a class="btn sm" href="#/qr/${s.id}">QR a schermo intero</a></div>
@@ -93,7 +93,15 @@ async function viewControl(id) {
     };
     $$('[data-release]').forEach((b) => b.onclick = async () => {
       if (!confirm('Rilasciare il report? Viene salvata una copia che l\'azienda vede da ora in poi e che non cambierà più.')) return;
-      await api(`/api/admin/sessions/${s.id}/companies/${b.dataset.release}/release`, { method: 'POST' }); C = await api(`/api/admin/sessions/${id}/control`); draw();
+      b.disabled = true;
+      const url = `/api/admin/sessions/${s.id}/companies/${b.dataset.release}/release`;
+      try { await api(url, { method: 'POST', body: {} }); toast('Report rilasciato'); }
+      catch (e) {
+        if (e.status === 409 && confirm(`${e.message}\n\nRilasciare comunque, senza confronto con il benchmark?`)) {
+          try { await api(url, { method: 'POST', body: { withoutBenchmark: true } }); toast('Report rilasciato'); } catch (e2) { toast(e2.message, true); }
+        } else if (e.status !== 409) toast(e.message, true);
+      }
+      C = await api(`/api/admin/sessions/${id}/control`); draw();
     });
     $$('[data-note]').forEach((b) => b.onclick = async () => {
       const c = C.companies.find((x) => x.id === Number(b.dataset.note));
@@ -103,7 +111,7 @@ async function viewControl(id) {
     });
   };
   const row = (c) => `<tr>
-    <td><b>${esc(c.name)}</b> ${c.kind !== 'REALE' ? `<span class="tag warn">${c.kind}</span>` : ''}<div class="small">${c.referents.map((r) => `<a href="/r/${r.token}" target="_blank">referente: ${esc(r.name)}</a>`).join('<br>') || '<span class="muted">nessun referente</span>'}</div></td>
+    <td><b>${esc(c.name)}</b> ${c.kind !== 'REALE' ? `<span class="tag warn">${esc(c.kind)}</span>` : ''} <span class="small mono muted" title="Codice azienda">${esc(c.joinCode)}</span><div class="small">${c.referents.map((r) => `<a href="/r/${r.token}" target="_blank">referente: ${esc(r.name)}</a>`).join('<br>') || '<span class="muted">nessun referente</span>'}</div></td>
     <td>${c.presession ? '<span class="tag ok">✓</span>' : '<span class="tag">—</span>'}</td>
     <td class="num">${c.participants}<span class="muted small"> (${c.submitted} inviati)</span></td>
     <td class="small">${c.expected ? `${c.answered}/${c.expected}` : '—'}</td>
@@ -130,8 +138,9 @@ async function viewTableCard(arg) {
   const c = C.companies.find((x) => x.id === cid);
   const url = `${C.joinUrl}?c=${c.joinCode}`;
   app.innerHTML = `<p class="noprint"><a href="#/sessione/${sid}">← Control room</a> · <button class="sm" onclick="print()">Stampa</button></p>
-    <div class="tablecard"><div class="small muted">AITO · ${esc(C.session.title)}</div><h2>${esc(c.name)}</h2>${qrImg(url, 260)}<p class="small mono" style="word-break:break-all">${esc(url)}</p>
-    <p class="small">Inquadra il QR: l'azienda è già selezionata.</p></div>`;
+    <div class="tablecard"><div class="small muted">AITO · ${esc(C.session.title)}</div><h2>${esc(c.name)}</h2>${qrImg(url, 260)}
+    <p>Codice azienda: <b class="mono" style="font-size:1.6rem;letter-spacing:.2em">${esc(c.joinCode)}</b></p><p class="small mono" style="word-break:break-all">${esc(url)}</p>
+    <p class="small">Inquadra il QR: l'azienda è già selezionata. Con il QR della sala, inserisci il codice.</p></div>`;
 }
 
 // ---------- Aziende ----------
@@ -142,10 +151,10 @@ async function viewCompanies() {
       <div><label class="f">Nome *</label><input type="text" id="n_name"></div>
       <div><label class="f">Perimetro valutato</label><input type="text" id="n_per" placeholder="gruppo, società o BU"></div>
       <div><label class="f">Settore</label><input type="text" id="n_sec"></div>
-      <div><label class="f">Tipo</label><select id="n_kind"><option value="REALE">REALE</option><option value="TEST">TEST (prova, fuori benchmark)</option><option value="DEMO">DEMO (dati fittizi)</option></select></div></div>
+      <div><label class="f">Tipo</label><select id="n_kind"><option value="REALE">REALE</option><option value="TEST">TEST (prova, fuori benchmark)</option></select></div></div>
       <div style="margin-top:12px"><button id="n_go">Aggiungi</button></div></div>
     <div class="card"><div class="tablewrap"><table><thead><tr><th>Azienda</th><th>Tipo</th><th>Perimetro</th><th>Consensi</th><th>Referenti</th><th></th></tr></thead><tbody>
-      ${cs.map((c) => `<tr><td><b>${esc(c.name)}</b></td><td><span class="tag ${c.kind === 'REALE' ? 'ok' : 'warn'}">${c.kind}</span></td><td class="small">${esc(c.perimeter)}</td>
+      ${cs.map((c) => `<tr><td><b>${esc(c.name)}</b></td><td><span class="tag ${c.kind === 'REALE' ? 'ok' : 'warn'}">${esc(c.kind)}</span></td><td class="small">${esc(c.perimeter)}</td>
         <td class="small">${['benchmark', 'peer', 'testimonianza', 'followup'].map((k) => `${c.consents[k]?.granted ? '✓' : '·'} ${k}`).join('<br>')}</td>
         <td class="small">${c.referents.map((r) => esc(r.name)).join('<br>') || '—'}</td><td><a class="btn sm" href="#/azienda/${c.id}">Apri</a></td></tr>`).join('')}
     </tbody></table></div></div>`;
@@ -164,13 +173,13 @@ async function viewCompany(id) {
       <div><label class="f">Nome</label><input type="text" id="e_name" value="${esc(c.name)}"></div>
       <div><label class="f">Perimetro</label><input type="text" id="e_per" value="${esc(c.perimeter)}"></div>
       <div><label class="f">Settore</label><input type="text" id="e_sec" value="${esc(c.sector)}"></div>
-      <div><label class="f">Tipo</label><select id="e_kind">${['REALE', 'TEST', 'DEMO'].map((k) => `<option ${c.kind === k ? 'selected' : ''}>${k}</option>`).join('')}</select></div></div>
+      <div><label class="f">Tipo</label><select id="e_kind">${(c.kind === 'DEMO' ? ['DEMO'] : ['REALE', 'TEST']).map((k) => `<option ${c.kind === k ? 'selected' : ''}>${k}</option>`).join('')}</select></div></div>
       <div style="margin-top:12px"><button id="e_save">Salva</button></div></div>
     <div class="grid c2">
       <div class="card"><h2>Consensi</h2><p class="small muted">Distinti e revocabili (§16). Senza consenso al benchmark l'azienda riceve comunque il proprio report ma non entra nelle distribuzioni.</p>
         ${['benchmark', 'peer', 'testimonianza', 'followup'].map((k) => `<label class="check"><input type="checkbox" data-consent="${k}" ${c.consents[k]?.granted ? 'checked' : ''}> ${{ benchmark: 'Benchmark anonimo', peer: 'Peer matching', testimonianza: 'Testimonianza', followup: 'Follow-up' }[k]} <span class="small muted">${c.consents[k] ? fmtDate(c.consents[k].at) : ''}</span></label>`).join('')}</div>
       <div class="card"><h2>Referenti</h2>
-        ${c.referents.map((r) => `<div class="card flat"><div class="row between"><b>${esc(r.name)}</b><button class="sm danger" data-delref="${r.id}">Elimina</button></div>
+        ${c.referents.map((r) => `<div class="card flat"><div class="row between"><b>${esc(r.name)}</b><div class="row"><button class="sm ghost" data-regen="${r.id}" title="Disattiva il link attuale e ne crea uno nuovo">Rigenera link</button><button class="sm danger" data-delref="${r.id}">Elimina</button></div></div>
           <div class="small muted">${esc(r.role || '')} ${esc(r.email || '')}</div>
           <div class="row" style="margin-top:6px"><input type="text" readonly value="${esc(NET.baseUrl)}/r/${esc(r.token)}" class="mono small"><button class="sm ghost" data-copy="${esc(NET.baseUrl)}/r/${esc(r.token)}">Copia link</button></div>
           <details><summary class="small">QR del link referente</summary>${qrImg(`${NET.baseUrl}/r/${r.token}`, 160)}</details></div>`).join('') || '<p class="muted">Nessun referente.</p>'}
@@ -205,6 +214,7 @@ async function viewCompany(id) {
     catch (e) { b.checked = !b.checked; toast(e.message, true); }
   });
   $('#r_add').onclick = async () => { try { await api(`/api/admin/companies/${id}/referents`, { method: 'POST', body: { name: $('#r_name').value, role: $('#r_role').value, email: $('#r_email').value } }); viewCompany(id); } catch (e) { toast(e.message, true); } };
+  $$('[data-regen]').forEach((b) => b.onclick = async () => { if (confirm('Il link attuale smetterà di funzionare. Creare un nuovo link per questo referente?')) { await api(`/api/admin/referents/${b.dataset.regen}/regenerate`, { method: 'POST', body: {} }); viewCompany(id); } });
   $$('[data-delref]').forEach((b) => b.onclick = async () => { if (confirm('Eliminare il referente? Il suo link smetterà di funzionare.')) { await api(`/api/admin/referents/${b.dataset.delref}`, { method: 'DELETE' }); viewCompany(id); } });
   $$('[data-copy]').forEach((b) => b.onclick = async () => { try { await navigator.clipboard.writeText(b.dataset.copy); toast('Link copiato'); } catch { prompt('Copia il link', b.dataset.copy); } });
   $$('[data-fix]').forEach((b) => b.onclick = async () => {
@@ -250,6 +260,13 @@ async function viewSettings() {
     <div class="card"><h2>Dati dimostrativi</h2><div id="demo"><p class="muted small">…</p></div></div>
     <div class="card"><h2>Dati</h2><p class="small">Database: <span class="mono">${esc(NET.db)}</span>. Per un backup basta copiare la cartella <span class="mono">data</span> a server fermo.</p>
       <a class="btn" href="/api/admin/export.xlsx">Scarica export Excel</a></div>
+    <div class="card"><h2>Registrazione dei partecipanti</h2>
+      <label class="f" for="o_mode">Come il partecipante indica la sua azienda</label>
+      <select id="o_mode" style="max-width:520px"><option value="codice">Con il codice azienda (QR del tavolo o codice comunicato) — consigliato</option><option value="elenco">Scegliendo dall'elenco delle aziende (chiunque abbia il QR di sala vede l'elenco)</option></select>
+      <label class="f" for="o_priv">Indirizzo dell'informativa privacy ELIS (https://…)</label>
+      <input type="text" id="o_priv" style="max-width:520px" placeholder="https://www.elis.org/...">
+      <p class="small muted">Il link compare nella pagina di registrazione, accanto alla spiegazione di chi vede le risposte.</p>
+      <button class="sm" id="o_save">Salva</button></div>
     <div class="card"><h2>Password admin</h2><div class="row"><input type="password" id="pw1" placeholder="Nuova password (min. 8)" style="max-width:280px"><button class="sm" id="pwgo">Cambia</button></div></div>
     <div class="card"><h2>Versioni</h2><p class="small">Strumento <b>${esc(INST.version)}</b> (${esc(INST.status)}) · Scoring <b>${esc(SC.version)}</b></p></div>`;
   const D = await api('/api/admin/demo');
@@ -259,6 +276,9 @@ async function viewSettings() {
       <button class="sm danger" id="demo_rm">Rimuovi dati dimostrativi</button></div>` : '<button class="sm" id="demo_add">Carica dati dimostrativi</button>'}`;
   if ($('#demo_add')) $('#demo_add').onclick = async () => { try { await api('/api/admin/demo', { method: 'POST' }); toast('Dati dimostrativi caricati'); viewSettings(); } catch (e) { toast(e.message, true); } };
   if ($('#demo_rm')) $('#demo_rm').onclick = async () => { if (!confirm('Rimuovere tutte le aziende DEMO e l\'azienda vetrina?')) return; await api('/api/admin/demo', { method: 'DELETE' }); toast('Dati dimostrativi rimossi'); viewSettings(); };
+  const O = await api('/api/admin/options');
+  $('#o_mode').value = O.joinMode; $('#o_priv').value = O.privacyUrl;
+  $('#o_save').onclick = async () => { try { await api('/api/admin/options', { method: 'PUT', body: { joinMode: $('#o_mode').value, privacyUrl: $('#o_priv').value } }); toast('Impostazioni salvate'); } catch (e) { toast(e.message, true); } };
   $$('[data-url]').forEach((b) => b.onclick = async () => { await api('/api/admin/network', { method: 'PUT', body: { url: b.dataset.url } }); toast('Indirizzo aggiornato'); viewSettings(); });
   $('#savecustom').onclick = async () => { await api('/api/admin/network', { method: 'PUT', body: { url: $('#custom').value } }); viewSettings(); };
   $('#auto').onclick = async () => { await api('/api/admin/network', { method: 'PUT', body: { url: '' } }); viewSettings(); };

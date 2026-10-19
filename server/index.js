@@ -26,8 +26,11 @@ function hashPw(pw, salt = crypto.randomBytes(16).toString('hex')) {
 }
 function checkPw(pw, stored) {
   const [salt, h] = String(stored).split(':');
-  const x = crypto.scryptSync(pw, salt, 32).toString('hex');
-  return crypto.timingSafeEqual(Buffer.from(x), Buffer.from(h));
+  return new Promise((resolve) => crypto.scrypt(pw, salt, 32, (err, key) => {
+    if (err) return resolve(false);
+    const x = key.toString('hex');
+    resolve(x.length === h.length && crypto.timingSafeEqual(Buffer.from(x), Buffer.from(h)));
+  }));
 }
 let firstPassword = null;
 if (!getSetting('admin_pw')) {
@@ -60,9 +63,25 @@ function baseUrl() {
 
 // ---------- App ----------
 const app = express();
-app.set('trust proxy', 1);
+// L'indirizzo del client da X-Forwarded-For vale solo dietro un proxy noto (Render): in locale non si fida.
+if (process.env.RENDER || process.env.TRUST_PROXY === '1') app.set('trust proxy', 1);
+app.use((req, res, next) => {
+  res.setHeader('Referrer-Policy', 'no-referrer'); // i link personali dei referenti non escono verso altri siti
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  next();
+});
 app.get('/healthz', (req, res) => res.send('ok'));
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '200kb' }));
+// Protezione CSRF: le richieste che modificano dati devono arrivare da questo stesso sito.
+app.use('/api', (req, res, next) => {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+  const site = req.headers['sec-fetch-site'];
+  if (site && !['same-origin', 'none'].includes(site)) return res.status(403).json({ error: 'Richiesta non consentita' });
+  const origin = req.headers.origin;
+  if (origin) { let host = null; try { host = new URL(origin).host; } catch { /* origin non valido */ } if (host !== req.headers.host) return res.status(403).json({ error: 'Richiesta non consentita' }); }
+  next();
+});
 app.use('/static', express.static(PUBLIC, { maxAge: 0 }));
 const page = (f) => (req, res) => res.sendFile(path.join(PUBLIC, f));
 app.get('/', page('index.html'));
@@ -73,37 +92,51 @@ app.get('/report/:companyId', page('report.html'));
 app.get('/plenaria/:base', page('plenaria.html'));
 app.get('/live/:sid', page('live.html'));
 
-const wrap = (fn) => (req, res) => {
-  try { const r = fn(req, res); if (r !== undefined) res.json(r); }
-  catch (e) { console.error(e); res.status(500).json({ error: e.message }); }
+const wrap = (fn) => async (req, res) => {
+  try { const r = await fn(req, res); if (r !== undefined && !res.headersSent) res.json(r); }
+  catch (e) { console.error(e); if (!res.headersSent) res.status(500).json({ error: 'Errore interno: riprova. Se si ripete, avvisa il facilitatore ELIS.' }); }
 };
+const txt = (v, max) => String(v ?? '').trim().slice(0, max);
 const bad = (res, msg, code = 400) => { res.status(code).json({ error: msg }); };
 
 app.get('/api/instrument', wrap(() => ({ instrument: I, scoring: E.SCORING })));
 app.get('/api/qr.svg', async (req, res) => {
-  const svg = await QRCode.toString(String(req.query.text || ''), { type: 'svg', margin: 1, errorCorrectionLevel: 'M' });
-  res.type('image/svg+xml').send(svg);
+  try {
+    const text = String(req.query.text || '');
+    if (!text || text.length > 512) return res.status(400).send('Testo non valido');
+    const svg = await QRCode.toString(text, { type: 'svg', margin: 1, errorCorrectionLevel: 'M' });
+    res.type('image/svg+xml').send(svg);
+  } catch { res.status(400).send('QR non generabile'); }
 });
 
 // ---------- Partecipanti ----------
 app.get('/api/join/:code', wrap((req, res) => {
   const s = q.get('SELECT id, title, base, phase FROM sessions WHERE code = ?', req.params.code);
   if (!s) return bad(res, 'Sessione non trovata', 404);
-  const companies = q.all("SELECT id, name, join_code FROM companies WHERE kind != 'DEMO' ORDER BY name");
-  return { session: s, companies: companies.map((c) => ({ id: c.id, name: c.name, code: c.join_code })), functions: I.functions };
+  // Di default l'azienda si sceglie con il suo codice (QR del tavolo o codice comunicato dal referente):
+  // chi ha il QR di sessione non vede l'elenco delle aziende partecipanti. In modalità "elenco" si mostra la lista.
+  const mode = getSetting('join_mode') || 'codice';
+  const pre = req.query.c ? q.get("SELECT id, name, join_code FROM companies WHERE join_code = ? AND kind != 'DEMO'", String(req.query.c).toUpperCase()) : null;
+  const companies = mode === 'elenco' ? q.all("SELECT id, name, join_code FROM companies WHERE kind != 'DEMO' ORDER BY name") : [];
+  return { session: s, mode, preselected: pre ? { id: pre.id, name: pre.name, code: pre.join_code } : null,
+    companies: companies.map((c) => ({ id: c.id, name: c.name, code: c.join_code })), functions: I.functions,
+    privacyUrl: getSetting('privacy_url') || null };
 }));
 
 app.post('/api/join/:code', wrap((req, res) => {
   const s = q.get('SELECT * FROM sessions WHERE code = ?', req.params.code);
   if (!s) return bad(res, 'Sessione non trovata', 404);
   if (!['preparazione', 'individuale'].includes(s.phase)) return bad(res, 'La fase individuale è chiusa: non è più possibile registrarsi a questa sessione.');
-  const { companyId, name, func, email } = req.body || {};
-  const c = q.get("SELECT * FROM companies WHERE id = ? AND kind != 'DEMO'", companyId);
-  if (!c) return bad(res, 'Selezionare un\'azienda');
-  if (!String(name || '').trim()) return bad(res, 'Inserire nome e cognome');
+  const { companyId, companyCode, name, func, privacyAck } = req.body || {};
+  const c = companyCode
+    ? q.get("SELECT * FROM companies WHERE join_code = ? AND kind != 'DEMO'", txt(companyCode, 10).toUpperCase())
+    : (getSetting('join_mode') === 'elenco' ? q.get("SELECT * FROM companies WHERE id = ? AND kind != 'DEMO'", companyId) : null);
+  if (!c) return bad(res, companyCode ? 'Codice azienda non riconosciuto: controlla il cartoncino del tavolo o chiedilo al referente' : 'Inserire il codice azienda');
+  if (!txt(name, 120)) return bad(res, 'Inserire nome e cognome');
   if (!I.functions.some((f) => f.id === func)) return bad(res, 'Selezionare la funzione');
+  if (!privacyAck) return bad(res, 'Per proseguire conferma di aver letto come vengono usate le risposte');
   const t = token();
-  q.run('INSERT INTO participants (session_id, company_id, name, func, email, token) VALUES (?,?,?,?,?,?)', s.id, c.id, String(name).trim(), func, email || null, t);
+  q.run('INSERT INTO participants (session_id, company_id, name, func, email, token) VALUES (?,?,?,?,NULL,?)', s.id, c.id, txt(name, 120), func, t);
   L.ensureSessionCompany(s.id, c.id);
   return { token: t };
 }));
@@ -123,7 +156,7 @@ app.get('/api/p/:t', wrap((req, res) => {
     session: { id: st.session.id, title: st.session.title, base: st.session.base, phase: st.session.phase },
     items: st.def.items.map((id) => ({ id, ...I.items[id] })), pairs: st.def.pairs, pairQuestion: I.pairQuestion,
     answers: st.answers, answered: st.answered, pairAnswers: st.pairs };
-  if (['confronto', 'consolidamento', 'chiusa'].includes(st.session.phase)) out.comparison = L.companyComparison(p.session_id, p.company_id);
+  if (['confronto', 'consolidamento', 'chiusa'].includes(st.session.phase)) out.comparison = L.participantComparison(p.session_id, p.company_id);
   return out;
 }));
 
@@ -134,7 +167,7 @@ app.put('/api/p/:t/answer', wrap((req, res) => {
   const { itemId, level } = req.body;
   if (!L.baseDef(s).items.includes(itemId)) return bad(res, 'Item non previsto');
   const lv = level == null ? null : Number(level);
-  if (lv != null && !(lv >= 1 && lv <= 5)) return bad(res, 'Livello non valido');
+  if (lv != null && !(Number.isInteger(lv) && lv >= 1 && lv <= 5)) return bad(res, 'Livello non valido');
   q.run(`INSERT INTO answers (participant_id, item_id, level, updated_at) VALUES (?,?,?,datetime('now'))
          ON CONFLICT(participant_id, item_id) DO UPDATE SET level = excluded.level, updated_at = excluded.updated_at`, p.id, itemId, lv);
   return { ok: true };
@@ -155,6 +188,7 @@ app.put('/api/p/:t/pair', wrap((req, res) => {
 app.post('/api/p/:t/submit', wrap((req, res) => {
   const p = participant(req, res); if (!p) return;
   const s = L.getSession(p.session_id);
+  if (s.phase !== 'individuale') return bad(res, 'La fase individuale non è aperta');
   const def = L.baseDef(s);
   const n = q.get('SELECT COUNT(*) n FROM answers WHERE participant_id = ?', p.id).n;
   const np = q.get('SELECT COUNT(*) n FROM pair_answers WHERE participant_id = ?', p.id).n;
@@ -191,7 +225,9 @@ app.get('/api/r/:t/presession/:base', wrap((req, res) => {
 app.put('/api/r/:t/presession/:base', wrap((req, res) => {
   const r = referent(req, res); if (!r) return;
   if (!E.sessionDef(req.params.base)) return bad(res, 'Sessione non valida');
-  L.savePresession(r.company_id, req.params.base, req.body.data || {}, refActor(r));
+  const out = L.validatePresession(req.params.base, req.body?.data || {});
+  if (!out.ok) return bad(res, out.errors.join(' · '));
+  L.savePresession(r.company_id, req.params.base, out.data, refActor(r));
   return { ok: true };
 }));
 
@@ -213,19 +249,25 @@ app.delete('/api/r/:t/session/:sid/participant/:pid', wrap((req, res) => {
 }));
 app.put('/api/r/:t/session/:sid/draft', wrap((req, res) => {
   const r = referent(req, res); if (!r) return;
-  L.saveDraft(Number(req.params.sid), r.company_id, req.body || {});
+  const s = L.getSession(req.params.sid); if (!s) return bad(res, 'Sessione non trovata', 404);
+  if (s.phase !== 'consolidamento') return bad(res, 'Il consolidamento non è aperto');
+  if (JSON.stringify(req.body || {}).length > 20000) return bad(res, 'Bozza troppo grande');
+  L.saveDraft(s.id, r.company_id, req.body || {});
   return { ok: true };
 }));
 app.post('/api/r/:t/session/:sid/confirm', wrap((req, res) => {
   const r = referent(req, res); if (!r) return;
-  const s = L.getSession(req.params.sid);
+  const s = L.getSession(req.params.sid); if (!s) return bad(res, 'Sessione non trovata', 404);
   if (s.phase !== 'consolidamento') return bad(res, 'Il consolidamento è aperto solo nella fase di consolidamento');
   const out = L.confirmConsolidation(s.id, r.company_id, req.body || {}, refActor(r));
+  if (out.conflict) return bad(res, out.errors.join(' · '), 409);
   if (!out.ok) return bad(res, out.errors.join(' · '));
   return out;
 }));
 app.put('/api/r/:t/session/:sid/commitment', wrap((req, res) => {
   const r = referent(req, res); if (!r) return;
+  const s = L.getSession(req.params.sid); if (!s) return bad(res, 'Sessione non trovata', 404);
+  if (!['consolidamento', 'chiusa'].includes(s.phase)) return bad(res, 'Priorità e commitment si registrano dalla fase di consolidamento');
   const out = L.saveCommitment(Number(req.params.sid), r.company_id, req.body || {}, refActor(r));
   if (!out.ok) return bad(res, out.errors.join(' · '));
   return out;
@@ -244,17 +286,24 @@ function cookie(req, name) {
 }
 function isAdmin(req) {
   const t = cookie(req, 'aito_admin');
-  return t && q.get('SELECT 1 FROM admin_tokens WHERE token = ?', t);
+  return t && q.get("SELECT 1 FROM admin_tokens WHERE token = ? AND created_at > datetime('now', '-14 days')", t);
 }
 function requireAdmin(req, res, next) { if (isAdmin(req)) return next(); bad(res, 'Accesso admin richiesto', 401); }
 const ADMIN = 'admin';
 
-const loginFails = new Map(); // limite ai tentativi: 10 errori ogni 15 minuti per indirizzo
-app.post('/api/admin/login', wrap((req, res) => {
-  const now = Date.now();
-  const f = (loginFails.get(req.ip) || []).filter((t) => now - t < 15 * 60 * 1000);
-  if (f.length >= 10) return bad(res, 'Troppi tentativi: riprova tra qualche minuto', 429);
-  if (!checkPw(String(req.body?.password || ''), getSetting('admin_pw'))) { f.push(now); loginFails.set(req.ip, f); return bad(res, 'Password errata', 401); }
+const loginFails = new Map(); // limite ai tentativi: 10 errori ogni 15 minuti per indirizzo e 50 in totale
+let globalFails = [];
+app.post('/api/admin/login', wrap(async (req, res) => {
+  const now = Date.now(), win = 15 * 60 * 1000;
+  globalFails = globalFails.filter((t) => now - t < win);
+  const f = (loginFails.get(req.ip) || []).filter((t) => now - t < win);
+  if (f.length >= 10 || globalFails.length >= 50) return bad(res, 'Troppi tentativi: riprova tra qualche minuto', 429);
+  if (!(await checkPw(String(req.body?.password || '').slice(0, 200), getSetting('admin_pw')))) {
+    f.push(now); globalFails.push(now);
+    if (loginFails.size > 1000) loginFails.clear();
+    loginFails.set(req.ip, f);
+    return bad(res, 'Password errata', 401);
+  }
   loginFails.delete(req.ip);
   const t = token(24);
   q.run('INSERT INTO admin_tokens (token) VALUES (?)', t);
@@ -273,10 +322,20 @@ app.put('/api/admin/password', wrap((req, res) => {
   const pw = String(req.body?.password || '');
   if (pw.length < 8) return bad(res, 'Almeno 8 caratteri');
   setSetting('admin_pw', hashPw(pw)); audit(ADMIN, 'settings', 'admin_pw', 'change', null, null);
+  q.run('DELETE FROM admin_tokens WHERE token != ?', cookie(req, 'aito_admin') || ''); // chiude le altre sessioni aperte
   return { ok: true };
 }));
 app.get('/api/admin/network', wrap(() => ({ baseUrl: baseUrl(), custom: getSetting('public_url') || null, addresses: lanAddresses(), port: PORT, db: DB_PATH })));
-app.put('/api/admin/network', wrap((req) => { setSetting('public_url', String(req.body?.url || '')); return { ok: true, baseUrl: baseUrl() }; }));
+app.put('/api/admin/network', wrap((req) => { setSetting('public_url', txt(req.body?.url, 300)); return { ok: true, baseUrl: baseUrl() }; }));
+app.get('/api/admin/options', wrap(() => ({ joinMode: getSetting('join_mode') || 'codice', privacyUrl: getSetting('privacy_url') || '' })));
+app.put('/api/admin/options', wrap((req, res) => {
+  const mode = req.body?.joinMode === 'elenco' ? 'elenco' : 'codice';
+  const url = txt(req.body?.privacyUrl, 300);
+  if (url && !/^https:\/\//.test(url)) return bad(res, 'L\'indirizzo dell\'informativa deve iniziare con https://');
+  setSetting('join_mode', mode); setSetting('privacy_url', url);
+  audit(ADMIN, 'settings', 'options', 'update', null, { mode, url });
+  return { ok: true };
+}));
 
 // Aziende
 app.get('/api/admin/companies', wrap(() => q.all('SELECT * FROM companies ORDER BY kind, name').map((c) => ({
@@ -286,15 +345,18 @@ app.get('/api/admin/companies', wrap(() => q.all('SELECT * FROM companies ORDER 
 }))));
 app.post('/api/admin/companies', wrap((req, res) => {
   const { name, perimeter, sector, kind } = req.body || {};
-  if (!String(name || '').trim()) return bad(res, 'Nome obbligatorio');
-  const k = ['REALE', 'TEST', 'DEMO'].includes(kind) ? kind : 'REALE';
-  const r = q.run('INSERT INTO companies (name, perimeter, sector, kind, join_code) VALUES (?,?,?,?,?)', name.trim(), perimeter || '', sector || '', k, shortCode(4));
+  if (!txt(name, 150)) return bad(res, 'Nome obbligatorio');
+  const k = ['REALE', 'TEST'].includes(kind) ? kind : 'REALE'; // le aziende DEMO le crea solo il caricamento dei dati dimostrativi
+  const r = q.run('INSERT INTO companies (name, perimeter, sector, kind, join_code) VALUES (?,?,?,?,?)', txt(name, 150), txt(perimeter, 200), txt(sector, 100), k, shortCode(4));
   audit(ADMIN, 'company', r.lastInsertRowid, 'create', null, req.body);
   return { id: Number(r.lastInsertRowid) };
 }));
 app.put('/api/admin/companies/:id', wrap((req, res) => {
   const before = q.get('SELECT * FROM companies WHERE id = ?', req.params.id); if (!before) return bad(res, 'Non trovata', 404);
   const { name, perimeter, sector, kind } = { ...before, ...req.body };
+  if (!['REALE', 'TEST', 'DEMO'].includes(kind)) return bad(res, 'Tipo non valido');
+  if (kind === 'DEMO' && before.kind !== 'DEMO') return bad(res, 'Un\'azienda non può diventare DEMO: i dati dimostrativi si creano solo da Impostazioni');
+  if (!txt(name, 150)) return bad(res, 'Nome obbligatorio');
   q.run('UPDATE companies SET name = ?, perimeter = ?, sector = ?, kind = ? WHERE id = ?', name, perimeter, sector, kind, before.id);
   audit(ADMIN, 'company', before.id, 'update', before, { name, perimeter, sector, kind }, req.body?.reason || null);
   return { ok: true };
@@ -313,14 +375,21 @@ app.post('/api/admin/companies/:id/referents', wrap((req, res) => {
   const { name, email, role } = req.body || {};
   if (!String(name || '').trim()) return bad(res, 'Nome obbligatorio');
   const t = token();
-  q.run('INSERT INTO referents (company_id, name, email, role, token) VALUES (?,?,?,?,?)', req.params.id, name.trim(), email || '', role || '', t);
+  if (!q.get('SELECT 1 FROM companies WHERE id = ?', req.params.id)) return bad(res, 'Azienda non trovata', 404);
+  q.run('INSERT INTO referents (company_id, name, email, role, token) VALUES (?,?,?,?,?)', req.params.id, txt(name, 120), txt(email, 200), txt(role, 120), t);
   audit(ADMIN, 'referent', req.params.id, 'create', null, { name, email, role });
   return { token: t };
+}));
+app.post('/api/admin/referents/:id/regenerate', wrap((req, res) => {
+  const r = q.get('SELECT * FROM referents WHERE id = ?', req.params.id); if (!r) return bad(res, 'Referente non trovato', 404);
+  q.run('UPDATE referents SET token = ? WHERE id = ?', token(), r.id);
+  audit(ADMIN, 'referent', r.id, 'regenerate_link', null, null, 'Link precedente disattivato');
+  return { ok: true };
 }));
 app.delete('/api/admin/referents/:id', wrap((req) => {
   const r = q.get('SELECT * FROM referents WHERE id = ?', req.params.id);
   q.run('DELETE FROM referents WHERE id = ?', req.params.id);
-  audit(ADMIN, 'referent', req.params.id, 'delete', r, null);
+  audit(ADMIN, 'referent', req.params.id, 'delete', r ? { name: r.name } : null, null);
   return { ok: true };
 }));
 
@@ -342,8 +411,9 @@ app.put('/api/admin/sessions/:id/phase', wrap((req, res) => {
   if (to < from && to <= PHASES.indexOf('individuale') && from >= PHASES.indexOf('confronto'))
     return bad(res, 'Dopo il confronto non si può tornare alla fase individuale: le risposte sarebbero influenzate dalla vista dell\'azienda (§2). Per un\'azienda che deve rifare la rilevazione usa una sessione ad hoc.');
   if (to < from && !String(req.body?.reason || '').trim()) return bad(res, 'Per tornare a una fase precedente indica il motivo');
+  if (to > from + 1) return bad(res, 'Le fasi si aprono una alla volta: passa prima alla fase successiva');
   q.run('UPDATE sessions SET phase = ? WHERE id = ?', req.body.phase, s.id);
-  audit(ADMIN, 'session', s.id, 'phase', { phase: s.phase }, { phase: req.body.phase }, req.body?.reason || null);
+  audit(ADMIN, 'session', s.id, 'phase', { phase: s.phase }, { phase: req.body.phase }, txt(req.body?.reason, 1000) || null);
   return { ok: true };
 }));
 app.get('/api/admin/sessions/:id/control', wrap((req, res) => {
@@ -364,7 +434,12 @@ app.get('/api/admin/sessions/:id/control', wrap((req, res) => {
   return { session: s, def, baseUrl: baseUrl(), joinUrl: `${baseUrl()}/j/${s.code}`, companies: comps,
     benchmark: q.all('SELECT id, label, n_companies, created_at FROM benchmark_versions WHERE base = ? ORDER BY id DESC', s.base) };
 }));
-app.post('/api/admin/sessions/:sid/companies/:cid/release', wrap((req) => {
+app.post('/api/admin/sessions/:sid/companies/:cid/release', wrap((req, res) => {
+  const sc = q.get('SELECT * FROM session_company WHERE session_id = ? AND company_id = ?', req.params.sid, req.params.cid);
+  if (!sc?.consolidated_at) return bad(res, 'L\'azienda non ha consolidato in questa sessione: non c\'è un report da rilasciare');
+  const s = L.getSession(req.params.sid);
+  if (!q.get('SELECT 1 FROM benchmark_versions WHERE base = ?', s.base) && !req.body?.withoutBenchmark)
+    return bad(res, 'Benchmark di questa sessione non ancora congelato: congelalo prima di rilasciare, così il report contiene il confronto', 409);
   return { ok: true, ...L.releaseReport(Number(req.params.sid), Number(req.params.cid), ADMIN) };
 }));
 app.put('/api/admin/commitments/:id/status', wrap((req, res) => {
@@ -376,7 +451,7 @@ app.get('/api/admin/companies/:cid/reports', wrap((req) => L.listSnapshots(Numbe
 app.get('/api/admin/companies/:cid/commitments', wrap((req) => q.all(`SELECT c.*, s.title session_title FROM commitments c JOIN sessions s ON s.id = c.session_id WHERE c.company_id = ? ORDER BY s.date`, req.params.cid)));
 app.put('/api/admin/sessions/:sid/companies/:cid/note', wrap((req) => {
   L.ensureSessionCompany(req.params.sid, req.params.cid);
-  q.run('UPDATE session_company SET leader_call_note = ? WHERE session_id = ? AND company_id = ?', req.body?.note || '', req.params.sid, req.params.cid);
+  q.run('UPDATE session_company SET leader_call_note = ? WHERE session_id = ? AND company_id = ?', txt(req.body?.note, 4000), req.params.sid, req.params.cid);
   audit(ADMIN, 'leader_call', `${req.params.sid}/${req.params.cid}`, 'note', null, { note: req.body?.note });
   return { ok: true };
 }));
@@ -390,14 +465,15 @@ app.get('/api/admin/benchmark', wrap(() => q.all('SELECT id, base, kind, label, 
 app.get('/api/admin/live/:sid', wrap((req, res) => liveDashboard(Number(req.params.sid), { preview: req.query.preview === '1' }) || bad(res, 'Sessione non trovata', 404)));
 async function sendPdf(res, R) {
   const buf = await pdfBuffer(R);
-  res.setHeader('Content-Disposition', `attachment; filename="${pdfFileName(R)}"`);
+  const fn = pdfFileName(R);
+  res.setHeader('Content-Disposition', `attachment; filename="${fn.normalize('NFD').replace(/[^\x20-\x7E]/g, '').replace(/"/g, '')}"; filename*=UTF-8''${encodeURIComponent(fn)}`);
   res.type('application/pdf').send(buf);
 }
 app.get('/api/admin/pdf/:cid', async (req, res) => {
   try {
     if (!q.get('SELECT 1 FROM companies WHERE id = ?', req.params.cid)) return bad(res, 'Azienda non trovata', 404);
     await sendPdf(res, reportFor(Number(req.params.cid), req, true));
-  } catch (e) { console.error(e); res.status(500).json({ error: e.message }); }
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Errore interno: riprova.' }); }
 });
 app.get('/api/admin/sessions/:sid/pdfs.zip', async (req, res) => {
   try {
@@ -414,7 +490,7 @@ app.get('/api/admin/sessions/:sid/pdfs.zip', async (req, res) => {
     const buf = await zip.generateAsync({ type: 'nodebuffer' });
     res.setHeader('Content-Disposition', `attachment; filename="AITO_Map_report_${s.base}_${new Date().toISOString().slice(0, 10)}.zip"`);
     res.type('application/zip').send(buf);
-  } catch (e) { console.error(e); res.status(500).json({ error: e.message }); }
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Errore interno: riprova.' }); }
 });
 app.get('/api/admin/plenaria/:base', wrap((req) => L.plenaria(req.params.base, { preview: req.query.preview === '1' })));
 // Report per l'admin: una versione rilasciata (?snap=id) oppure la bozza corrente, marcata come tale.
@@ -430,7 +506,7 @@ app.post('/api/admin/correct', wrap((req, res) => {
   if (!out.ok) return bad(res, out.errors.join(' · '));
   return out;
 }));
-app.get('/api/admin/demo', wrap(() => ({ present: hasDemo(), vetrina: q.get("SELECT id FROM companies WHERE kind = 'TEST' AND name = 'Vetrina S.p.A. (prova)'")?.id || null })));
+app.get('/api/admin/demo', wrap(() => ({ present: hasDemo(), vetrina: q.get("SELECT id FROM companies WHERE seeded = 1 AND kind = 'TEST'")?.id || null })));
 app.post('/api/admin/demo', wrap((req, res) => (hasDemo() ? bad(res, 'Dati dimostrativi già presenti') : seedDemo())));
 app.delete('/api/admin/demo', wrap(() => removeDemo()));
 app.get('/api/admin/audit', wrap(() => q.all('SELECT * FROM audit ORDER BY id DESC LIMIT 500')));
@@ -439,7 +515,7 @@ app.get('/api/admin/export.xlsx', async (req, res) => {
     const buf = await buildExport();
     res.setHeader('Content-Disposition', `attachment; filename="AITO_Map_export_${new Date().toISOString().slice(0, 10)}.xlsx"`);
     res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet').send(Buffer.from(buf));
-  } catch (e) { console.error(e); res.status(500).json({ error: e.message }); }
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Errore interno: riprova.' }); }
 });
 
 // Report e plenaria richiamabili anche dal referente (solo report rilasciato)
@@ -452,7 +528,7 @@ app.get('/api/report/:cid/pdf', async (req, res) => {
     const R = reportFor(cid, req, false);
     if (!R) return bad(res, 'Report non ancora rilasciato', 403);
     await sendPdf(res, R);
-  } catch (e) { console.error(e); res.status(500).json({ error: e.message }); }
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Errore interno: riprova.' }); }
 });
 app.get('/api/report/:cid', wrap((req, res) => {
   const cid = Number(req.params.cid);
@@ -463,6 +539,9 @@ app.get('/api/report/:cid', wrap((req, res) => {
   if (!R) return bad(res, 'Report non ancora rilasciato', 403);
   return R;
 }));
+
+process.on('unhandledRejection', (e) => console.error('Errore non gestito:', e));
+process.on('uncaughtException', (e) => console.error('Eccezione non gestita:', e));
 
 export function start(port = PORT) {
   if (process.env.DEMO_DATA === '1' && !hasDemo()) { try { console.log('  Dati dimostrativi caricati:', JSON.stringify(seedDemo())); } catch (e) { console.error('Dati dimostrativi non caricati:', e.message); } }

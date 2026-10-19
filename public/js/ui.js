@@ -17,6 +17,7 @@ let toastTimer;
 export function toast(msg, err = false) {
   let t = $('.toast');
   if (!t) { t = document.createElement('div'); t.className = 'toast'; document.body.appendChild(t); }
+  t.setAttribute('role', err ? 'alert' : 'status');
   t.textContent = msg; t.classList.toggle('err', err); t.classList.remove('hidden');
   clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.add('hidden'), err ? 6000 : 2500);
 }
@@ -35,7 +36,7 @@ export const PHASES = [
 ];
 export function phaseChips(current) {
   const idx = PHASES.findIndex((p) => p.id === current);
-  return `<div class="phases">${PHASES.map((p, i) => `<span class="phase ${i === idx ? 'on' : i < idx ? 'done' : ''}">${p.label}</span>`).join('')}</div>`;
+  return `<div class="phases" aria-label="Fasi della sessione">${PHASES.map((p, i) => `<span class="phase ${i === idx ? 'on' : i < idx ? 'done' : ''}" ${i === idx ? 'aria-current="step"' : ''}>${p.label}</span>`).join('')}</div>`;
 }
 
 export function bandTag(score, scoring) {
@@ -66,9 +67,20 @@ export function qrImg(text, size = 220) {
   return `<div class="qrbox" style="width:${size}px"><img alt="QR" src="/api/qr.svg?text=${encodeURIComponent(text)}"></div>`;
 }
 
+// Aggiornamento periodico; dopo 3 errori di fila mostra un avviso "connessione persa" finché non torna.
 export function poll(fn, ms = 3000) {
-  let stopped = false;
-  const tick = async () => { if (stopped) return; try { await fn(); } catch (e) { console.warn(e); } if (!stopped) setTimeout(tick, ms); };
+  let stopped = false, fails = 0;
+  const banner = () => {
+    let b = document.getElementById('netwarn');
+    if (!b) { b = document.createElement('div'); b.id = 'netwarn'; b.className = 'netwarn hidden'; b.setAttribute('role', 'alert'); b.textContent = 'Connessione persa: i dati potrebbero non essere aggiornati. Riprovo…'; document.body.prepend(b); }
+    return b;
+  };
+  const tick = async () => {
+    if (stopped) return;
+    try { await fn(); fails = 0; banner().classList.add('hidden'); }
+    catch (e) { console.warn(e); if (++fails >= 3) banner().classList.remove('hidden'); }
+    if (!stopped) setTimeout(tick, ms);
+  };
   tick();
   return () => { stopped = true; };
 }

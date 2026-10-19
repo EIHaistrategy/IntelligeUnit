@@ -1,8 +1,9 @@
 # AITO — AI Transformation & Adoption Map · piattaforma locale (v0.1)
 
 Piattaforma per gestire l'assessment descritto nella **Nota metodologica V1 — Pilot AITO 3 Session-Based**.
-Gira su un portatile ELIS: i partecipanti si collegano dal telefono con un QR, sulla stessa rete Wi-Fi.
-Nessun servizio esterno, nessun dato fuori dal computer.
+Può girare in due modi:
+- **in locale** su un portatile ELIS: i telefoni si collegano con un QR sulla stessa rete Wi‑Fi, nessun dato esce dal computer;
+- **online** su Render (`Dockerfile` e `render.yaml` inclusi): i telefoni si collegano da qualsiasi rete. In questo caso i dati stanno sul server di Render (Francoforte). Sul piano gratuito **non c'è disco permanente** e i dati si perdono a ogni riavvio: per l'uso reale serve un piano con disco e la verifica privacy/IT (accordo sul trattamento dati con Render).
 
 ## 1. Avvio
 
@@ -77,16 +78,21 @@ Item pulse (da Efficientare), ordinamento delle 8 dimensioni e tre priorità pro
 | Etichetta "valoriale" | Applicata al livello che contiene un'opzione valoriale |
 | Conteggi per livello in plenaria e dashboard | Mostrati da 5 aziende complessive; la regola dei 5 per categoria è applicata ai sotto-livelli (§9), non ai livelli |
 | Profilo Q11 | "Come si formano i team" diviso in due domande; P_NOMISURA ha anche "Non applicabile" |
-| Elenco aziende al QR di sessione | Visibile a chi ha il codice della sessione (serve per scegliere l'azienda); con il QR del tavolo l'azienda è già selezionata |
+| Scelta dell'azienda alla registrazione | Di default con il codice azienda (QR del tavolo o codice comunicato dal referente): il QR di sala non mostra l'elenco delle aziende. In *Impostazioni* si può tornare all'elenco |
+| Anonimato nel confronto | Con meno di 3 risposte valide i partecipanti vedono solo mediana e range; il referente vede la distribuzione per consolidare |
 
 Tutte le soglie sono in `server/instrument/scoring-1.0.json` (versione S1.0) e si cambiano lì, con una nuova versione.
 
-## 8. Dati e backup
+## 8. Privacy: cosa fa la piattaforma e cosa serve da ELIS
+
+La piattaforma raccoglie solo nome e funzione del partecipante (niente email), mostra alla registrazione chi vede cosa e chiede di confermarlo, può linkare l'informativa ELIS (*Impostazioni*), protegge i link dei referenti (nessun invio verso altri siti, link rigenerabile), registra ogni modifica. Prima dell'uso reale servono dal processo privacy/IT di ELIS: ruoli (titolare/responsabili), base giuridica, informativa, accordo sul trattamento dati con Render e verifica dei trasferimenti, voce nel registro dei trattamenti, tempi di conservazione, gestione delle richieste degli interessati, chi custodisce password admin ed export.
+
+## 9. Dati e backup
 
 Tutto è nella cartella `data/` (database SQLite). Backup: copia la cartella a server fermo. L'export Excel è in *Impostazioni*.
 La piattaforma non sostituisce l'informativa privacy: per la rilevazione reale va verificata con il processo privacy/IT (§16).
 
-## 9. Struttura
+## 10. Struttura
 
 ```
 server/instrument/  strumento V1 e regole di scoring (dati versionati)

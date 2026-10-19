@@ -14,14 +14,14 @@ const SECTORS = ['Energia', 'Telecomunicazioni', 'Assicurazioni', 'Manifattura',
 const DEMO_NAMES = ['Aurora Energia', 'Borealis Telecom', 'Cassiopea Assicurazioni', 'Delta Meccanica', 'Eridano Trasporti', 'Fenice Banca', 'Gemini Servizi',
   'Helios Infrastrutture', 'Iride Pharma', 'Kappa Retail', 'Lyra Utility', 'Minerva Difesa', 'Nova Media', 'Orione Logistica'];
 
-export function hasDemo() { return !!q.get("SELECT 1 FROM companies WHERE kind = 'DEMO' LIMIT 1"); }
+export function hasDemo() { return !!q.get('SELECT 1 FROM companies WHERE seeded = 1 LIMIT 1'); }
 
 export function seedDemo() {
   const sessions = q.all("SELECT * FROM sessions WHERE mode = 'workshop' ORDER BY date");
   tx(() => {
     // ---- 14 aziende DEMO: una "maturità" di fondo per azienda, con scarti diversi per dimensione
     DEMO_NAMES.forEach((name, k) => {
-      const r = q.run("INSERT INTO companies (name, perimeter, sector, kind, join_code) VALUES (?, 'Gruppo', ?, 'DEMO', ?)", `${name} (demo)`, SECTORS[k], shortCode(4));
+      const r = q.run("INSERT INTO companies (name, perimeter, sector, kind, join_code, seeded) VALUES (?, 'Gruppo', ?, 'DEMO', ?, 1)", `${name} (demo)`, SECTORS[k], shortCode(4));
       const cid = Number(r.lastInsertRowid);
       q.run("INSERT INTO consents (company_id, type, granted) VALUES (?, 'benchmark', 1)", cid);
       const m = rnd(1.7, 4.1);
@@ -41,14 +41,17 @@ export function seedDemo() {
     });
   });
 
-  // ---- azienda vetrina (TEST): il flusso completo, come se fosse passata in sala
-  const r = q.run("INSERT INTO companies (name, perimeter, sector, kind, join_code) VALUES ('Vetrina S.p.A. (prova)', 'Gruppo', 'Servizi', 'TEST', ?)", shortCode(4));
+  // ---- azienda vetrina (TEST): il flusso completo, in sessioni dimostrative separate (mai nelle sessioni reali)
+  const r = q.run("INSERT INTO companies (name, perimeter, sector, kind, join_code, seeded) VALUES ('Vetrina S.p.A. (prova)', 'Gruppo', 'Servizi', 'TEST', ?, 1)", shortCode(4));
   const cid = Number(r.lastInsertRowid);
   q.run("INSERT INTO consents (company_id, type, granted) VALUES (?, 'benchmark', 1)", cid);
   q.run('INSERT INTO referents (company_id, name, email, role, token) VALUES (?, ?, ?, ?, ?)', cid, 'Referente di prova', '', 'Head of Innovation', token());
   const target = { Q1: 3, Q2: 2, Q9: 3, Q10: 2, Q5: 2, Q6: 3, Q13: 3, Q14: 2, Q3: 3, Q4: 2, Q15: 2, Q16: 4, Q7: 3, Q8: 2, Q11: 3, Q12: 4 };
   const people = [['Giulia Rossi', 'CEO'], ['Marco Bianchi', 'IT'], ['Elena Conti', 'HR'], ['Paolo Greco', 'FIN']];
-  for (const s of sessions) {
+  for (const real of sessions) {
+    const sr = q.run(`INSERT INTO sessions (base, title, date, mode, channel, code, phase, instrument_version, scoring_version, seeded)
+                      VALUES (?, ?, ?, 'adhoc', 'presenza', ?, 'chiusa', ?, ?, 1)`, real.base, `${E.sessionDef(real.base).name} · dimostrativa`, real.date, shortCode(5), I.version, E.SCORING.version);
+    const s = L.getSession(Number(sr.lastInsertRowid));
     const def = E.sessionDef(s.base);
     // scheda pre-sessione: dati fattuali e profilo
     const data = {};
@@ -90,7 +93,9 @@ export function seedDemo() {
 }
 
 export function removeDemo() {
-  const ids = q.all("SELECT id FROM companies WHERE kind = 'DEMO' OR (kind = 'TEST' AND name = 'Vetrina S.p.A. (prova)')").map((r) => r.id);
+  // solo ciò che ha creato il caricamento dimostrativo: mai aziende inserite a mano
+  const ids = q.all('SELECT id FROM companies WHERE seeded = 1').map((r) => r.id);
+  const sids = q.all('SELECT id FROM sessions WHERE seeded = 1').map((r) => r.id);
   if (!ids.length) return { removed: 0 };
   const ph = ids.map(() => '?').join(',');
   tx(() => {
@@ -104,6 +109,7 @@ export function removeDemo() {
       q.run(`DELETE FROM ${t} WHERE company_id IN (${ph})`, ...ids);
     }
     q.run(`DELETE FROM companies WHERE id IN (${ph})`, ...ids);
+    if (sids.length) q.run(`DELETE FROM sessions WHERE id IN (${sids.map(() => '?').join(',')})`, ...sids);
   });
   audit('admin', 'demo', '', 'remove', null, { removed: ids.length });
   return { removed: ids.length };

@@ -61,6 +61,17 @@ export function companyComparison(sessionId, companyId) {
   return { participants: parts.length, submitted, functions: [...new Set(parts.map((p) => p.func))], items, pairs };
 }
 
+// Vista per i partecipanti: con meno di 3 risposte valide la distribuzione renderebbe riconoscibili le singole
+// risposte dei colleghi, quindi si mostrano solo mediana e range (il referente vede la distribuzione per consolidare).
+export function participantComparison(sessionId, companyId) {
+  const c = companyComparison(sessionId, companyId);
+  for (const it of c.items) {
+    if (it.summary.valid > 0 && it.summary.valid < 3) { it.summary = { ...it.summary, counts: null, hidden: true }; }
+  }
+  if (c.participants < 3) c.pairs = c.pairs.map((p) => ({ ...p, counts: null, hidden: true }));
+  return c;
+}
+
 // ---------- Scheda pre-sessione ----------
 export function presessionFields(base) {
   const def = E.sessionDef(base);
@@ -72,6 +83,25 @@ export function presessionFields(base) {
   }
   const profile = I.profile.filter((p) => p.session === base);
   return { facts, profile };
+}
+// Accetta solo i campi previsti dalla scheda della sessione, con valori coerenti con il tipo.
+export function validatePresession(base, data) {
+  const { facts, profile } = presessionFields(base);
+  const out = {}; const errors = [];
+  const num = (v, min, max, int) => { const n = Number(v); return Number.isFinite(n) && n >= min && n <= max && (!int || Number.isInteger(n)) ? n : undefined; };
+  for (const f of facts) {
+    const v = data[f.id]; if (v == null || v === '') continue;
+    if (f.type === 'choice') { if (f.options.some((o) => o.label === v)) out[f.id] = v; else errors.push(`${f.itemId}: valore non previsto`); }
+    else if (f.type === 'multi') { if (Array.isArray(v) && v.every((x) => f.options.some((o) => o.label === x))) out[f.id] = [...new Set(v)]; else errors.push(`${f.itemId}: valore non previsto`); }
+    else if (f.type === 'percent') { const n = num(v, 0, 100); if (n === undefined) errors.push(`${f.itemId}: percentuale tra 0 e 100`); else out[f.id] = n; }
+    else if (f.type === 'count') { const n = num(v, 0, 1000, true); if (n === undefined) errors.push(`${f.itemId}: numero intero`); else out[f.id] = n; }
+  }
+  for (const p of profile) {
+    const v = data[p.id]; if (v == null || v === '') continue;
+    if (p.type === 'percent') { const n = num(v, 0, 100); if (n === undefined) errors.push('Profilo: percentuale tra 0 e 100'); else out[p.id] = n; }
+    else if (p.options.includes(v)) out[p.id] = v; else errors.push('Profilo: valore non previsto');
+  }
+  return errors.length ? { ok: false, errors } : { ok: true, data: out };
 }
 export function getPresession(companyId, base) {
   const r = q.get('SELECT * FROM presession WHERE company_id = ? AND base = ?', companyId, base);
@@ -131,6 +161,9 @@ export function confirmConsolidation(sessionId, companyId, payload, actor) {
   const errors = [];
   if (cmp.participants === 0) return { ok: false, errors: ['Nessun partecipante registrato per questa azienda: non c\'è nulla da consolidare'] };
   const sc0 = ensureSessionCompany(sessionId, companyId);
+  // controllo ottimistico: se un altro referente ha confermato nel frattempo, non si sovrascrive alla cieca
+  if ((sc0.consolidated_at || null) !== (payload.baseConsolidatedAt || null))
+    return { ok: false, conflict: true, errors: ['Un altro referente della tua azienda ha appena confermato il consolidamento: la pagina si aggiorna con i valori registrati'] };
   if (sc0.consolidated_at && !String(payload.changeReason || '').trim()) errors.push('Il consolidamento era già stato confermato: indicare il motivo della modifica');
   const rows = def.items.map((itemId) => {
     const it = cmp.items.find((x) => x.itemId === itemId);
@@ -146,7 +179,7 @@ export function confirmConsolidation(sessionId, companyId, payload, actor) {
     const override = level != null && E.isOverride(s, level);
     if (override && !String(p.overrideReason || '').trim()) errors.push(`${itemId}: il livello differisce dalla mediana (${s.median}): indicare la motivazione`);
     const conf = E.confidence(s, 'consolidato');
-    return { itemId, level, sub, score: level == null ? null : E.itemScore(itemId, level, sub), conf, s, override, overrideReason: override ? p.overrideReason : null };
+    return { itemId, level, sub, score: level == null ? null : E.itemScore(itemId, level, sub), conf, s, override, overrideReason: override ? String(p.overrideReason).slice(0, 1000) : null };
   });
   if (errors.length) return { ok: false, errors };
   tx(() => {
@@ -161,7 +194,7 @@ export function confirmConsolidation(sessionId, companyId, payload, actor) {
         session.instrument_version, session.scoring_version, actor);
       audit(actor, 'consolidated', `${companyId}/${r.itemId}`, prev ? 'reconsolidate' : 'consolidate',
         prev ? { level: prev.level, sub: prev.sub, score: prev.score } : null, { level: r.level, sub: r.sub, score: r.score },
-        [r.overrideReason, sc0.consolidated_at ? `Modifica: ${payload.changeReason}` : null].filter(Boolean).join(' · ') || null);
+        [r.overrideReason, sc0.consolidated_at ? `Modifica: ${String(payload.changeReason).slice(0, 1000)}` : null].filter(Boolean).join(' · ') || null);
     }
     q.run(`UPDATE session_company SET consolidated_at = datetime('now'), consolidated_by = ?, draft_json = ? WHERE session_id = ? AND company_id = ?`,
       actor, JSON.stringify(payload), sessionId, companyId);
@@ -177,7 +210,8 @@ export function saveCommitment(sessionId, companyId, c, actor) {
          VALUES (?,?,?,?,?,?,?,?,?,datetime('now'))
          ON CONFLICT(session_id, company_id) DO UPDATE SET priority_item=excluded.priority_item, action=excluded.action, owner=excluded.owner,
          due_date=excluded.due_date, kpi=excluded.kpi, peer_interest=excluded.peer_interest, peer_note=excluded.peer_note, updated_at=excluded.updated_at`,
-    sessionId, companyId, c.priority_item, c.action || '', c.owner || '', c.due_date || '', c.kpi || '', c.peer_interest ? 1 : 0, c.peer_note || '');
+    sessionId, companyId, c.priority_item, String(c.action || '').slice(0, 2000), String(c.owner || '').slice(0, 200), String(c.due_date || '').slice(0, 10),
+    String(c.kpi || '').slice(0, 1000), c.peer_interest ? 1 : 0, String(c.peer_note || '').slice(0, 1000));
   audit(actor, 'commitment', `${sessionId}/${companyId}`, before ? 'update' : 'create', before, c);
   return { ok: true };
 }
@@ -317,7 +351,8 @@ export function companyReport(companyId, { preview = false } = {}) {
   });
   const peerMedians = Object.fromEntries(dims.map((d) => [d.id, d.bench?.available ? d.bench.median : null]));
   const coh = E.coherence(itemScores, dimScores);
-  const sessionsDone = q.all(`SELECT s.*, sc.consolidated_at, sc.report_released_at, sc.leader_call_note FROM session_company sc JOIN sessions s ON s.id = sc.session_id
+  // solo le colonne destinate al report: niente note interne ELIS né codici di accesso
+  const sessionsDone = q.all(`SELECT s.id, s.base, s.title, s.date, s.mode, s.channel, sc.consolidated_at FROM session_company sc JOIN sessions s ON s.id = sc.session_id
                               WHERE sc.company_id = ? AND sc.consolidated_at IS NOT NULL ORDER BY s.date`, companyId);
   const pairs = sessionsDone.map((s) => ({ session: s, pairs: companyComparison(s.id, companyId).pairs, participants: companyComparison(s.id, companyId).participants,
     functions: companyComparison(s.id, companyId).functions }));
@@ -364,6 +399,7 @@ export function getSnapshot(companyId, snapId = null) {
 export function setCommitmentStatus(id, status, note, actor) {
   const ok = ['aperto', 'avviato', 'completato', 'non avviato', 'sospeso'];
   if (!ok.includes(status)) return { ok: false, errors: ['Stato non valido'] };
+  note = String(note || '').slice(0, 1000);
   const before = q.get('SELECT * FROM commitments WHERE id = ?', id);
   if (!before) return { ok: false, errors: ['Commitment non trovato'] };
   q.run("UPDATE commitments SET status = ?, status_note = ?, status_updated_at = datetime('now') WHERE id = ?", status, note || '', id);
