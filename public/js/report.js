@@ -20,11 +20,15 @@ async function boot() {
   const fnLabel = (id) => I.functions.find((f) => f.id === id)?.label || id;
   const benchTxt = (b) => (!b ? '<span class="muted">benchmark non ancora congelato</span>'
     : !b.available ? `<span class="muted">non disponibile (N=${b.n}, servono almeno ${SC.benchmark.minN} aziende)</span>`
-    : `mediana <b>${fmtScore(b.median)}</b> · Q1–Q3 ${fmtScore(b.q1)}–${fmtScore(b.q3)} · N=${b.n} <span class="tag ${b.code === 'STAB' ? 'ok' : 'warn'}">${b.label}</span>${b.looApplied ? '' : ' <span class="small muted">(azienda inclusa: campione residuo &lt; 5)</span>'}`);
+    : `mediana <b>${fmtScore(b.median)}</b> · 1°–3° quartile ${fmtScore(b.q1)}–${fmtScore(b.q3)} · N=${b.n} <span class="tag ${b.code === 'STAB' ? 'ok' : 'warn'}">${b.label}</span>${b.looApplied ? '' : ' <span class="small muted">(azienda inclusa: campione residuo &lt; 5)</span>'}`);
 
   const radarDims = R.dims.map((d) => ({ id: d.id, score: d.score, peer: d.bench?.available ? d.bench.median : null }));
   const wherePts = R.dims.filter((d) => d.quadrant).map((d) => ({ id: d.id, score: d.score, delta: d.quadrant.delta }));
   const flagged = R.coherence.filter((c) => c.flagged);
+  const anyItemBench = R.items.some((it) => it.bench?.available);
+  const anyDimBench = R.dims.some((d) => d.bench?.available);
+  const noBench = (what) => `<p class="note">${what}: ${Object.keys(R.benchVersions).length ? `servono almeno ${SC.benchmark.minN} aziende nel benchmark congelato` : 'il benchmark della sessione non è ancora stato congelato'}. Il confronto comparirà qui quando sarà disponibile.</p>`;
+  const dDate = (s) => (s ? `<span class="nowrap">${new Date(s).toLocaleDateString('it-IT')}</span>` : '—');
 
   app.innerHTML = `
   ${R.preview ? '<div class="banner preview">Anteprima: il benchmark include aziende DEMO e TEST. Non è un report ufficiale.</div>' : ''}
@@ -42,7 +46,7 @@ async function boot() {
   </div>
 
   <div class="card"><h2><span class="secnum">1</span>Il profilo AI</h2>
-    <div class="grid c2"><div class="chart">${radar(radarDims)}<div class="legend"><span><i style="background:#005172"></i>Azienda</span><span><i style="background:#1FB5B8"></i>Mediana delle altre aziende</span></div></div>
+    <div class="grid c2"><div class="chart">${radar(radarDims)}<div class="legend"><span><i style="background:#005172"></i>Azienda</span>${anyDimBench ? '<span><i style="background:#1FB5B8"></i>Mediana delle altre aziende</span>' : ''}</div></div>
     <div><table><thead><tr><th>Dimensione</th><th class="num">Score</th><th>Fascia</th></tr></thead><tbody>
       ${R.dims.map((d) => `<tr><td><span class="dim-letter">${d.id}</span>${esc(d.name)}</td><td class="num"><b>${fmtScore(d.score)}</b></td><td>${d.score == null ? `<span class="muted small">${esc(I.sessions.find((s) => s.id === d.session).name)}</span>` : bandTag(d.score, SC)}</td></tr>`).join('')}
     </tbody></table>
@@ -53,7 +57,7 @@ async function boot() {
   <div class="card"><h2><span class="secnum">2</span>Lettura di coerenza</h2>
     <div class="explain">Ogni regola confronta una capacità abilitante con una capacità che ne dipende. Se l'abilitante è più avanti è prudenza; se la dipendente è più avanti di almeno ${SC.coherenceThreshold} punti (due livelli pieni) è un rischio da esaminare nella call con il leader. La soglia è un'ipotesi del pilot.</div>
     ${R.coherence.length ? R.coherence.map((c) => `<div style="margin-bottom:10px"><b>${c.id} · ${esc(c.label)}</b> ${c.flagged ? '<span class="tag risk">da esaminare</span>' : c.comparisons.some((x) => x.status === 'prudenza') ? '<span class="tag teal">prudenza</span>' : '<span class="tag ok">coerente</span>'}
-      ${c.crossSession ? '<span class="tag">confronta sessioni diverse: da validare nella call</span>' : ''}
+      ${c.crossSession ? '<div class="small muted">Confronta sessioni diverse: da validare nella call con il leader.</div>' : ''}
       <div class="small ink2">${c.comparisons.map((x) => x.available ? `${esc(x.enabler)} ${fmtScore(x.enablerScore)} → ${esc(c.dependent)} ${fmtScore(x.dependentScore)} (scarto ${x.diff > 0 ? '+' : ''}${fmtNum(x.diff)})${x.status === 'da_esaminare' ? ' <b>· da esaminare</b>' : ''}` : `${esc(x.enabler)} → ${esc(c.dependent)}: non ancora disponibile (abilitante N.D.)`).join('<br>')}</div>
       ${c.flagged ? `<div class="small">Segnale: ${esc(c.signal)}</div>` : ''}</div>`).join('') : '<p class="muted">Nessuna regola ancora leggibile.</p>'}
     ${R.coherencePending.length ? `<p class="small muted">Regole che si attiveranno nelle prossime sessioni: ${R.coherencePending.join(', ')}.</p>` : ''}
@@ -62,21 +66,22 @@ async function boot() {
 
   <div class="card pb"><h2><span class="secnum">3</span>Capacità per item</h2>
     <div class="explain">Il livello è la scelta consolidata in sala; la lettera è la sotto-opzione scelta con una scelta forzata tra fatti osservabili. Lo stesso "2B" non vale lo stesso in tutti gli item (dipende da quante sotto-opzioni ha il livello), per questo è indicato anche il valore numerico.</div>
-    <div class="tablewrap"><table><thead><tr><th>Item</th><th>Posizione</th><th class="num">Score</th><th>Qualità del dato</th><th>Benchmark AITO</th></tr></thead><tbody>
+    <div class="tablewrap"><table><thead><tr><th>Item</th><th>Posizione</th><th class="num">Score</th><th>Qualità del dato</th>${anyItemBench ? '<th>Benchmark AITO</th>' : ''}</tr></thead><tbody>
     ${R.items.map((it) => `<tr><td><b>${esc(it.itemId)}</b> ${esc(it.title)}<div class="small muted">Dim. ${it.dimension}</div></td>
       <td><b>${levelLabel(it.level, it.sub)}</b> ${it.valoriale ? '<span class="tag gold">valoriale</span>' : ''}<div class="small">${esc(it.descriptor || '')}${it.subText ? `<br><i>${esc(it.subText)}</i>` : ''}</div>
         ${it.override ? `<div class="small"><span class="tag warn">override</span> ${esc(it.overrideReason || '')}</div>` : ''}</td>
       <td class="num"><b>${fmtScore(it.score)}</b></td>
       <td class="small">${esc(it.confidence || '')}<br><span class="muted">${it.validN} ${it.validN === 1 ? 'risposta valida' : 'risposte valide'} · ${it.ndN} N.D. · range ${it.range ?? '—'}</span></td>
-      <td class="small">${benchStrip(it.bench, it.score)}<br>${benchTxt(it.bench)}</td></tr>`).join('')}
+      ${anyItemBench ? `<td class="small">${it.bench?.available ? `${benchStrip(it.bench, it.score)}<br>` : ''}${benchTxt(it.bench)}</td>` : ''}</tr>`).join('')}
     </tbody></table></div>
+    ${anyItemBench ? '' : noBench('Confronto con il benchmark')}
   </div>
 
   <div class="card"><h2><span class="secnum">4</span>Dove intervenire</h2>
     <div class="explain">Ogni punto è una dimensione completa. Orizzontale: lo score dell'azienda. Verticale: quanto è sopra (+) o sotto (−) la mediana delle altre aziende. Essere sopra la mediana non significa essere consolidati: la linea verticale a 70 separa le capacità consolidate.</div>
     ${wherePts.length ? `<div class="grid c2"><div class="chart">${whereMap(wherePts, { names })}</div><div><table><tbody>${R.dims.filter((d) => d.quadrant).map((d) => `<tr><td><span class="dim-letter">${d.id}</span>${esc(d.name)}</td><td><b>${esc(d.quadrant.name)}</b><div class="small muted">nome alternativo proposto: ${esc(d.quadrant.altName)}</div></td><td class="num">${d.quadrant.delta > 0 ? '+' : ''}${fmtNum(d.quadrant.delta)}</td></tr>`).join('')}</tbody></table></div></div>`
-      : '<p class="muted">La mappa richiede un benchmark disponibile (almeno 5 aziende) per le dimensioni misurate.</p>'}
-    <table style="margin-top:10px"><thead><tr><th>Dimensione</th><th>Benchmark</th></tr></thead><tbody>${R.dims.filter((d) => d.score != null).map((d) => `<tr><td>${d.id} ${esc(d.name)}</td><td class="small">${benchStrip(d.bench, d.score)}<br>${benchTxt(d.bench)}</td></tr>`).join('')}</tbody></table>
+      : ''}
+    ${anyDimBench ? `<table style="margin-top:10px"><thead><tr><th>Dimensione</th><th>Benchmark</th></tr></thead><tbody>${R.dims.filter((d) => d.score != null).map((d) => `<tr><td>${d.id} ${esc(d.name)}</td><td class="small">${d.bench?.available ? `${benchStrip(d.bench, d.score)}<br>` : ''}${benchTxt(d.bench)}</td></tr>`).join('')}</tbody></table>` : noBench('Mappa e confronto per dimensione')}
   </div>
 
   <div class="card"><h2><span class="secnum">5</span>Qualità del dato</h2>
@@ -92,7 +97,7 @@ async function boot() {
       : `<p class="small">Le tre priorità complessive si calcolano a Map completa (${R.dimsComplete}/8 dimensioni misurate finora). In ogni sessione l'azienda sceglie la propria priorità e il commitment, riportati qui sotto.</p>`}
     <h3>Commitment registrati</h3>
     ${R.commitments.length ? `<table><thead><tr><th>Sessione</th><th>Priorità</th><th>Azione</th><th>Owner</th><th>Scadenza</th><th>KPI / evidenza</th><th>Stato</th></tr></thead><tbody>
-      ${R.commitments.map((c) => `<tr><td>${esc(c.session_title)}</td><td>${esc(c.priority_item)} ${esc(I.items[c.priority_item]?.title || '')}</td><td>${esc(c.action)}</td><td>${esc(c.owner)}</td><td>${esc(c.due_date)}</td><td>${esc(c.kpi)}${c.peer_interest ? '<br><span class="tag teal">interesse peer</span>' : ''}</td><td>${esc(c.status || 'aperto')}${c.status_note ? `<br><span class="small muted">${esc(c.status_note)}</span>` : ''}</td></tr>`).join('')}</tbody></table>` : '<p class="muted">Nessun commitment registrato.</p>'}
+      ${R.commitments.map((c) => `<tr><td>${esc(c.session_title)}</td><td>${esc(c.priority_item)} ${esc(I.items[c.priority_item]?.title || '')}</td><td>${esc(c.action)}</td><td>${esc(c.owner)}</td><td>${dDate(c.due_date)}</td><td>${esc(c.kpi)}${c.peer_interest ? '<br><span class="tag teal">interesse peer</span>' : ''}</td><td>${esc(c.status || 'aperto')}${c.status_note ? `<br><span class="small muted">${esc(c.status_note)}</span>` : ''}</td></tr>`).join('')}</tbody></table>` : '<p class="muted">Nessun commitment registrato.</p>'}
   </div>
 
   <div class="card"><h2><span class="secnum">7</span>Profilo di approccio</h2>

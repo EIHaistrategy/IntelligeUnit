@@ -34,8 +34,8 @@ export function buildCompanyPdf(R) {
   const ensure = (h) => { if (doc.y + h > bottom()) doc.addPage(); };
   const svg = (s, x, y, w, h) => SVGtoPDF(doc, s, x, y, { width: w, height: h, preserveAspectRatio: 'xMidYMid meet', fontCallback: (fam, bold) => (bold ? 'Bold' : 'Body') });
   const para = (t, opts = {}) => { doc.font(opts.bold ? 'Bold' : 'Body').fontSize((opts.size || 9) + 0.6).fillColor(opts.color || C.ink).text(t, opts.x ?? X0, opts.y, { width: opts.w ?? W, lineGap: 1.5, ...opts.pdf }); };
-  const h2 = (t) => {
-    ensure(120);
+  const h2 = (t, need = 120) => {
+    ensure(need);
     doc.moveDown(0.9);
     const m = t.match(/^(\d) · (.*)$/);
     const y0 = doc.y;
@@ -58,14 +58,29 @@ export function buildCompanyPdf(R) {
     doc.fillColor(C.ink2).text(t, X0 + 12, y + 7, { width: W - 20, lineGap: 1.6 });
     doc.y = y + h + 8;
   };
-  const tag = (t, color, x, y) => {
+  const tag = (t, color, x, y, ink = '#FFFFFF') => {
     doc.font('Bold').fontSize(7.8);
     const w = doc.widthOfString(t) + 12;
-    doc.roundedRect(x, y, w, 13, 6.5).fill(color); doc.fillColor('#FFFFFF').text(t, x + 6, y + 2.6, { lineBreak: false });
+    doc.roundedRect(x, y, w, 13, 6.5).fill(color); doc.fillColor(ink).text(t, x + 6, y + 2.6, { lineBreak: false });
     return w;
   };
+  const noBench = (what) => `${what}: ${Object.keys(R.benchVersions).length ? `servono almeno ${SC.benchmark.minN} aziende nel benchmark congelato` : 'il benchmark della sessione non è ancora stato congelato'}. Il confronto comparirà nella versione successiva del report.`;
+  // righe etichetta / valore, come una tabella a due colonne
+  const kv = (rows, lw = 150) => {
+    for (const [k, v] of rows) {
+      doc.font('Body').fontSize(8.4);
+      const h = Math.max(doc.heightOfString(String(k), { width: lw - 10 }), doc.heightOfString(String(v), { width: W - lw })) + 7;
+      ensure(h);
+      const y = doc.y;
+      doc.font('Semi').fontSize(8.2).fillColor(C.ink3).text(String(k), X0, y + 3.5, { width: lw - 10 });
+      doc.font('Body').fontSize(8.4).fillColor(C.ink).text(String(v), X0 + lw, y + 3.5, { width: W - lw });
+      doc.y = y + h;
+      doc.moveTo(X0, doc.y).lineTo(X0 + W, doc.y).lineWidth(0.4).strokeColor(C.line).stroke();
+    }
+  };
+  const dIt = (s) => (s ? new Date(s).toLocaleDateString('it-IT') : '—');
   const benchTxt = (b) => (!b ? 'benchmark non ancora congelato' : !b.available ? `benchmark non disponibile (N=${b.n}, servono almeno ${SC.benchmark.minN} aziende)`
-    : `mediana ${n1(b.median)} · Q1–Q3 ${n1(b.q1)}–${n1(b.q3)} · N=${b.n} · ${b.label}${b.looApplied ? '' : ' · azienda inclusa (campione residuo < 5)'}`);
+    : `mediana ${n1(b.median)} · 1°–3° quartile ${n1(b.q1)}–${n1(b.q3)} · N=${b.n} · ${b.label}${b.looApplied ? '' : ' · azienda inclusa (campione residuo < 5)'}`);
 
   // ---------- Copertina ----------
   doc.rect(0, 0, doc.page.width, 196).fill(C.deep);
@@ -75,7 +90,7 @@ export function buildCompanyPdf(R) {
   doc.font('Display').fontSize(28).fillColor('#FFFFFF').text(R.company.name, X0, 62, { width: W - 90 });
   doc.font('Body').fontSize(10.5).fillColor('#DCE3EE')
     .text(`Perimetro valutato: ${R.company.perimeter || 'non indicato'}   ·   Dimensioni misurate: ${R.dimsComplete}/8`, X0, doc.y + 6, { width: W })
-    .text(`Sessioni: ${R.sessions.map((s) => s.title).join(' · ') || '—'}`, { width: W })
+    .text(`Sessioni: ${R.sessions.map((s) => s.title).join(', ') || '—'}`, { width: W })
     .text(`Generato il ${dateIt(R.generatedAt)} · Strumento V${R.instrumentVersion} · scoring ${R.scoringVersion}`, { width: W });
   doc.fontSize(8.5).fillColor('#AFC0D6').text(`Benchmark: ${[...new Set(Object.values(R.benchVersions))].join(' · ') || 'nessuna versione congelata'}`, { width: W });
   doc.y = 216;
@@ -99,12 +114,13 @@ export function buildCompanyPdf(R) {
   svg(radarSvg, X0 - 6, yTop, 215, 205);
   doc.font('Body').fontSize(7.5);
   doc.rect(X0 + 30, yTop + 210, 8, 8).fill(C.navy); doc.fillColor(C.ink2).text('Azienda', X0 + 42, yTop + 210);
-  doc.rect(X0 + 95, yTop + 210, 8, 8).fill(C.teal); doc.fillColor(C.ink2).text('Mediana peer', X0 + 107, yTop + 210);
+  const anyDimBench = R.dims.some((d) => d.bench?.available), anyItemBench = R.items.some((it) => it.bench?.available);
+  if (anyDimBench) { doc.rect(X0 + 95, yTop + 210, 8, 8).fill(C.teal); doc.fillColor(C.ink2).text('Mediana delle altre aziende', X0 + 107, yTop + 210); }
   // tabella dimensioni
   const tx = X0 + 222, tw = W - 222;
   let y = yTop;
   doc.font('Semi').fontSize(7.8).fillColor(C.ink3);
-  doc.text('Dimensione', tx, y); doc.text('Score', tx + 128, y, { width: 34, align: 'right' }); doc.text('Peer', tx + 166, y, { width: 34, align: 'right' }); doc.text('Fascia', tx + 210, y);
+  doc.text('Dimensione', tx, y); doc.text('Score', tx + 128, y, { width: 34, align: 'right' }); if (anyDimBench) doc.text('Peer', tx + 166, y, { width: 34, align: 'right' }); doc.text('Fascia', tx + 210, y);
   y += 12;
   for (const d of R.dims) {
     doc.font('Body').fontSize(8.4);
@@ -115,17 +131,17 @@ export function buildCompanyPdf(R) {
     doc.font('Bold').fontSize(7.5).fillColor('#FFFFFF').text(d.id, tx, y + 3.6, { width: 13, align: 'center' });
     doc.font('Body').fontSize(8.4).fillColor(C.ink).text(d.name, tx + 17, y + 2.6, { width: 108 });
     doc.font('Bold').fontSize(9).fillColor(C.ink).text(n1(d.score), tx + 128, y + 2.6, { width: 34, align: 'right' });
-    doc.font('Body').fontSize(8).fillColor(C.ink2).text(d.bench?.available ? n1(d.bench.median) : '—', tx + 166, y + 3, { width: 34, align: 'right' });
+    if (anyDimBench) doc.font('Body').fontSize(8).fillColor(C.ink2).text(d.bench?.available ? n1(d.bench.median) : '—', tx + 166, y + 3, { width: 34, align: 'right' });
     if (d.score != null) { const b = E.band(d.score); doc.font('Bold').fontSize(7.4); const bw = doc.widthOfString(b.name) + 10; doc.roundedRect(tx + 210, y + 1.5, bw, 12, 6).fill(BAND_BG[b.id]); doc.fillColor(BAND_COLOR[b.id]).text(b.name, tx + 215, y + 4, { lineBreak: false }); }
     else doc.font('Body').fontSize(7).fillColor(C.ink3).text(I.sessions.find((s) => s.id === d.session).name, tx + 210, y + 3.5, { width: tw - 210 });
     y += rowH;
   }
   doc.font('Body').fontSize(7.6).fillColor(C.ink3).text('Fasce del pilot: Fondativa < 44 · In costruzione 44–69 · Consolidata ≥ 70. Le dimensioni non ancora misurate restano N.D. e non sono disegnate come zero.', tx, y + 2, { width: tw });
+  if (R.overall != null) doc.font('Semi').fontSize(8.4).fillColor(C.ink2).text(`Indicatore sintetico complessivo (lettura secondaria, Map completa): ${n1(R.overall)}`, tx, doc.y + 4, { width: tw });
   doc.y = Math.max(yTop + 226, doc.y + 4);
-  if (R.overall != null) para(`Indicatore sintetico complessivo (lettura secondaria, Map completa): ${n1(R.overall)}`, { size: 8.5, color: C.ink2 });
 
   // ---------- 2 · Coerenza ----------
-  h2('2 · Lettura di coerenza');
+  h2('2 · Lettura di coerenza', 200);
   explain(`Ogni regola confronta una capacità abilitante con una capacità che ne dipende. Se l'abilitante è più avanti è prudenza; se la dipendente è più avanti di almeno ${SC.coherenceThreshold} punti (due livelli pieni) è un punto da esaminare nella call con il leader. La soglia è un'ipotesi del pilot.`);
   if (!R.coherence.length) para('Nessuna regola ancora leggibile con i dati disponibili.', { color: C.ink3 });
   for (const c of R.coherence) {
@@ -147,8 +163,9 @@ export function buildCompanyPdf(R) {
   }
 
   // ---------- 3 · Item ----------
-  h2('3 · Capacità per item e confronto con il benchmark');
-  explain('Il numero è il livello consolidato in sala, la lettera la sotto-opzione scelta con una scelta forzata tra fatti osservabili. Lo stesso "2B" non vale lo stesso in tutti gli item (dipende da quante sotto-opzioni ha il livello), per questo è indicato anche il valore 0–100. Nella barra: il punto blu è l\'azienda, la fascia azzurra va dal primo al terzo quartile dei peer, il trattino è la mediana.');
+  h2('3 · Capacità per item e confronto con il benchmark', 190);
+  explain(`Il numero è il livello consolidato in sala, la lettera la sotto-opzione scelta con una scelta forzata tra fatti osservabili. Lo stesso "2B" non vale lo stesso in tutti gli item (dipende da quante sotto-opzioni ha il livello), per questo è indicato anche il valore 0–100.${anyItemBench ? ' Nella barra: il punto blu è l\'azienda, la fascia azzurra va dal primo al terzo quartile delle altre aziende, il trattino è la mediana.' : ''}`);
+  if (!anyItemBench) { para(noBench('Confronto con il benchmark'), { size: 8.2, color: C.ink3 }); doc.moveDown(0.4); }
   for (const it of R.items) {
     const desc = `${it.descriptor || ''}${it.subText ? `\n${it.subText}` : ''}${it.override ? `\nOverride: ${it.overrideReason || ''}` : ''}`;
     doc.font('Body').fontSize(8.3);
@@ -162,12 +179,14 @@ export function buildCompanyPdf(R) {
     doc.font('Bold').fontSize(9).fillColor(C.ink).text(`${it.itemId} ${it.title}`, X0, y0 + 5, { width: 120 });
     doc.font('Body').fontSize(7.6).fillColor(C.ink3).text(`Dim. ${it.dimension} · ${it.confidence || ''}`, X0, doc.y + 1, { width: 120 });
     doc.text(`${it.validN} ${it.validN === 1 ? 'risposta valida' : 'risposte valide'} · ${it.ndN} N.D.`, X0, doc.y, { width: 120 });
-    if (it.valoriale) tag('valoriale', C.gold, X0, doc.y + 2);
+    if (it.valoriale) tag('valoriale', '#F5EDD3', X0, doc.y + 2, C.goldInk);
     doc.font('Display').fontSize(15).fillColor(C.deep).text(lvl(it.level, it.sub), X0 + 126, y0 + 3, { width: 36 });
     doc.font('Body').fontSize(8).fillColor(C.ink2).text(n1(it.score), X0 + 126, y0 + 22, { width: 36 });
     doc.font('Body').fontSize(8.3).fillColor(C.ink).text(desc, X0 + 166, y0 + 5, { width: 215, lineGap: 1 });
-    svg(benchStrip(it.bench, it.score, { w: 220, h: 26 }), X0 + W - 118, y0 + 4, 118, 14);
-    doc.font('Body').fontSize(7.3).fillColor(C.ink2).text(benchTxt(it.bench), X0 + W - 118, y0 + 22, { width: 118, lineGap: 0.5 });
+    if (it.bench?.available) {
+      svg(benchStrip(it.bench, it.score, { w: 220, h: 26 }), X0 + W - 118, y0 + 4, 118, 14);
+      doc.font('Body').fontSize(7.3).fillColor(C.ink2).text(benchTxt(it.bench), X0 + W - 118, y0 + 22, { width: 118, lineGap: 0.5 });
+    } else if (anyItemBench) doc.font('Body').fontSize(7.3).fillColor(C.ink3).text(benchTxt(it.bench), X0 + W - 118, y0 + 6, { width: 118, lineGap: 0.5 });
     doc.y = y0 + h;
   }
 
@@ -188,8 +207,7 @@ export function buildCompanyPdf(R) {
     }
     doc.y = Math.max(y0 + 206, yy);
   } else {
-    para('La mappa richiede un benchmark disponibile (almeno 5 aziende) per le dimensioni misurate.', { color: C.ink3 });
-    for (const d of R.dims.filter((x) => x.score != null)) para(`${d.id} · ${d.name}: ${benchTxt(d.bench)}`, { size: 8, color: C.ink2 });
+    para(noBench('Mappa e confronto per dimensione'), { size: 8.2, color: C.ink3 });
   }
 
   // ---------- 5 · Priorità ----------
@@ -203,10 +221,12 @@ export function buildCompanyPdf(R) {
   doc.moveDown(0.4);
   if (!R.commitments.length) para('Nessun commitment registrato.', { color: C.ink3 });
   for (const c of R.commitments) {
-    ensure(52);
-    para(`${c.session_title} · Priorità: ${c.priority_item} ${I.items[c.priority_item]?.title || ''}`, { bold: true, size: 8.5 });
-    para(`Azione: ${c.action || '—'}\nOwner: ${c.owner || '—'} · Scadenza: ${c.due_date || '—'}\nKPI / evidenza: ${c.kpi || '—'}\nStato: ${c.status || 'aperto'}${c.status_note ? ` — ${c.status_note}` : ''}${c.peer_interest ? '\nInteresse a un confronto con la community' : ''}`, { size: 8, color: C.ink2 });
-    doc.moveDown(0.4);
+    ensure(90);
+    doc.font('Bold').fontSize(9.4).fillColor(C.deep).text(`${c.session_title}: ${c.priority_item} ${I.items[c.priority_item]?.title || ''}`, X0, doc.y, { width: W });
+    doc.y += 3;
+    kv([['Azione', c.action || '—'], ['Owner', c.owner || '—'], ['Scadenza', dIt(c.due_date)], ['KPI / evidenza', c.kpi || '—'],
+      ['Stato', `${c.status || 'aperto'}${c.status_note ? ` · ${c.status_note}` : ''}`], ...(c.peer_interest ? [['Community', 'interesse a un confronto con altre aziende']] : [])], 110);
+    doc.moveDown(0.8);
   }
 
   // ---------- 6 · Qualità del dato e profilo ----------
@@ -222,7 +242,8 @@ export function buildCompanyPdf(R) {
   if (prof.length) {
     doc.moveDown(0.4);
     para('Profilo di approccio (fuori punteggio: descrive come l\'azienda si trasforma, non quanto è avanti)', { size: 8.5, bold: true });
-    for (const p of prof) para(`${p.q}: ${p.value}${typeof p.value === 'number' ? '%' : ''}`, { size: 8, color: C.ink2 });
+    doc.moveDown(0.2);
+    kv(prof.map((p) => [p.q, `${p.value}${typeof p.value === 'number' ? '%' : ''}`]), 300);
   }
 
   // ---------- Note ----------

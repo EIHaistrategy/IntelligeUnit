@@ -41,7 +41,7 @@ else {
     <div class="plhead"><h1>${esc(P.def.name)}</h1>
       <p>Come si posiziona la community. Versione <b>${esc(P.version)}</b>, ${P.nCompanies} aziende con dati, nessun nome: solo distribuzioni.</p></div>
     <div class="grid c2">${P.dims.map((d) => `<div class="card"><h2 style="display:flex;align-items:center"><span class="dim-letter">${d.dimension}</span>${esc(d.name)}</h2>
-      ${d.stats.available ? `<div class="kpi">${fmtScore(d.stats.median)} <small>mediana · Q1–Q3 ${fmtScore(d.stats.q1)}–${fmtScore(d.stats.q3)} · N=${d.stats.n} · ${d.stats.label}</small></div>
+      ${d.stats.available ? `<div class="kpi">${fmtScore(d.stats.median)} <small>mediana · 1°–3° quartile ${fmtScore(d.stats.q1)}–${fmtScore(d.stats.q3)} · N=${d.stats.n} · ${d.stats.label}</small></div>
         ${d.gap.available ? `<p style="margin-top:8px">In fascia Fondativa: <b>${Math.round(d.gap.fondShare * 100)}%</b> delle aziende · eterogeneità (IQR) <b>${fmtScore(d.gap.iqr)}</b> punti → <span class="tag navy">${esc(d.gap.quadrant)}</span></p>` : ''}` : na(d.stats)}</div>`).join('')}</div>
     <h2 style="margin:28px 0 12px">Capacità della sessione</h2>${P.items.map((it) => `<div class="card"><h3>${esc(it.itemId)} · ${esc(it.title)}</h3>
       ${it.dist.available ? `<div class="stack-bar">${it.dist.levels.filter((l) => l.count).map((l) => `<div class="l${l.level}" style="flex:${l.count}" title="Livello ${l.level}: ${l.count} aziende">${l.count}</div>`).join('')}</div>

@@ -65,7 +65,7 @@ async function viewControl(id) {
     app.innerHTML = `<a class="back" href="#/sessioni">← Sessioni</a>
       <div class="card ctlhead"><div class="pagehead"><div><h1>${esc(s.title)}</h1><p class="small">${esc(C.def.items.map((i) => `${i} ${INST.items[i].title}`).join(' · '))}</p></div></div>
         ${phaseChips(s.phase)}
-        <div class="row phasectl"><span class="small ink2">Passa alla fase</span>${PHASES.map((p, i) => { const locked = (i < idx && i <= 1 && idx >= 2) || i > idx + 1; return `<button class="sm ${i === idx + 1 ? '' : 'ghost'}" data-phase="${p.id}" ${i === idx || locked ? 'disabled' : ''} title="${i > idx + 1 ? 'Le fasi si aprono una alla volta' : locked ? 'Dopo il confronto non si torna alla fase individuale (§2)' : ''}">${i < idx ? '↩ ' : ''}${esc(p.label)}</button>`; }).join('')}</div>
+        <div class="row phasectl"><span class="small ink2">Passa alla fase</span>${PHASES.map((p, i) => { const locked = (i < idx && i <= 1 && idx >= 2) || i > idx + 1; if (i === idx) return `<span class="tag gold" style="padding:6px 12px;font-size:.86rem">${esc(p.label)} · in corso</span>`; return `<button class="sm ${i === idx + 1 ? '' : 'ghost'}" data-phase="${p.id}" ${locked ? 'disabled' : ''} title="${i > idx + 1 ? 'Le fasi si aprono una alla volta' : locked ? 'Dopo il confronto non si torna alla fase individuale (§2)' : ''}">${i < idx ? '↩ ' : ''}${esc(p.label)}</button>`; }).join('')}</div>
         <p class="small muted" style="margin-top:8px">Individuale → Confronto blocca le risposte individuali. Il consolidamento si può confermare solo nella fase Consolidamento.</p></div>
       <div class="grid c3">
         <div class="card" style="text-align:center"><h3 style="text-align:left">QR di sala</h3>${qrImg(C.joinUrl, 180)}<p class="small mono" style="word-break:break-all">${esc(C.joinUrl)}</p><a class="btn sm" href="#/qr/${s.id}">QR a schermo intero</a></div>
@@ -73,12 +73,11 @@ async function viewControl(id) {
           <div class="stat"><span class="v">${C.companies.filter((c) => c.consolidated_at).length}</span><span class="l">aziende consolidate</span></div></div>
         <div class="card"><h3>Benchmark ${esc(INST.sessions.find((x) => x.id === s.base).name)}</h3>
           ${C.benchmark.length ? `<p class="small">Ultima versione: <b>${esc(C.benchmark[0].label)}</b> (N=${C.benchmark[0].n_companies})</p>` : '<p class="small muted">Nessuna versione congelata.</p>'}
-          <div class="row"><a class="btn sm" href="/live/${s.id}" target="_blank">Dashboard live</a><button class="sm gold" id="freeze">Congela benchmark</button><a class="btn sm ghost" href="/plenaria/${s.base}" target="_blank">Plenaria</a></div>
-          <div class="row" style="margin-top:8px"><button class="sm ghost" id="zipbtn">Scarica tutti i PDF (zip)</button></div>
+          <div class="actions2"><a class="btn sm" href="/live/${s.id}" target="_blank">Dashboard live</a><a class="btn sm ghost" href="/plenaria/${s.base}" target="_blank">Plenaria</a><button class="sm gold" id="freeze">Congela benchmark</button><button class="sm ghost" id="zipbtn">Tutti i PDF (zip)</button></div>
           <p class="small muted" style="margin-top:6px">Entrano solo aziende REALI con consenso al benchmark. Le versioni consegnate non cambiano.</p></div>
       </div>
       <div class="card"><h2>Aziende</h2><div class="tablewrap"><table>
-        <thead><tr><th>Azienda</th><th>Scheda</th><th class="num">Partecipanti</th><th>Risposte</th><th>Funzioni</th><th>Consolidato</th><th>Commitment</th><th>Report</th><th></th></tr></thead>
+        <thead><tr><th>Azienda</th><th>Scheda</th><th class="num">Partecipanti</th><th>Risposte</th><th>Funzioni</th><th>Consolidato</th><th>Commitment</th><th>Report</th><th>Tavolo</th></tr></thead>
         <tbody>${active.map(row).join('') || '<tr><td colspan="9" class="muted">Nessuna azienda ancora attiva in questa sessione.</td></tr>'}</tbody></table></div>
         ${others.length ? `<details style="margin-top:10px"><summary class="small">Altre aziende censite (${others.length})</summary><table><tbody>${others.map(row).join('')}</tbody></table></details>` : ''}</div>`;
     $$('[data-phase]').forEach((b) => b.onclick = async () => {

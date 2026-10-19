@@ -92,8 +92,7 @@ const totalSteps = () => state.items.length + 2; // item + confronti + riepilogo
 
 function renderIndividual() {
   const n = state.items.length;
-  const bar = `<div class="stepper" aria-hidden="true">${Array.from({ length: totalSteps() }, (_, i) => `<span class="${i < step ? 'done' : i === step ? 'on' : ''}"></span>`).join('')}</div>
-    <p class="sr-only">Passo ${step + 1} di ${totalSteps()}</p>`;
+  const bar = `<p class="sr-only">Passo ${step + 1} di ${totalSteps()}</p>`;
   if (state.participant.submitted_at && step === 0 && !renderIndividual.reopened) step = totalSteps() - 1;
   if (step < n) {
     const it = state.items[step];
@@ -176,12 +175,12 @@ function renderComparison() {
     consolidamento: 'Il referente sta registrando la posizione ufficiale dell\'azienda.', chiusa: 'Sessione chiusa. Grazie per la partecipazione.' }[state.session.phase];
   app.innerHTML = `${header()}<div class="banner info" role="status">${msg}</div>
     <div class="card"><h2>Le risposte della vostra azienda</h2><p class="small muted" style="margin:0">Vista anonima: ${c.participants} partecipanti, ${c.submitted} hanno inviato, ${c.functions.length} funzioni presenti.</p></div>
-    ${c.items.map((it) => `<div class="card"><div class="row between" style="align-items:flex-start;margin-bottom:12px"><h3 style="margin:0">${esc(it.itemId)} · ${esc(it.title)}</h3>${confTag(it.confidence)}</div>
+    ${c.items.map((it) => `<div class="card"><div class="cardhead"><h3>${esc(it.itemId)} · ${esc(it.title)}</h3>${confTag(it.confidence)}</div>
       ${it.summary.hidden ? '<p class="small muted">Meno di 3 risposte valide: per proteggere l\'anonimato si mostrano solo mediana e range.</p>' : distBars(it.summary)}
       <p class="small" style="margin-top:8px">Mediana: <b>${it.summary.median ?? '—'}</b> · Range: <b>${it.summary.range ?? '—'}</b> · N.D.: <b>${it.summary.nd}</b></p>
       ${it.summary.divergent ? '<div class="banner warn">Divergenza di due o più livelli: discussione necessaria.</div>' : ''}</div>`).join('')}
     <div class="card"><h3>Confronti a coppie</h3>${c.pairs.map((p) => p.hidden ? `<p><b>${esc(p.a)}</b> vs <b>${esc(p.b)}</b>: non mostrato con meno di 3 partecipanti.</p>` : `<p><b>${esc(p.a)}</b> ${p.counts.A} · <b>${esc(p.b)}</b> ${p.counts.B} · N.D. ${p.counts.ND}
-      ${p.discordant ? `<br><span class="tag risk">${p.discordant} ${p.discordant === 1 ? 'risposta' : 'risposte'} in contrasto con i livelli scelti dalla stessa persona</span>` : ''}</p>`).join('')}</div>`;
+      </p>${p.discordant ? `<p class="note risk">${p.discordant} ${p.discordant === 1 ? 'risposta' : 'risposte'} in contrasto con i livelli scelti dalla stessa persona</p>` : ''}`).join('')}</div>`;
 }
 
 let tick = 0;

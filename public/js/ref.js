@@ -154,12 +154,12 @@ function drawParticipants() {
 }
 
 function comparisonHtml(c) {
-  return `<div class="grid c2">${c.items.map((it) => `<div class="card"><div class="row between" style="align-items:flex-start;margin-bottom:12px"><h3 style="margin:0">${esc(it.itemId)} · ${esc(it.title)}</h3>${confTag(it.confidence)}</div>
+  return `<div class="grid c2">${c.items.map((it) => `<div class="card"><div class="cardhead"><h3>${esc(it.itemId)} · ${esc(it.title)}</h3>${confTag(it.confidence)}</div>
     ${distBars(it.summary)}
     <dl class="facts"><div><dt>Mediana</dt><dd>${it.summary.median ?? '—'}</dd></div><div><dt>Range</dt><dd>${it.summary.range ?? '—'}</dd></div><div><dt>Valide</dt><dd>${it.summary.valid}</dd></div><div><dt>N.D.</dt><dd>${it.summary.nd}</dd></div><div><dt>Funzioni</dt><dd>${it.summary.perspectives}</dd></div></dl>
     ${it.summary.divergent ? '<div class="banner warn">Divergenza ≥ 2 livelli: discussione obbligatoria prima del consolidamento.</div>' : ''}</div>`).join('')}</div>
     <div class="card"><h3>Confronti a coppie</h3>${c.pairs.map((p) => `<p><b>${esc(p.a)} ${esc(p.aTitle)}</b>: ${p.counts.A} · <b>${esc(p.b)} ${esc(p.bTitle)}</b>: ${p.counts.B} · N.D.: ${p.counts.ND}
-      ${p.discordant ? `<br><span class="tag risk">${p.discordant} su ${p.evaluable} in contrasto con i livelli scelti dalla stessa persona: punto da chiarire</span>` : ''}</p>`).join('')}</div>`;
+</p>${p.discordant ? `<p class="note risk">${p.discordant} su ${p.evaluable} in contrasto con i livelli scelti dalla stessa persona: punto da chiarire</p>` : ''}`).join('')}</div>`;
 }
 
 function drawComparison() {
