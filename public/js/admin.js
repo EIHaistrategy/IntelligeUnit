@@ -30,7 +30,7 @@ function route() {
   const [, view = 'sessioni', arg] = location.hash.split('/');
   $$('#nav a').forEach((a) => a.classList.toggle('active', a.dataset.v === view || (view === 'sessione' && a.dataset.v === 'sessioni') || (view === 'azienda' && a.dataset.v === 'aziende')));
   ({ sessioni: viewSessions, sessione: viewControl, aziende: viewCompanies, azienda: viewCompany, benchmark: viewBenchmark,
-    audit: viewAudit, impostazioni: viewSettings, qr: viewQr, tavolo: viewTableCard }[view] || viewSessions)(arg);
+    audit: viewAudit, impostazioni: viewSettings, qr: viewQr, tavolo: viewTableCard, tavoli: viewTables }[view] || viewSessions)(arg);
 }
 
 // ---------- Sessioni ----------
@@ -40,7 +40,7 @@ async function viewSessions() {
     ${NET.baseUrl.includes('localhost') ? '<div class="banner risk">Non è stato trovato un indirizzo di rete: i telefoni non potranno collegarsi. Verifica il Wi-Fi in Impostazioni.</div>' : ''}
     <div class="grid c2">${ss.map((s) => `<div class="card sesscard"><div class="row between" style="align-items:flex-start"><div><h2 style="margin:0">${esc(s.title)}</h2>
       <p class="small muted" style="margin:4px 0 0">Item ${esc(INST.sessions.find((x) => x.id === s.base).items.join(', '))} · codice <span class="mono">${esc(s.code)}</span> · ${esc(s.channel)}</p></div>${s.mode === 'adhoc' ? '<span class="tag gold">ad hoc</span>' : ''}</div>
-      <div style="margin:18px 0 16px">${phaseChips(s.phase)}</div><a class="btn sm" href="#/sessione/${s.id}">Apri la control room</a></div>`).join('')}</div>
+      <div style="margin:18px 0 12px">${phaseChips(s.phase)}</div><p class="small ink2" style="margin:0 0 14px"><b>${esc(nextStepText(s.phase))}</b></p><a class="btn sm" href="#/sessione/${s.id}">Apri la control room</a></div>`).join('')}</div>
     <div class="card"><h2>Sessione ad hoc</h2><p class="small ink2">Per un'azienda assente: stesso flusso, stessi descrittori e stessa versione; la modalità viene registrata e i dati entrano nella versione successiva del benchmark (§6.3).</p>
       <div class="grid c3"><div><label class="f">Sessione di riferimento</label><select id="ah_base">${INST.sessions.map((s) => `<option value="${s.id}">${esc(s.name)}</option>`).join('')}</select></div>
       <div><label class="f">Data</label><input type="date" id="ah_date"></div>
@@ -52,43 +52,184 @@ async function viewSessions() {
   };
 }
 
-// ---------- Control room ----------
+// ---------- Control room: il percorso della sessione ----------
+// Sette passi in tre momenti. Le prime quattro corrispondono alle fasi della sessione (si aprono una alla volta),
+// le ultime tre sono le attività dopo la sessione.
+const FLOW = [
+  { id: 'preparazione', group: 'Prima della sessione', title: 'Preparazione', phase: 'preparazione' },
+  { id: 'individuale', group: 'In sala', title: 'Risposte individuali', phase: 'individuale', minutes: 10 },
+  { id: 'confronto', group: 'In sala', title: 'Confronto al tavolo', phase: 'confronto', minutes: 10 },
+  { id: 'consolidamento', group: 'In sala', title: 'Consolidamento', phase: 'consolidamento', minutes: 10 },
+  { id: 'benchmark', group: 'Dopo la sessione', title: 'Congelare il benchmark' },
+  { id: 'report', group: 'Dopo la sessione', title: 'Rilasciare i report' },
+  { id: 'call', group: 'Dopo la sessione', title: 'Call con i leader' },
+];
+const NEXT = {
+  preparazione: { to: 'individuale', label: 'Apri le risposte individuali', what: 'I partecipanti registrati vedono le domande della sessione e i confronti a coppie. Chi arriva dopo può ancora registrarsi.' },
+  individuale: { to: 'confronto', label: 'Chiudi le risposte e apri il confronto', what: 'Le risposte individuali si bloccano e non si potranno riaprire (§2). Ogni tavolo vede la distribuzione anonima delle proprie risposte, il referente la vista di confronto.' },
+  confronto: { to: 'consolidamento', label: 'Apri il consolidamento', what: 'Il referente di ogni azienda registra livello e sotto-opzione ufficiali, poi priorità e commitment.' },
+  consolidamento: { to: 'chiusa', label: 'Chiudi la sessione', what: 'I referenti non possono più modificare il consolidamento; il commitment resta modificabile. Da qui in poi le correzioni le fa ELIS, con motivazione nel registro.' },
+};
+const nextStepText = (phase) => ({ preparazione: 'Prossimo passo: aprire le risposte individuali', individuale: 'In corso: risposte individuali', confronto: 'In corso: confronto al tavolo',
+  consolidamento: 'In corso: consolidamento', chiusa: 'Sessione chiusa: benchmark, report e call con i leader' }[phase]);
+
 async function viewControl(id) {
   let C = await api(`/api/admin/sessions/${id}/control`);
+  let sel = null;          // passo mostrato nel pannello
+  let confirming = false;  // conferma del passaggio di fase aperta
+  const names = (list, max = 4) => list.slice(0, max).map((c) => esc(c.name)).join(', ') + (list.length > max ? ` e altre ${list.length - max}` : '');
+  const meter = (a, b, label) => `<div class="meter"><div class="meter-top"><b>${a}</b><span> di ${b} ${label}</span></div><div class="meter-bar"><i style="width:${b ? Math.round((a / b) * 100) : 0}%"></i></div></div>`;
+  const ck = (kind, html) => `<li class="ck ${kind}"><span aria-hidden="true">${kind === 'ok' ? '✓' : kind === 'warn' ? '!' : 'i'}</span><div>${html}</div></li>`;
+
   const draw = () => {
     const s = C.session;
     const idx = PHASES.findIndex((p) => p.id === s.phase);
-    const totP = C.companies.reduce((a, c) => a + c.participants, 0);
-    const totS = C.companies.reduce((a, c) => a + c.submitted, 0);
-    const active = C.companies.filter((c) => c.participants || c.consolidated_at || c.presession);
-    const others = C.companies.filter((c) => !active.includes(c));
+    const cos = C.companies;
+    const withRef = cos.filter((c) => c.referents.length);
+    const inRoom = cos.filter((c) => c.participants);
+    const totP = cos.reduce((a, c) => a + c.participants, 0), totS = cos.reduce((a, c) => a + c.submitted, 0);
+    const answered = cos.reduce((a, c) => a + c.answered, 0), expected = cos.reduce((a, c) => a + c.expected, 0);
+    const consolidated = cos.filter((c) => c.consolidated_at);
+    const released = consolidated.filter((c) => c.report_released_at);
+    const called = released.filter((c) => c.leader_call_note);
+    const lastCons = consolidated.map((c) => c.consolidated_at).sort().pop() || null;
+    const frozen = C.benchmark[0] || null;
+    const benchDone = !!frozen && (!lastCons || frozen.created_at >= lastCons);
+    const state = (f) => {
+      if (f.phase) { const i = PHASES.findIndex((p) => p.id === f.phase); return i < idx ? 'done' : i === idx ? 'now' : 'todo'; }
+      if (f.id === 'benchmark') return benchDone ? 'done' : idx >= 3 ? 'now' : 'todo';
+      if (f.id === 'report') return consolidated.length && released.length === consolidated.length ? 'done' : idx >= 3 && consolidated.length ? 'now' : 'todo';
+      return released.length && called.length === released.length ? 'done' : released.length ? 'now' : 'todo';
+    };
+    const summary = {
+      preparazione: `${withRef.length} di ${cos.length} aziende con referente · ${withRef.filter((c) => c.presession).length} schede`,
+      individuale: totP ? `${totS} di ${totP} hanno inviato` : 'nessun partecipante ancora',
+      confronto: `${inRoom.length} ${inRoom.length === 1 ? 'azienda' : 'aziende'} al tavolo`,
+      consolidamento: `${consolidated.length} di ${inRoom.length || consolidated.length} consolidate`,
+      benchmark: frozen ? `${frozen.label} · N=${frozen.n_companies}${benchDone ? '' : ' · da aggiornare'}` : 'non ancora congelato',
+      report: `${released.length} di ${consolidated.length} rilasciati`,
+      call: `${called.length} di ${released.length} annotate`,
+    };
+    if (!sel) {
+      sel = idx < 4 ? FLOW[idx].id : (FLOW.slice(4).find((f) => state(f) !== 'done') || FLOW[6]).id;
+    }
+    const f = FLOW.find((x) => x.id === sel);
+    const st = state(f);
+    const mins = C.phaseSince ? Math.max(0, Math.round((Date.now() - new Date(C.phaseSince.replace(' ', 'T') + 'Z')) / 60000)) : null;
+    const chip = st === 'done' ? '<span class="tag ok">Completato</span>'
+      : st === 'now' ? `<span class="tag gold">${f.phase ? `In corso${mins != null ? ` da ${mins} min` : ''}${f.minutes ? ` · previsti ${f.minutes}` : ''}` : 'Da fare ora'}</span>`
+      : '<span class="tag">Più avanti</span>';
+
+    // ---- contenuto del pannello
+    let what = '', checks = [], extra = '';
+    if (f.id === 'preparazione') {
+      what = 'Una settimana prima i referenti compilano la scheda pre-sessione con i dati fattuali. In sala i partecipanti si registrano con il QR, ma vedono le domande solo quando apri le risposte individuali.';
+      const noRef = cos.filter((c) => !c.referents.length), noPre = withRef.filter((c) => !c.presession);
+      checks.push(noRef.length ? ck('warn', `${noRef.length} ${noRef.length === 1 ? 'azienda' : 'aziende'} senza referente: ${names(noRef)}. <a href="#/aziende">Aggiungi i referenti</a>`) : ck('ok', `Tutte le ${cos.length} aziende hanno un referente`));
+      checks.push(noPre.length ? ck('warn', `Schede pre-sessione compilate: ${withRef.length - noPre.length} di ${withRef.length}. Mancano: ${names(noPre)}`) : ck('ok', 'Tutte le schede pre-sessione sono compilate'));
+      checks.push(ck('info', `Partecipanti già registrati: <b>${totP}</b>`));
+      extra = `<div class="fp-qr">${qrImg(C.joinUrl, 150)}<div><h4>QR di sala e cartoncini</h4><p class="small mono" style="word-break:break-all">${esc(C.joinUrl)}</p>
+        <div class="row"><a class="btn sm" href="#/qr/${s.id}">QR a schermo intero</a><a class="btn sm ghost" href="#/tavoli/${s.id}">Stampa i cartoncini dei tavoli</a></div></div></div>`;
+    } else if (f.id === 'individuale') {
+      what = 'Ognuno risponde da solo, senza vedere le risposte dei colleghi. Chi non ha visibilità su un punto sceglie N.D.';
+      extra = st === 'todo' ? '' : `<div class="grid c2">${meter(totS, totP, 'partecipanti hanno inviato')}${meter(answered, expected, 'risposte date')}</div>`;
+      const few = inRoom.filter((c) => c.participants < 3), oneFn = inRoom.filter((c) => c.functions.length < 2), absent = withRef.filter((c) => c.presession && !c.participants);
+      if (st !== 'todo') {
+        checks.push(few.length ? ck('warn', `La confidence sarà più bassa dove ci sono meno di 3 partecipanti: ${names(few)}`) : inRoom.length ? ck('ok', 'Tutte le aziende in sala hanno almeno 3 partecipanti') : ck('info', 'Nessuna azienda ancora in sala'));
+        if (oneFn.length) checks.push(ck('warn', `Una sola funzione presente: ${names(oneFn)}`));
+        if (absent.length) checks.push(ck('warn', `Scheda compilata ma nessuno registrato: ${names(absent)}`));
+      }
+    } else if (f.id === 'confronto') {
+      what = 'Ogni tavolo guarda dove le risposte divergono e su quali evidenze si basano. Le risposte individuali sono bloccate. Dove la divergenza è di due livelli o più, la discussione è obbligatoria prima del consolidamento.';
+      if (st !== 'todo') checks.push(ck('info', `Aziende al tavolo: <b>${inRoom.length}</b>. I referenti vedono la vista di confronto dal proprio link.`));
+      extra = `<div class="row"><a class="btn sm ghost" href="/live/${s.id}" target="_blank">Apri la dashboard live</a></div>`;
+    } else if (f.id === 'consolidamento') {
+      what = 'Il referente di ogni azienda registra la posizione ufficiale: livello, sotto-opzione e, se si scosta dalla mediana, la motivazione. Poi sceglie la priorità e il commitment.';
+      if (st !== 'todo') {
+        extra = meter(consolidated.length, inRoom.length || consolidated.length, 'aziende hanno consolidato');
+        const missing = inRoom.filter((c) => !c.consolidated_at), noCommit = consolidated.filter((c) => !c.commitment);
+        checks.push(missing.length ? ck('warn', `Non hanno ancora consolidato: ${names(missing)}`) : consolidated.length ? ck('ok', 'Tutte le aziende in sala hanno consolidato') : ck('info', 'Nessun consolidamento ancora'));
+        if (consolidated.length) checks.push(noCommit.length ? ck('info', `Commitment ancora da registrare: ${names(noCommit)}. Si può completare anche dopo la sessione.`) : ck('ok', 'Tutte le aziende consolidate hanno registrato il commitment'));
+      }
+    } else if (f.id === 'benchmark') {
+      what = `Congelare salva una versione datata del benchmark: è quella che entra nei report e non cambia più. Entrano solo aziende REALI con consenso; sotto ${SC.benchmark.minN} aziende il confronto non si mostra.`;
+      checks.push(frozen ? ck(benchDone ? 'ok' : 'warn', `Ultima versione: <b>${esc(frozen.label)}</b>, ${frozen.n_companies} aziende, ${fmtDate(frozen.created_at)}${benchDone ? '' : '. Ci sono consolidamenti successivi: congela di nuovo per includerli.'}`) : ck('warn', 'Nessuna versione congelata per questa sessione'));
+      if (frozen && frozen.n_companies < SC.benchmark.minN) checks.push(ck('info', `Con ${frozen.n_companies} aziende il confronto non compare nei report: servono almeno ${SC.benchmark.minN}.`));
+      extra = `<div class="row"><button class="gold" id="freeze">Congela il benchmark ora</button><a class="btn ghost" href="/plenaria/${s.base}" target="_blank">Apri la plenaria</a><a class="btn ghost" href="/live/${s.id}" target="_blank">Dashboard live</a></div>`;
+    } else if (f.id === 'report') {
+      what = 'Rilasciare salva una copia del report che l\'azienda vede dal link del referente e che non cambierà più. Conviene congelare prima il benchmark, così il report contiene il confronto.';
+      if (!benchDone) checks.push(ck('warn', 'Il benchmark non è aggiornato: <button class="link" data-goto="benchmark">congelalo prima</button>.'));
+      extra = consolidated.length ? `<ul class="todo">${consolidated.map((c) => `<li><div><b>${esc(c.name)}</b><div class="small muted"><a href="/report/${c.id}" target="_blank">Bozza</a> · <a href="/api/admin/pdf/${c.id}">PDF</a></div></div>
+          ${c.report_released_at ? `<div class="row"><span class="tag ok">Rilasciato ${fmtDate(c.report_released_at)}</span><button class="sm ghost" data-release="${c.id}" title="Crea una nuova versione marcata come tale">Nuova versione</button></div>` : `<button class="sm" data-release="${c.id}">Rilascia</button>`}</li>`).join('')}</ul>
+        <div class="row" style="margin-top:12px"><button class="sm ghost" id="zipbtn">Scarica tutti i PDF (zip)</button></div>` : '<p class="muted">Nessuna azienda ha ancora consolidato.</p>';
+    } else {
+      what = 'Nella call il leader dell\'azienda discute il report, a partire dalle regole di coerenza da esaminare. Annota l\'esito: resta nella scheda dell\'azienda.';
+      extra = released.length ? `<ul class="todo">${released.map((c) => `<li><div><b>${esc(c.name)}</b>${c.leader_call_note ? `<div class="small ink2">${esc(c.leader_call_note)}</div>` : '<div class="small muted">Esito non ancora annotato</div>'}</div>
+          <button class="sm ${c.leader_call_note ? 'ghost' : ''}" data-note="${c.id}">${c.leader_call_note ? 'Modifica esito' : 'Annota esito'}</button></li>`).join('')}</ul>` : '<p class="muted">Le call si fanno dopo il rilascio dei report.</p>';
+    }
+
+    // ---- azione di fase (solo sul passo in corso)
+    let action = '';
+    const nx = NEXT[s.phase];
+    if (f.phase === s.phase && nx) {
+      const warnNow = s.phase === 'individuale' && totP > totS ? `<p class="small" style="color:var(--warn)">${totP - totS === 1 ? 'Un partecipante non ha' : `${totP - totS} partecipanti non hanno`} ancora premuto Invia: le risposte già date verranno considerate così come sono.</p>`
+        : s.phase === 'consolidamento' && inRoom.some((c) => !c.consolidated_at) ? `<p class="small" style="color:var(--warn)">Alcune aziende non hanno consolidato: dopo la chiusura dovrai riaprire il consolidamento o correggere da ELIS.</p>` : '';
+      action = `<div class="fp-action"><h4>Passo successivo</h4>
+        <p class="ink2">${nx.what}</p>${warnNow}
+        ${confirming ? `<div class="confirmbox" role="alertdialog" aria-label="Conferma"><p><b>Confermi?</b> ${nx.to === 'confronto' ? 'Le risposte individuali non si potranno riaprire.' : 'Puoi tornare indietro indicando un motivo.'}</p>
+          <div class="row"><button id="yes">Sì, ${nx.label.charAt(0).toLowerCase() + nx.label.slice(1)}</button><button class="ghost" id="no">Annulla</button></div></div>`
+          : `<button class="big" id="nextphase">${nx.label}</button>`}</div>`;
+    }
+    // ritorno alla fase precedente: sul passo in corso, o sul consolidamento quando la sessione è chiusa
+    const backFrom = (f.phase === s.phase) || (s.phase === 'chiusa' && f.id === 'consolidamento');
+    const prev = PHASES[idx - 1];
+    const backAllowed = backFrom && idx > 0 && !(idx - 1 <= 1 && idx >= 2);
+    const back = backAllowed ? `<details class="backphase"><summary>${s.phase === 'chiusa' ? 'Riapri il consolidamento' : `Torna a: ${esc(prev.label)}`}</summary>
+      <label class="f" for="backreason">Motivo (resta nel registro modifiche)</label><input type="text" id="backreason" maxlength="1000">
+      <button class="sm ghost" id="goback" style="margin-top:8px">Torna indietro</button></details>`
+      : (backFrom && idx >= 2 && idx - 1 <= 1 ? '<p class="small muted" style="margin-top:14px">Dopo il confronto non si torna alle risposte individuali (§2). Per un\'azienda che deve rifare la rilevazione usa una sessione ad hoc.</p>' : '');
+
+    let group = '';
     app.innerHTML = `<a class="back" href="#/sessioni">← Sessioni</a>
-      <div class="card ctlhead"><div class="pagehead"><div><h1>${esc(s.title)}</h1><p class="small">${esc(C.def.items.map((i) => `${i} ${INST.items[i].title}`).join(' · '))}</p></div></div>
-        ${phaseChips(s.phase)}
-        <div class="row phasectl"><span class="small ink2">Passa alla fase</span>${PHASES.map((p, i) => { const locked = (i < idx && i <= 1 && idx >= 2) || i > idx + 1; if (i === idx) return `<span class="tag gold" style="padding:6px 12px;font-size:.86rem">${esc(p.label)} · in corso</span>`; return `<button class="sm ${i === idx + 1 ? '' : 'ghost'}" data-phase="${p.id}" ${locked ? 'disabled' : ''} title="${i > idx + 1 ? 'Le fasi si aprono una alla volta' : locked ? 'Dopo il confronto non si torna alla fase individuale (§2)' : ''}">${i < idx ? '↩ ' : ''}${esc(p.label)}</button>`; }).join('')}</div>
-        <p class="small muted" style="margin-top:8px">Individuale → Confronto blocca le risposte individuali. Il consolidamento si può confermare solo nella fase Consolidamento.</p></div>
-      <div class="grid c3">
-        <div class="card" style="text-align:center"><h3 style="text-align:left">QR di sala</h3>${qrImg(C.joinUrl, 180)}<p class="small mono" style="word-break:break-all">${esc(C.joinUrl)}</p><a class="btn sm" href="#/qr/${s.id}">QR a schermo intero</a></div>
-        <div class="card"><h3>In sala</h3><div class="stat"><span class="v">${totP}</span><span class="l">partecipanti registrati</span></div><div class="stat"><span class="v">${totS}</span><span class="l">hanno inviato le risposte</span></div>
-          <div class="stat"><span class="v">${C.companies.filter((c) => c.consolidated_at).length}</span><span class="l">aziende consolidate</span></div></div>
-        <div class="card"><h3>Benchmark ${esc(INST.sessions.find((x) => x.id === s.base).name)}</h3>
-          ${C.benchmark.length ? `<p class="small">Ultima versione: <b>${esc(C.benchmark[0].label)}</b> (N=${C.benchmark[0].n_companies})</p>` : '<p class="small muted">Nessuna versione congelata.</p>'}
-          <div class="actions2"><a class="btn sm" href="/live/${s.id}" target="_blank">Dashboard live</a><a class="btn sm ghost" href="/plenaria/${s.base}" target="_blank">Plenaria</a><button class="sm gold" id="freeze">Congela benchmark</button><button class="sm ghost" id="zipbtn">Tutti i PDF (zip)</button></div>
-          <p class="small muted" style="margin-top:6px">Entrano solo aziende REALI con consenso al benchmark. Le versioni consegnate non cambiano.</p></div>
+      <div class="pagehead"><div><h1>${esc(s.title)}</h1><p class="small">${esc(C.def.items.map((i) => `${i} ${INST.items[i].title}`).join(' · '))} · codice <span class="mono">${esc(s.code)}</span></p></div>
+        <div class="row"><a class="btn sm ghost" href="/live/${s.id}" target="_blank">Dashboard live</a><a class="btn sm ghost" href="#/qr/${s.id}">QR di sala</a></div></div>
+      <div class="flow">
+        <nav class="flowsteps" aria-label="Passi della sessione">${FLOW.map((x, i) => {
+          const g = x.group !== group ? `<div class="fgroup">${esc((group = x.group))}</div>` : '';
+          const stx = state(x);
+          return `${g}<button type="button" class="fstep ${stx} ${x.id === sel ? 'sel' : ''}" data-step="${x.id}" ${x.id === sel ? 'aria-current="step"' : ''}>
+            <span class="fnum" aria-hidden="true">${stx === 'done' ? '✓' : i + 1}</span><span class="ftxt"><b>${esc(x.title)}</b><small>${summary[x.id]}</small></span>
+            <span class="sr-only">${stx === 'done' ? 'completato' : stx === 'now' ? 'in corso' : 'più avanti'}</span></button>`;
+        }).join('')}</nav>
+        <section class="card flowpanel" aria-live="polite">
+          <div class="fp-head"><div><div class="small muted">${esc(f.group)} · passo ${FLOW.indexOf(f) + 1} di ${FLOW.length}</div><h2>${esc(f.title)}</h2></div>${chip}</div>
+          <p class="lede">${what}</p>
+          ${checks.length ? `<ul class="checks">${checks.join('')}</ul>` : ''}
+          ${extra}
+          ${action}${back}
+        </section>
       </div>
-      <div class="card"><h2>Aziende</h2><div class="tablewrap"><table>
+      <div class="card"><h2>Aziende in questa sessione</h2><div class="tablewrap"><table>
         <thead><tr><th>Azienda</th><th>Scheda</th><th class="num">Partecipanti</th><th>Risposte</th><th>Funzioni</th><th>Consolidato</th><th>Commitment</th><th>Report</th><th>Tavolo</th></tr></thead>
-        <tbody>${active.map(row).join('') || '<tr><td colspan="9" class="muted">Nessuna azienda ancora attiva in questa sessione.</td></tr>'}</tbody></table></div>
-        ${others.length ? `<details style="margin-top:10px"><summary class="small">Altre aziende censite (${others.length})</summary><table><tbody>${others.map(row).join('')}</tbody></table></details>` : ''}</div>`;
-    $$('[data-phase]').forEach((b) => b.onclick = async () => {
-      const to = b.dataset.phase;
-      const back = PHASES.findIndex((p) => p.id === to) < idx;
-      let reason = null;
-      if (back) { reason = prompt(`Motivo per tornare alla fase "${to}" (resta nel registro modifiche)`); if (!reason) return; }
-      else if (!confirm(`Passare alla fase "${to}"?${to === 'confronto' ? '\nLe risposte individuali verranno bloccate e non si potranno riaprire.' : ''}`)) return;
-      try { await api(`/api/admin/sessions/${s.id}/phase`, { method: 'PUT', body: { phase: to, reason } }); C = await api(`/api/admin/sessions/${id}/control`); draw(); } catch (e) { toast(e.message, true); }
-    });
-    $('#zipbtn').onclick = async () => {
+        <tbody>${cos.filter((c) => c.participants || c.consolidated_at || c.presession).map(row).join('') || '<tr><td colspan="9" class="muted">Nessuna azienda ancora attiva in questa sessione.</td></tr>'}</tbody></table></div>
+        ${cos.some((c) => !(c.participants || c.consolidated_at || c.presession)) ? `<details style="margin-top:10px"><summary class="small">Altre aziende censite (${cos.filter((c) => !(c.participants || c.consolidated_at || c.presession)).length})</summary><table><tbody>${cos.filter((c) => !(c.participants || c.consolidated_at || c.presession)).map(row).join('')}</tbody></table></details>` : ''}</div>`;
+
+    const reload = async () => { C = await api(`/api/admin/sessions/${id}/control`); draw(); };
+    $$('[data-step]').forEach((b) => b.onclick = () => { sel = b.dataset.step; confirming = false; draw(); $('.flowpanel h2')?.focus?.(); });
+    $$('[data-goto]').forEach((b) => b.onclick = () => { sel = b.dataset.goto; draw(); });
+    if ($('#nextphase')) $('#nextphase').onclick = () => { confirming = true; draw(); $('#yes')?.focus(); };
+    if ($('#no')) $('#no').onclick = () => { confirming = false; draw(); };
+    if ($('#yes')) $('#yes').onclick = async () => {
+      try { await api(`/api/admin/sessions/${s.id}/phase`, { method: 'PUT', body: { phase: nx.to } }); confirming = false; sel = null; toast('Fase aggiornata'); await reload(); }
+      catch (e) { toast(e.message, true); }
+    };
+    if ($('#goback')) $('#goback').onclick = async () => {
+      const reason = $('#backreason').value.trim();
+      if (!reason) { toast('Indica il motivo per tornare indietro', true); $('#backreason').focus(); return; }
+      try { await api(`/api/admin/sessions/${s.id}/phase`, { method: 'PUT', body: { phase: prev.id, reason } }); sel = null; toast(`Tornati a: ${prev.label}`); await reload(); }
+      catch (e) { toast(e.message, true); }
+    };
+    if ($('#zipbtn')) $('#zipbtn').onclick = async () => {
       const url = `/api/admin/sessions/${s.id}/pdfs.zip`;
       const res = await fetch(url);
       if (res.status === 409) { const e = await res.json(); if (confirm(`${e.error}\n\nScaricare comunque?`)) location.href = `${url}?force=1`; return; }
@@ -96,9 +237,9 @@ async function viewControl(id) {
       const name = (res.headers.get('Content-Disposition') || '').match(/filename="([^"]+)"/)?.[1] || 'AITO_Map_report.zip';
       const a = document.createElement('a'); a.href = URL.createObjectURL(await res.blob()); a.download = name; a.click();
     };
-    $('#freeze').onclick = async () => {
-      if (!confirm('Congelare una nuova versione del benchmark con i dati consolidati attuali?')) return;
-      try { const r = await api(`/api/admin/benchmark/${s.base}/freeze`, { method: 'POST' }); toast(`Congelata: ${r.label} (N=${r.n})`); C = await api(`/api/admin/sessions/${id}/control`); draw(); } catch (e) { toast(e.message, true); }
+    if ($('#freeze')) $('#freeze').onclick = async () => {
+      if (!confirm('Congelare una nuova versione del benchmark con i dati consolidati attuali? Le versioni già usate nei report non cambiano.')) return;
+      try { const r = await api(`/api/admin/benchmark/${s.base}/freeze`, { method: 'POST' }); toast(`Congelata: ${r.label} (N=${r.n})`); await reload(); } catch (e) { toast(e.message, true); }
     };
     $$('[data-release]').forEach((b) => b.onclick = async () => {
       if (!confirm('Rilasciare il report? Viene salvata una copia che l\'azienda vede da ora in poi e che non cambierà più.')) return;
@@ -110,13 +251,13 @@ async function viewControl(id) {
           try { await api(url, { method: 'POST', body: { withoutBenchmark: true } }); toast('Report rilasciato'); } catch (e2) { toast(e2.message, true); }
         } else if (e.status !== 409) toast(e.message, true);
       }
-      C = await api(`/api/admin/sessions/${id}/control`); draw();
+      await reload();
     });
     $$('[data-note]').forEach((b) => b.onclick = async () => {
       const c = C.companies.find((x) => x.id === Number(b.dataset.note));
-      const note = prompt(`Esito della call con il leader — ${c.name}`, c.leader_call_note || '');
+      const note = prompt(`Esito della call con il leader: ${c.name}`, c.leader_call_note || '');
       if (note == null) return;
-      await api(`/api/admin/sessions/${s.id}/companies/${c.id}/note`, { method: 'PUT', body: { note } }); C = await api(`/api/admin/sessions/${id}/control`); draw();
+      await api(`/api/admin/sessions/${s.id}/companies/${c.id}/note`, { method: 'PUT', body: { note } }); await reload();
     });
   };
   const row = (c) => `<tr>
@@ -127,10 +268,23 @@ async function viewControl(id) {
     <td class="small">${c.functions.length}${c.participants && c.functions.length < 2 ? ' <span class="tag warn">1 sola</span>' : ''}</td>
     <td>${c.consolidated_at ? `<span class="tag ok">✓</span> <span class="small muted">${fmtDate(c.consolidated_at)}</span>` : '—'}</td>
     <td>${c.commitment ? '<span class="tag ok">✓</span>' : '—'}</td>
-    <td class="small">${c.consolidated_at ? `<a href="/report/${c.id}" target="_blank">apri</a> · <a href="/api/admin/pdf/${c.id}">PDF</a> · <a href="/report/${c.id}?preview=1" target="_blank">anteprima</a><br>${c.report_released_at ? `<span class="tag ok">rilasciato</span> <button class="link small" data-release="${c.id}" title="Crea una nuova versione marcata come tale">nuova versione</button>` : `<button class="sm ghost" data-release="${c.id}">Rilascia</button>`}` : ''}</td>
-    <td class="small"><a href="#/tavolo/${C.session.id}:${c.id}">QR tavolo</a>${c.consolidated_at ? `<br><button class="link small" data-note="${c.id}">Call leader${c.leader_call_note ? ' ✓' : ''}</button>` : ''}</td></tr>`;
+    <td class="small">${c.consolidated_at ? `<a href="/report/${c.id}" target="_blank">apri</a> · <a href="/api/admin/pdf/${c.id}">PDF</a>${c.report_released_at ? '<br><span class="tag ok">rilasciato</span>' : ''}` : ''}</td>
+    <td class="small"><a href="#/tavolo/${C.session.id}:${c.id}">QR tavolo</a>${c.leader_call_note ? '<br><span class="tag ok">call ✓</span>' : ''}</td></tr>`;
   draw();
-  stopPoll = poll(async () => { const n = await api(`/api/admin/sessions/${id}/control`); if (JSON.stringify(n) !== JSON.stringify(C)) { C = n; if (!document.activeElement || document.activeElement === document.body) draw(); } }, 4000);
+  stopPoll = poll(async () => {
+    const n = await api(`/api/admin/sessions/${id}/control`);
+    if (JSON.stringify(n) !== JSON.stringify(C)) { C = n; const a = document.activeElement; if (!confirming && (!a || a === document.body || a.dataset?.step)) draw(); }
+  }, 4000);
+}
+
+// Tutti i cartoncini dei tavoli di una sessione, da stampare in una volta
+async function viewTables(sid) {
+  const C = await api(`/api/admin/sessions/${sid}/control`);
+  const cs = C.companies.filter((c) => c.kind !== 'DEMO');
+  app.innerHTML = `<p class="noprint"><a class="back" href="#/sessione/${sid}">← Control room</a></p>
+    <div class="row noprint" style="margin-bottom:16px"><button onclick="print()">Stampa ${cs.length} cartoncini</button><span class="small muted">Un cartoncino per azienda: il QR porta direttamente alla registrazione con l'azienda già scelta.</span></div>
+    <div class="tablecards">${cs.map((c) => { const url = `${C.joinUrl}?c=${c.joinCode}`; return `<div class="tablecard"><div class="small muted">AITO · ${esc(C.session.title)}</div><h2>${esc(c.name)}</h2>${qrImg(url, 220)}
+      <p>Codice azienda: <b class="mono" style="font-size:1.5rem;letter-spacing:.2em">${esc(c.joinCode)}</b></p><p class="small">Inquadra il QR: l'azienda è già selezionata.</p></div>`; }).join('')}</div>`;
 }
 
 async function viewQr(id) {

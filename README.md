@@ -27,6 +27,8 @@ La console ELIS è su `http://localhost:3000/admin`. La finestra mostra anche l'
 
 ## 3. In sala (Control room della sessione)
 
+La control room segue la sessione in sette passi: **Prima della sessione** (Preparazione), **In sala** (Risposte individuali, Confronto al tavolo, Consolidamento), **Dopo la sessione** (Congelare il benchmark, Rilasciare i report, Call con i leader). A sinistra c'è l'elenco dei passi con lo stato di ciascuno; a destra il passo selezionato: cosa succede, cosa controllare (aziende senza referente, schede mancanti, tavoli con meno di 3 partecipanti, consolidamenti mancanti…) e il pulsante del passo successivo, con le conseguenze scritte prima della conferma. Per tornare indietro serve un motivo, che resta nel registro. *Stampa i cartoncini dei tavoli* prepara un cartoncino con QR e codice per ogni azienda.
+
 | Fase | Chi fa cosa |
 |---|---|
 | Preparazione | Proietta il *QR a schermo intero* (o stampa i *QR tavolo*, con l'azienda già selezionata). I partecipanti scelgono l'azienda, inseriscono nome e funzione. |

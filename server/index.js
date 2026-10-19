@@ -439,7 +439,8 @@ app.get('/api/admin/sessions/:id/control', wrap((req, res) => {
       commitment: !!q.get('SELECT 1 FROM commitments WHERE session_id = ? AND company_id = ?', s.id, c.id),
       referents: q.all('SELECT id, name, token FROM referents WHERE company_id = ?', c.id), leader_call_note: sc?.leader_call_note || '' };
   });
-  return { session: s, def, baseUrl: baseUrl(), joinUrl: `${baseUrl()}/j/${s.code}`, companies: comps,
+  const phaseSince = q.get("SELECT ts FROM audit WHERE entity = 'session' AND entity_id = ? AND action = 'phase' ORDER BY id DESC LIMIT 1", String(s.id))?.ts || null;
+  return { session: s, def, baseUrl: baseUrl(), joinUrl: `${baseUrl()}/j/${s.code}`, companies: comps, phaseSince,
     benchmark: q.all('SELECT id, label, n_companies, created_at FROM benchmark_versions WHERE base = ? ORDER BY id DESC', s.base) };
 }));
 app.post('/api/admin/sessions/:sid/companies/:cid/release', wrap((req, res) => {
