@@ -98,6 +98,10 @@ La piattaforma non sostituisce l'informativa privacy: per la rilevazione reale v
 server/instrument/  strumento V1 e regole di scoring (dati versionati)
 server/engine/      motore di calcolo (funzioni pure, testate)
 server/             database, API, export, script
-public/             pagine: admin, referente, partecipante, report, plenaria
+public/             pagine: admin, referente, partecipante, report, plenaria, dashboard live
+public/fonts/       caratteri Source Sans 3 e Source Serif 4 (licenza SIL OFL), serviti dal server
+server/fonts/       gli stessi caratteri in TTF per i PDF
 test/               test del motore
 ```
+
+Grafica: palette ELIS (notte #1F3864, petrolio #005172, oro #C9A84C, turchese #1FB5B8) e un segno ricorrente, i cinque gradini dei livelli, usato nel marchio, nelle scelte dei livelli e nei grafici. I caratteri sono incorporati nell'applicazione: nessuna pagina carica risorse da Google o da altri siti esterni.

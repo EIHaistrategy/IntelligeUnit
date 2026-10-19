@@ -1,4 +1,4 @@
-import { api, esc, $, $$, toast, poll, distBars, confTag, phaseChips, qrImg, fmtScore, fmtDate, bandTag, levelLabel } from './ui.js';
+import { api, esc, $, $$, toast, poll, distBars, confTag, phaseChips, qrImg, fmtScore, fmtDate, bandTag, levelLabel, alt } from './ui.js';
 
 const T = location.pathname.split('/').pop();
 const app = $('#app');
@@ -17,7 +17,7 @@ const itemScore = (itemId, level, sub) => {
 async function boot() {
   const i = await api('/api/instrument'); INST = i.instrument; SC = i.scoring;
   try { me = await api(`/api/r/${T}`); } catch (e) { app.innerHTML = `<div class="card"><h2>Link non valido</h2><p>${esc(e.message)}</p></div>`; return; }
-  $('#who').textContent = `${me.referent.company} · referente: ${me.referent.name}`;
+  $('#who').textContent = `${me.referent.company} · ${me.referent.name}`;
   addEventListener('hashchange', route);
   route();
 }
@@ -33,17 +33,18 @@ function route() {
 async function renderHome() {
   me = await api(`/api/r/${T}`);
   app.innerHTML = `
-    <div class="card"><h1>${esc(me.referent.company)}</h1>
-      <p class="ink2">Perimetro valutato: <b>${esc(me.referent.perimeter || 'non indicato')}</b>${me.referent.kind !== 'REALE' ? ` <span class="tag warn">${esc(me.referent.kind)}</span>` : ''}</p>
-      <p class="small muted">Da qui compili la scheda pre-sessione (una settimana prima), segui i partecipanti in sala e registri la posizione ufficiale dell'azienda nel consolidamento.</p>
-      ${me.reports.length ? `<h3>Report riservati</h3><table><tbody>${me.reports.map((v) => `<tr><td><b>${esc(v.session_title)}</b>${v.version > 1 ? ` <span class="tag">versione ${v.version}</span>` : ''}</td><td class="small muted">rilasciato il ${fmtDate(v.created_at)}</td>
+    <div class="pagehead"><div><h1>${esc(me.referent.company)}</h1>
+      <p>Perimetro valutato: <b>${esc(me.referent.perimeter || 'non indicato')}</b>${me.referent.kind !== 'REALE' ? ` <span class="tag warn">${esc(me.referent.kind)}</span>` : ''}</p></div></div>
+    <p class="lede" style="margin-bottom:20px">Da qui compili la scheda pre-sessione una settimana prima, segui i partecipanti in sala e registri la posizione ufficiale dell'azienda nel consolidamento.</p>
+    <div class="${me.reports.length ? 'card' : 'hidden'}">
+      ${me.reports.length ? `<h2>Report riservati</h2><table><tbody>${me.reports.map((v) => `<tr><td><b>${esc(v.session_title)}</b>${v.version > 1 ? ` <span class="tag">versione ${v.version}</span>` : ''}</td><td class="small muted">rilasciato il ${fmtDate(v.created_at)}</td>
         <td><a href="/report/${me.referent.companyId}?t=${T}&snap=${v.id}" target="_blank">Apri</a> · <a href="/api/report/${me.referent.companyId}/pdf?t=${T}&snap=${v.id}">PDF</a></td></tr>`).join('')}</tbody></table>` : ''}
     </div>
     <div class="card"><h2>Sessioni</h2><div class="tablewrap"><table>
       <thead><tr><th>Sessione</th><th>Fase</th><th>Scheda pre-sessione</th><th>Partecipanti</th><th>Consolidato</th><th></th></tr></thead>
       <tbody>${me.sessions.map((s) => `<tr>
         <td><b>${esc(s.title)}</b>${s.mode === 'adhoc' ? ' <span class="tag gold">ad hoc</span>' : ''}</td>
-        <td><span class="tag ${s.phase === 'chiusa' ? '' : s.phase === 'preparazione' ? '' : 'navy'}">${esc(s.phase)}</span></td>
+        <td><span class="tag ${['chiusa', 'preparazione'].includes(s.phase) ? '' : 'navy'}">${esc(s.phase.charAt(0).toUpperCase() + s.phase.slice(1))}</span></td>
         <td>${s.presession_updated_at ? `<span class="tag ok">compilata</span> <span class="small muted">${fmtDate(s.presession_updated_at)}</span>` : '<span class="tag warn">da compilare</span>'}<br><a href="#/scheda/${s.base}" class="small">Apri scheda</a></td>
         <td class="num">${s.participants}</td>
         <td>${s.consolidated_at ? `<span class="tag ok">sì</span> <span class="small muted">${fmtDate(s.consolidated_at)}</span>` : '—'}</td>
@@ -64,18 +65,19 @@ async function renderScheda(base) {
     if (f.type === 'count') return `<input type="number" min="0" step="1" name="${f.id}" aria-label="${esc(f.q)}" value="${esc(v ?? '')}" style="max-width:140px">`;
     return '';
   };
-  app.innerHTML = `<p><a href="#/">← Sessioni</a></p>
-    <div class="card"><h1>Scheda pre-sessione · ${esc(r.session.name)}</h1>
-      <p class="ink2">Da compilare una settimana prima della sessione. Sono dati fattuali: servono in sala per scegliere le sotto-opzioni senza doverli cercare durante il consolidamento. Se un dato non è disponibile, lascia vuoto.</p>
-      ${r.saved.updated_at ? `<p class="small muted">Ultimo salvataggio: ${fmtDate(r.saved.updated_at)}</p>` : ''}</div>
+  app.innerHTML = `<a class="back" href="#/">← Sessioni</a>
+    <div class="pagehead"><div><h1>Scheda pre-sessione: ${esc(r.session.name)}</h1></div></div>
+    <div class="card flat">
+      <p class="ink2" style="margin:0">Da compilare una settimana prima della sessione. Sono dati fattuali: servono in sala per scegliere le sotto-opzioni senza doverli cercare durante il consolidamento. Se un dato non è disponibile, lascia vuoto.</p>
+      ${r.saved.updated_at ? `<p class="small muted" style="margin:8px 0 0">Ultimo salvataggio: ${fmtDate(r.saved.updated_at)}</p>` : ''}</div>
     <form id="f">
-    ${Object.entries(byItem).map(([itemId, facts]) => `<div class="card"><h3>${esc(itemId)} · ${esc(INST.items[itemId].title)}</h3>
+    ${Object.entries(byItem).map(([itemId, facts]) => `<div class="card"><h2><span class="tag navy" style="margin-right:8px;vertical-align:4px">${esc(itemId)}</span>${esc(INST.items[itemId].title)}</h2>
       ${facts[0].factOwner ? `<p class="small"><span class="tag gold">${esc(facts[0].factOwner)}</span></p>` : ''}
-      ${facts.map((f) => `<div style="margin-top:10px"><div class="small muted">Serve per ${esc(itemId)}-L${f.level}</div><b>${esc(f.q)}</b><div style="margin-top:6px">${input(f)}</div></div>`).join('')}</div>`).join('')}
-    <div class="card"><h3>Profilo di approccio</h3><p class="small muted">Domande fuori punteggio: descrivono come l'azienda si trasforma, non quanto è avanti.</p>
-      ${r.fields.profile.map((p) => `<div style="margin-top:10px"><b>${esc(p.q)}</b><div style="margin-top:6px">${p.type === 'percent'
+      ${facts.map((f) => `<fieldset class="q"><legend>${esc(f.q)}</legend><div class="small muted">Serve per il livello ${f.level}</div>${input(f)}</fieldset>`).join('')}</div>`).join('')}
+    <div class="card"><h2>Profilo di approccio</h2><p class="small muted">Domande fuori punteggio: descrivono come l'azienda si trasforma, non quanto è avanti.</p>
+      ${r.fields.profile.map((p) => `<fieldset class="q"><legend>${esc(p.q)}</legend><div>${p.type === 'percent'
         ? `<div class="row"><input type="number" min="0" max="100" step="0.1" name="${p.id}" aria-label="${esc(p.q)}" value="${esc(d[p.id] ?? '')}" style="max-width:140px"> <span>%</span></div>`
-        : p.options.map((o) => `<label class="check"><input type="radio" name="${p.id}" value="${esc(o)}" ${d[p.id] === o ? 'checked' : ''}> ${esc(o)}</label>`).join('')}</div></div>`).join('')}</div>
+        : p.options.map((o) => `<label class="check"><input type="radio" name="${p.id}" value="${esc(o)}" ${d[p.id] === o ? 'checked' : ''}> ${esc(o)}</label>`).join('')}</div></fieldset>`).join('')}</div>
     <div class="sticky-foot"><button type="submit">Salva la scheda</button></div></form>`;
   $('#f').onsubmit = async (ev) => {
     ev.preventDefault();
@@ -124,8 +126,8 @@ function draw() {
     consolidamento: 'Consolidamento (10 minuti): registrate la posizione ufficiale dell\'azienda, poi priorità e commitment.',
     chiusa: 'Sessione chiusa.',
   }[s.phase];
-  app.innerHTML = `<p><a href="#/">← Sessioni</a></p>
-    <div class="card"><div class="row between"><h1>${esc(s.title)}</h1>${phaseChips(s.phase)}</div><div class="banner info">${intro}</div></div>
+  app.innerHTML = `<a class="back" href="#/">← Sessioni</a>
+    <div class="sesshead"><div class="pagehead"><h1>${esc(s.title)}</h1>${phaseChips(s.phase)}</div><p class="phaseintro">${intro}</p></div>
     <div id="parts"></div><div id="body"></div>`;
   drawParticipants();
   if (s.phase === 'confronto') drawComparison();
@@ -136,13 +138,13 @@ function drawParticipants() {
   const el = $('#parts'); if (!el) return;
   const showQr = ['preparazione', 'individuale'].includes(sess.session.phase);
   el.innerHTML = `<div class="card"><div class="grid ${showQr ? 'c2' : ''}">
-    <div><h3>Partecipanti della vostra azienda (${sess.participants.length})</h3>
+    <div><h2>Partecipanti della vostra azienda <span class="muted" style="font-family:var(--font);font-weight:600">${sess.participants.length}</span></h2>
       ${sess.participants.length ? `<table><tbody>${sess.participants.map((p) => `<tr><td>${esc(p.name)}</td><td class="small muted">${esc(INST.functions.find((f) => f.id === p.func)?.label || p.func)}</td>
         <td>${p.submitted ? '<span class="tag ok">inviato</span>' : '<span class="tag">in corso</span>'}</td>
         <td>${showQr ? `<button class="sm danger" data-rm="${p.id}" title="Rimuovi una registrazione errata">Rimuovi</button>` : ''}</td></tr>`).join('')}</tbody></table>`
         : '<p class="muted">Nessuno registrato. Fate inquadrare il QR ai partecipanti.</p>'}
       <p class="small muted">Sono attesi 3–4 partecipanti tra le funzioni protagoniste della sessione. La confidence è alta con almeno 3 risposte valide da almeno 2 funzioni diverse.</p></div>
-    ${showQr ? `<div style="text-align:center">${qrImg(sess.joinUrl, 200)}<p>Codice azienda: <b class="mono" style="font-size:1.3rem;letter-spacing:.15em">${esc(new URL(sess.joinUrl).searchParams.get('c') || '')}</b></p><p class="small mono" style="word-break:break-all">${esc(sess.joinUrl)}</p></div>` : ''}
+    ${showQr ? `<div style="text-align:center">${qrImg(sess.joinUrl, 200)}<p style="margin-top:10px">Codice azienda: <b class="mono" style="font-size:1.3rem;letter-spacing:.15em">${esc(new URL(sess.joinUrl).searchParams.get('c') || '')}</b></p><p class="small mono" style="word-break:break-all">${esc(sess.joinUrl)}</p></div>` : ''}
   </div></div>`;
   $$('[data-rm]').forEach((b) => b.onclick = async () => {
     if (!confirm('Rimuovere questa registrazione? Le sue risposte non verranno considerate.')) return;
@@ -152,9 +154,9 @@ function drawParticipants() {
 }
 
 function comparisonHtml(c) {
-  return `<div class="grid c2">${c.items.map((it) => `<div class="card"><div class="row between"><h3>${esc(it.itemId)} · ${esc(it.title)}</h3>${confTag(it.confidence)}</div>
+  return `<div class="grid c2">${c.items.map((it) => `<div class="card"><div class="row between" style="align-items:flex-start;margin-bottom:12px"><h3 style="margin:0">${esc(it.itemId)} · ${esc(it.title)}</h3>${confTag(it.confidence)}</div>
     ${distBars(it.summary)}
-    <p class="small" style="margin-top:8px">Mediana <b>${it.summary.median ?? '—'}</b> · range <b>${it.summary.range ?? '—'}</b> · risposte valide <b>${it.summary.valid}</b> · N.D. <b>${it.summary.nd}</b> · funzioni <b>${it.summary.perspectives}</b></p>
+    <dl class="facts"><div><dt>Mediana</dt><dd>${it.summary.median ?? '—'}</dd></div><div><dt>Range</dt><dd>${it.summary.range ?? '—'}</dd></div><div><dt>Valide</dt><dd>${it.summary.valid}</dd></div><div><dt>N.D.</dt><dd>${it.summary.nd}</dd></div><div><dt>Funzioni</dt><dd>${it.summary.perspectives}</dd></div></dl>
     ${it.summary.divergent ? '<div class="banner warn">Divergenza ≥ 2 livelli: discussione obbligatoria prima del consolidamento.</div>' : ''}</div>`).join('')}</div>
     <div class="card"><h3>Confronti a coppie</h3>${c.pairs.map((p) => `<p><b>${esc(p.a)} ${esc(p.aTitle)}</b>: ${p.counts.A} · <b>${esc(p.b)} ${esc(p.bTitle)}</b>: ${p.counts.B} · N.D.: ${p.counts.ND}
       ${p.discordant ? `<br><span class="tag risk">${p.discordant} su ${p.evaluable} in contrasto con i livelli scelti dalla stessa persona: punto da chiarire</span>` : ''}</p>`).join('')}</div>`;
@@ -186,7 +188,7 @@ function drawConsolidation() {
   $('#body').innerHTML = `
     ${done ? `<div class="banner ok">Consolidamento confermato il ${fmtDate(C.consolidatedAt)}. ${editable ? 'Finché la fase è aperta potete correggerlo e confermare di nuovo: la versione precedente resta nello storico.' : ''}</div>` : ''}
     ${!editable && !done ? '<div class="banner warn">Il consolidamento non è stato completato. Contattate il facilitatore ELIS.</div>' : ''}
-    <details class="card"><summary><b>Rivedi la vista di confronto</b></summary><div style="margin-top:12px">${comparisonHtml(C.comparison)}</div></details>
+    <details class="card"><summary>Rivedi la vista di confronto</summary><div style="margin-top:12px">${comparisonHtml(C.comparison)}</div></details>
     <div id="items"></div>
     ${editable ? '<div class="card"><div id="errs" role="alert"></div>' + (done ? '<label class="f" for="chg">Motivo della modifica (il consolidamento era già confermato) *</label><input type="text" id="chg" maxlength="1000" style="margin-bottom:10px">' : '') + '<button class="big" id="confirm">Conferma il consolidamento</button><p class="small muted" style="margin-top:8px">Livello ufficiale e sotto-opzione diventano il dato dell\'azienda per questa sessione.</p></div>' : ''}
     <div id="summary"></div><div id="commit"></div>`;
@@ -221,15 +223,15 @@ function drawItem(it, editable) {
   const override = s.medianIsInteger && f.level != null && f.level !== s.median;
   const score = itemScore(it.itemId, f.level, f.sub);
   const dis = editable ? '' : 'aria-disabled="true" style="pointer-events:none"';
-  host.innerHTML = `<div class="row between"><h2>${esc(it.itemId)} · ${esc(it.title)}</h2><div class="kpi">${s.valid === 0 ? 'N.D.' : fmtScore(score)} <small>/100</small></div></div>
-    <p class="ink2"><i>${esc(it.statement)}</i></p>
-    <p class="small">Risposte valide ${s.valid} · N.D. ${s.nd} · mediana <b>${s.median ?? '—'}</b> · range ${s.range ?? '—'} · ${confTag(it.confidence)}</p>
+  host.innerHTML = `<div class="row between" style="align-items:flex-start"><div><span class="tag navy">${esc(it.itemId)}</span><h2 style="margin-top:6px">${esc(it.title)}</h2></div><div class="kpi" style="text-align:right">${s.valid === 0 ? 'N.D.' : fmtScore(score)}<small> /100</small></div></div>
+    <p class="statement">${esc(it.statement)}</p>
+    <div class="row" style="margin-bottom:12px"><span class="small ink2">Mediana <b>${s.median ?? '—'}</b>, range ${s.range ?? '—'}, ${s.valid} risposte valide, ${s.nd} N.D.</span>${confTag(it.confidence)}</div>
     ${s.valid === 0 ? '<div class="banner warn">Nessun partecipante ha visibilità su questo item: il risultato ufficiale resta N.D. e non entra nel benchmark.</div>' : `
     ${s.medianIsInteger ? `<div class="banner info">Mediana proposta: livello ${s.median}. Confermatela o scegliete un altro livello motivando.</div>` : `<div class="banner warn">Mediana ${String(s.median).replace('.', ',')}: scegliete il livello il cui descrittore rappresenta meglio la situazione osservabile.</div>`}
-    <h4>1 · Livello ufficiale</h4>
-    <div class="levels" role="group" aria-label="Livello ufficiale ${esc(it.itemId)}" ${dis}>${it.levels.map((l) => `<button type="button" class="level ${f.level === l.level ? 'sel' : ''}" data-l="${l.level}" aria-pressed="${f.level === l.level}" ${editable ? '' : 'disabled'}><span class="n" aria-hidden="true">${l.level}</span><span><span class="sr-only">Livello ${l.level}: </span>${esc(l.descriptor)} ${l.valoriale ? '<span class="tag gold">valoriale</span>' : ''}</span></button>`).join('')}</div>
+    <h4 class="stepnum"><span>1</span>Livello ufficiale</h4>
+    <div class="levels" role="group" aria-label="Livello ufficiale ${esc(it.itemId)}" ${dis}>${it.levels.map((l) => `<button type="button" class="level ${f.level === l.level ? 'sel' : ''}" data-l="${l.level}" aria-pressed="${f.level === l.level}" ${editable ? '' : 'disabled'}><span class="n" aria-hidden="true">${l.level}${alt(l.level)}</span><span><span class="sr-only">Livello ${l.level}: </span>${esc(l.descriptor)} ${l.valoriale ? '<span class="tag gold">valoriale</span>' : ''}</span></button>`).join('')}</div>
     ${override ? `<label class="f" for="reason-${it.itemId}">Motivazione dell'override (il livello differisce dalla mediana) *</label><textarea id="reason-${it.itemId}" data-reason maxlength="1000" ${editable ? '' : 'disabled'}>${esc(f.overrideReason || '')}</textarea>` : ''}
-    ${subs.length ? `<h4 style="margin-top:14px">2 · Sotto-opzione (scelta forzata)</h4>
+    ${subs.length ? `<h4 class="stepnum" style="margin-top:20px"><span>2</span>Sotto-opzione (scelta forzata)</h4>
       ${lv.suggestion ? (lv.suggestion.value != null && lv.suggestion.value !== '' && !(Array.isArray(lv.suggestion.value) && !lv.suggestion.value.length) ? `<div class="fact">Dalla scheda pre-sessione: «${esc(Array.isArray(lv.suggestion.value) ? lv.suggestion.value.join(', ') : lv.suggestion.value)}» → indica <b>${f.level}${esc(lv.suggestion.maps || '')}</b></div>` : '<div class="fact">Il dato per questa sotto-opzione non è nella scheda pre-sessione.</div>') : ''}
       <div class="subchoice" role="group" aria-label="Sotto-opzione ${esc(it.itemId)}" ${dis}>${subs.map((x) => `<button type="button" class="level ${f.sub === x.key ? 'sel' : ''}" data-s="${x.key}" aria-pressed="${f.sub === x.key}" ${editable ? '' : 'disabled'}><span class="n" aria-hidden="true">${f.level}${x.key}</span><span><span class="sr-only">Opzione ${f.level}${x.key}: </span>${esc(x.text)}</span></button>`).join('')}</div>
       <p class="small muted">Se non ci sono evidenze sufficienti per un'opzione superiore, vale la prima opzione del livello.</p>` : f.level ? '<p class="small muted">Il livello scelto non ha sotto-opzioni.</p>' : ''}`}`;
@@ -247,7 +249,7 @@ function drawSummary() {
     ${C.def.items.map((id) => { const c = C.current[id]; return `<tr><td>${esc(id)} ${esc(INST.items[id].title)}</td><td><b>${levelLabel(c?.level, c?.sub)}</b>${c?.override ? ' <span class="tag warn">override</span>' : ''}</td><td class="num">${fmtScore(c?.score)}</td><td>${esc(c?.confidence_label || '')}</td></tr>`; }).join('')}
     </tbody></table></div>
     <h3 style="margin-top:14px">Dimensioni</h3>
-    ${C.summary.dims.map((d) => `<p><span class="dim-letter">${d.id}</span><b>${esc(d.name)}</b>: ${fmtScore(d.score)} ${bandTag(d.score, SC)}</p>`).join('')}
+    <div class="dimlist">${C.summary.dims.map((d) => `<div><span class="dim-letter">${d.id}</span><b>${esc(d.name)}</b><span class="kpi" style="font-size:1.3rem">${fmtScore(d.score)}</span>${bandTag(d.score, SC)}</div>`).join('')}</div>
     ${C.summary.coherence.length ? `<h3>Lettura di coerenza</h3>${C.summary.coherence.map((r) => `<p><b>${r.id} · ${esc(r.label)}</b>: ${r.flagged ? `<span class="tag risk">da esaminare</span> ${esc(r.signal)}` : r.comparisons.some((x) => x.status === 'prudenza') ? '<span class="tag teal">prudenza</span> l\'abilitante è più avanti' : '<span class="tag ok">coerente</span>'}</p>`).join('')}
       <p class="small muted">La lettura completa, con il benchmark, arriva nel report riservato e si discute nella call con il leader.</p>` : ''}</div>`;
 }

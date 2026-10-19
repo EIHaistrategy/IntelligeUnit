@@ -16,9 +16,10 @@ async function boot() {
 
 function login() {
   $('#nav').classList.add('hidden'); $('#logout').classList.add('hidden');
-  app.innerHTML = `<div class="card" style="max-width:420px;margin:40px auto"><h1>Accesso ELIS</h1>
-    <label class="f">Password</label><input type="password" id="pw" autofocus>
-    <p class="small muted">La password iniziale è stampata nella finestra del terminale al primo avvio.</p>
+  $('.layout').classList.add('solo');
+  app.innerHTML = `<div class="card lift login"><h1>Console ELIS</h1><p class="ink2">Sessioni, aziende, benchmark e report del pilot AITO 3.</p>
+    <label class="f" for="pw">Password</label><input type="password" id="pw" autocomplete="current-password" autofocus>
+    <p class="small muted" style="margin-top:8px">La password iniziale è stampata nella finestra del terminale al primo avvio.</p>
     <button id="go" class="big">Entra</button></div>`;
   const go = async () => { try { await api('/api/admin/login', { method: 'POST', body: { password: $('#pw').value } }); location.reload(); } catch (e) { toast(e.message, true); } };
   $('#go').onclick = go; $('#pw').onkeydown = (e) => e.key === 'Enter' && go();
@@ -37,9 +38,9 @@ async function viewSessions() {
   const ss = await api('/api/admin/sessions');
   app.innerHTML = `<h1>Sessioni</h1>
     ${NET.baseUrl.includes('localhost') ? '<div class="banner risk">Non è stato trovato un indirizzo di rete: i telefoni non potranno collegarsi. Verifica il Wi-Fi in Impostazioni.</div>' : ''}
-    <div class="grid c2">${ss.map((s) => `<div class="card"><div class="row between"><h3>${esc(s.title)}</h3>${s.mode === 'adhoc' ? '<span class="tag gold">ad hoc</span>' : ''}</div>
-      <p class="small muted">${esc(INST.sessions.find((x) => x.id === s.base).items.join(' · '))} · codice <span class="mono">${esc(s.code)}</span> · ${esc(s.channel)}</p>
-      ${phaseChips(s.phase)}<div style="margin-top:12px"><a class="btn sm" href="#/sessione/${s.id}">Control room</a></div></div>`).join('')}</div>
+    <div class="grid c2">${ss.map((s) => `<div class="card sesscard"><div class="row between" style="align-items:flex-start"><div><h2 style="margin:0">${esc(s.title)}</h2>
+      <p class="small muted" style="margin:4px 0 0">Item ${esc(INST.sessions.find((x) => x.id === s.base).items.join(', '))} · codice <span class="mono">${esc(s.code)}</span> · ${esc(s.channel)}</p></div>${s.mode === 'adhoc' ? '<span class="tag gold">ad hoc</span>' : ''}</div>
+      <div style="margin:18px 0 16px">${phaseChips(s.phase)}</div><a class="btn sm" href="#/sessione/${s.id}">Apri la control room</a></div>`).join('')}</div>
     <div class="card"><h2>Sessione ad hoc</h2><p class="small ink2">Per un'azienda assente: stesso flusso, stessi descrittori e stessa versione; la modalità viene registrata e i dati entrano nella versione successiva del benchmark (§6.3).</p>
       <div class="grid c3"><div><label class="f">Sessione di riferimento</label><select id="ah_base">${INST.sessions.map((s) => `<option value="${s.id}">${esc(s.name)}</option>`).join('')}</select></div>
       <div><label class="f">Data</label><input type="date" id="ah_date"></div>
@@ -61,14 +62,15 @@ async function viewControl(id) {
     const totS = C.companies.reduce((a, c) => a + c.submitted, 0);
     const active = C.companies.filter((c) => c.participants || c.consolidated_at || c.presession);
     const others = C.companies.filter((c) => !active.includes(c));
-    app.innerHTML = `<p><a href="#/sessioni">← Sessioni</a></p>
-      <div class="card"><div class="row between"><div><h1>${esc(s.title)}</h1><p class="small muted">${esc(C.def.items.map((i) => `${i} ${INST.items[i].title}`).join(' · '))}</p></div>${phaseChips(s.phase)}</div>
-        <div class="row"><span class="small muted">Passa alla fase:</span>${PHASES.map((p, i) => { const locked = (i < idx && i <= 1 && idx >= 2) || i > idx + 1; return `<button class="sm ${i === idx + 1 ? '' : 'ghost'}" data-phase="${p.id}" ${i === idx || locked ? 'disabled' : ''} title="${i > idx + 1 ? 'Le fasi si aprono una alla volta' : locked ? 'Dopo il confronto non si torna alla fase individuale (§2)' : ''}">${i < idx ? '↩ ' : ''}${esc(p.label)}</button>`; }).join('')}</div>
+    app.innerHTML = `<a class="back" href="#/sessioni">← Sessioni</a>
+      <div class="card ctlhead"><div class="pagehead"><div><h1>${esc(s.title)}</h1><p class="small">${esc(C.def.items.map((i) => `${i} ${INST.items[i].title}`).join(' · '))}</p></div></div>
+        ${phaseChips(s.phase)}
+        <div class="row phasectl"><span class="small ink2">Passa alla fase</span>${PHASES.map((p, i) => { const locked = (i < idx && i <= 1 && idx >= 2) || i > idx + 1; return `<button class="sm ${i === idx + 1 ? '' : 'ghost'}" data-phase="${p.id}" ${i === idx || locked ? 'disabled' : ''} title="${i > idx + 1 ? 'Le fasi si aprono una alla volta' : locked ? 'Dopo il confronto non si torna alla fase individuale (§2)' : ''}">${i < idx ? '↩ ' : ''}${esc(p.label)}</button>`; }).join('')}</div>
         <p class="small muted" style="margin-top:8px">Individuale → Confronto blocca le risposte individuali. Il consolidamento si può confermare solo nella fase Consolidamento.</p></div>
       <div class="grid c3">
-        <div class="card" style="text-align:center">${qrImg(C.joinUrl, 180)}<p class="small mono" style="word-break:break-all">${esc(C.joinUrl)}</p><a class="btn sm" href="#/qr/${s.id}">QR a schermo intero</a></div>
-        <div class="card"><div class="kpi">${totP} <small>partecipanti</small></div><div class="kpi">${totS} <small>hanno inviato</small></div>
-          <div class="kpi">${C.companies.filter((c) => c.consolidated_at).length} <small>aziende consolidate</small></div></div>
+        <div class="card" style="text-align:center"><h3 style="text-align:left">QR di sala</h3>${qrImg(C.joinUrl, 180)}<p class="small mono" style="word-break:break-all">${esc(C.joinUrl)}</p><a class="btn sm" href="#/qr/${s.id}">QR a schermo intero</a></div>
+        <div class="card"><h3>In sala</h3><div class="stat"><span class="v">${totP}</span><span class="l">partecipanti registrati</span></div><div class="stat"><span class="v">${totS}</span><span class="l">hanno inviato le risposte</span></div>
+          <div class="stat"><span class="v">${C.companies.filter((c) => c.consolidated_at).length}</span><span class="l">aziende consolidate</span></div></div>
         <div class="card"><h3>Benchmark ${esc(INST.sessions.find((x) => x.id === s.base).name)}</h3>
           ${C.benchmark.length ? `<p class="small">Ultima versione: <b>${esc(C.benchmark[0].label)}</b> (N=${C.benchmark[0].n_companies})</p>` : '<p class="small muted">Nessuna versione congelata.</p>'}
           <div class="row"><a class="btn sm" href="/live/${s.id}" target="_blank">Dashboard live</a><button class="sm gold" id="freeze">Congela benchmark</button><a class="btn sm ghost" href="/plenaria/${s.base}" target="_blank">Plenaria</a></div>
@@ -163,7 +165,7 @@ async function viewCompanies() {
       <div style="margin-top:12px"><button id="n_go">Aggiungi</button></div></div>
     <div class="card"><div class="tablewrap"><table><thead><tr><th>Azienda</th><th>Tipo</th><th>Perimetro</th><th>Consensi</th><th>Referenti</th><th></th></tr></thead><tbody>
       ${cs.map((c) => `<tr><td><b>${esc(c.name)}</b></td><td><span class="tag ${c.kind === 'REALE' ? 'ok' : 'warn'}">${esc(c.kind)}</span></td><td class="small">${esc(c.perimeter)}</td>
-        <td class="small">${['benchmark', 'peer', 'testimonianza', 'followup'].map((k) => `${c.consents[k]?.granted ? '✓' : '·'} ${k}`).join('<br>')}</td>
+        <td class="small"><div class="consents">${['benchmark', 'peer', 'testimonianza', 'followup'].map((k) => `<span class="${c.consents[k]?.granted ? 'yes' : ''}">${c.consents[k]?.granted ? '✓' : '–'} ${k}</span>`).join('')}</div></td>
         <td class="small">${c.referents.map((r) => esc(r.name)).join('<br>') || '—'}</td><td><a class="btn sm" href="#/azienda/${c.id}">Apri</a></td></tr>`).join('')}
     </tbody></table></div></div>`;
   $('#n_go').onclick = async () => {
@@ -176,7 +178,7 @@ async function viewCompany(id) {
   const cs = await api('/api/admin/companies');
   const c = cs.find((x) => x.id === Number(id));
   const R = await api(`/api/admin/report/${id}`);
-  app.innerHTML = `<p><a href="#/aziende">← Aziende</a></p>
+  app.innerHTML = `<a class="back" href="#/aziende">← Aziende</a>
     <div class="card"><h1>${esc(c.name)}</h1><div class="grid c4">
       <div><label class="f">Nome</label><input type="text" id="e_name" value="${esc(c.name)}"></div>
       <div><label class="f">Perimetro</label><input type="text" id="e_per" value="${esc(c.perimeter)}"></div>

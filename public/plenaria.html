@@ -4,19 +4,23 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AITO Map · Plenaria</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%231F3864%22/%3E%3Ctext x=%2216%22 y=%2222%22 font-size=%2216%22 font-family=%22Arial%22 font-weight=%22700%22 fill=%22%23C9A84C%22 text-anchor=%22middle%22%3EA%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%227%22 fill=%22%231F3864%22/%3E%3Cg fill=%22%23C9A84C%22%3E%3Crect x=%226%22 y=%2220%22 width=%223.4%22 height=%226%22 rx=%22.8%22/%3E%3Crect x=%2210.4%22 y=%2217%22 width=%223.4%22 height=%229%22 rx=%22.8%22/%3E%3Crect x=%2214.8%22 y=%2214%22 width=%223.4%22 height=%2212%22 rx=%22.8%22/%3E%3Crect x=%2219.2%22 y=%2210%22 width=%223.4%22 height=%2216%22 rx=%22.8%22/%3E%3Crect x=%2223.6%22 y=%226%22 width=%223.4%22 height=%2220%22 rx=%22.8%22/%3E%3C/g%3E%3C/svg%3E">
+<link rel="preload" href="/static/fonts/sans-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/static/fonts/serif-600.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/static/css/app.css">
 <style>
   body { font-size: 17px; }
-  .pl h1 { font-size: 1.9rem; }
-  .stack-bar { display: flex; height: 38px; border-radius: 8px; overflow: hidden; background: var(--line-2); }
-  .stack-bar div { display: grid; place-items: center; color: #fff; font-weight: 700; font-size: .85rem; min-width: 0; }
-  .l1 { background: #C9D1DB; color: #17212E; } .l2 { background: #9FD3E2; color: #0E2A3A; } .l3 { background: #4FC7C9; color: #0B2B2C; } .l4 { background: #0B7FA0; } .l5 { background: #1F3864; }
+  .wrap { max-width: 1320px; }
+  .pl h1 { font-family: var(--display); font-size: clamp(2rem, 3.4vw, 3rem); margin: 0; }
+  .plhead { margin-bottom: 22px; } .plhead p { margin: 8px 0 0; color: var(--ink-2); font-size: 1.08rem; }
+  .stack-bar { display: flex; height: 40px; gap: 2px; border-radius: 6px; overflow: hidden; margin-top: 12px; }
+  .stack-bar div { display: grid; place-items: center; font-weight: 700; font-size: .92rem; min-width: 0; }
+  .pl .kpi { font-size: 3rem; }
 </style>
 </head>
 <body>
-<div class="topbar"><span class="brand">A I T O <b>·</b> MAP</span><span class="sub">Benchmark della community · anonimo e aggregato</span><span class="spacer"></span>
-  <label class="small" style="color:#fff"><input type="checkbox" id="prev"> anteprima dati dimostrativi</label></div>
+<div class="topbar"><span class="brand"><svg viewBox="0 0 26 22" aria-hidden="true"><rect x="0" y="16" width="4" height="6" rx="1" fill="#C9A84C" fill-opacity=".45"/><rect x="5.5" y="12" width="4" height="10" rx="1" fill="#C9A84C" fill-opacity=".6"/><rect x="11" y="8" width="4" height="14" rx="1" fill="#C9A84C" fill-opacity=".75"/><rect x="16.5" y="4" width="4" height="18" rx="1" fill="#C9A84C" fill-opacity=".9"/><rect x="22" y="0" width="4" height="22" rx="1" fill="#C9A84C"/></svg>AITO Map</span><span class="sub">Benchmark della community · anonimo e aggregato</span><span class="spacer"></span>
+  <label><input type="checkbox" id="prev"> anteprima dati dimostrativi</label></div>
 <div class="wrap pl" id="app"><p class="muted">Caricamento…</p></div>
 <script type="module">
 import { api, esc, $, fmtScore } from '/static/js/ui.js';
@@ -33,16 +37,17 @@ if (!P.available) { $('#app').innerHTML = `<div class="card"><h1>${esc(P.def.nam
 else {
   const na = (s) => `<div class="banner warn">Non disponibile: N = ${s.n}. Il benchmark si mostra da ${SC.benchmark.minN} aziende in su, per evitare che le singole aziende siano riconoscibili.</div>`;
   $('#app').innerHTML = `
-    ${P.preview ? '<div class="banner preview">ANTEPRIMA CON DATI DIMOSTRATIVI E DI TEST — non è il benchmark ufficiale</div>' : ''}
-    <div class="card"><h1>${esc(P.def.name)} · come si posiziona la community</h1>
-      <p class="ink2">Versione: <b>${esc(P.version)}</b> · aziende con dati: <b>${P.nCompanies}</b>. Nessun nome di azienda: solo distribuzioni.</p></div>
-    <div class="grid c2">${P.dims.map((d) => `<div class="card"><h2><span class="dim-letter">${d.dimension}</span>${esc(d.name)}</h2>
+    ${P.preview ? '<div class="banner preview">Anteprima con dati dimostrativi e di test: non è il benchmark ufficiale</div>' : ''}
+    <div class="plhead"><h1>${esc(P.def.name)}</h1>
+      <p>Come si posiziona la community. Versione <b>${esc(P.version)}</b>, ${P.nCompanies} aziende con dati, nessun nome: solo distribuzioni.</p></div>
+    <div class="grid c2">${P.dims.map((d) => `<div class="card"><h2 style="display:flex;align-items:center"><span class="dim-letter">${d.dimension}</span>${esc(d.name)}</h2>
       ${d.stats.available ? `<div class="kpi">${fmtScore(d.stats.median)} <small>mediana · Q1–Q3 ${fmtScore(d.stats.q1)}–${fmtScore(d.stats.q3)} · N=${d.stats.n} · ${d.stats.label}</small></div>
         ${d.gap.available ? `<p style="margin-top:8px">In fascia Fondativa: <b>${Math.round(d.gap.fondShare * 100)}%</b> delle aziende · eterogeneità (IQR) <b>${fmtScore(d.gap.iqr)}</b> punti → <span class="tag navy">${esc(d.gap.quadrant)}</span></p>` : ''}` : na(d.stats)}</div>`).join('')}</div>
-    ${P.items.map((it) => `<div class="card"><h3>${esc(it.itemId)} · ${esc(it.title)}</h3>
-      ${it.dist.available ? `<div class="stack-bar">${it.dist.levels.filter((l) => l.count).map((l) => `<div class="l${l.level}" style="flex:${l.count}">Liv. ${l.level} · ${l.count}</div>`).join('')}</div>
+    <h2 style="margin:28px 0 12px">Capacità della sessione</h2>${P.items.map((it) => `<div class="card"><h3>${esc(it.itemId)} · ${esc(it.title)}</h3>
+      ${it.dist.available ? `<div class="stack-bar">${it.dist.levels.filter((l) => l.count).map((l) => `<div class="l${l.level}" style="flex:${l.count}" title="Livello ${l.level}: ${l.count} aziende">${l.count}</div>`).join('')}</div>
         <p class="small muted" style="margin-top:6px">${it.dist.levels.filter((l) => l.subDist).map((l) => `Liv. ${l.level}: ${l.subDist.map((s) => `${l.level}${s.key} ${s.count}`).join(' · ')}`).join(' — ') || 'Sotto-livelli aggregati al livello (regola dei 5).'}
-        · mediana ${fmtScore(it.stats.median)} · N=${it.stats.n}</p>` : na(it.dist)}</div>`).join('')}`;
+        · mediana ${fmtScore(it.stats.median)} · N=${it.stats.n}</p>` : na(it.dist)}</div>`).join('')}
+    <div class="legend">${[1, 2, 3, 4, 5].map((l) => `<span><i class="l${l}"></i>Livello ${l}</span>`).join('')}</div>`;
 }
 </script>
 </body>

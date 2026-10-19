@@ -4,27 +4,37 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AITO Map · Report riservato</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%231F3864%22/%3E%3Ctext x=%2216%22 y=%2222%22 font-size=%2216%22 font-family=%22Arial%22 font-weight=%22700%22 fill=%22%23C9A84C%22 text-anchor=%22middle%22%3EA%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%227%22 fill=%22%231F3864%22/%3E%3Cg fill=%22%23C9A84C%22%3E%3Crect x=%226%22 y=%2220%22 width=%223.4%22 height=%226%22 rx=%22.8%22/%3E%3Crect x=%2210.4%22 y=%2217%22 width=%223.4%22 height=%229%22 rx=%22.8%22/%3E%3Crect x=%2214.8%22 y=%2214%22 width=%223.4%22 height=%2212%22 rx=%22.8%22/%3E%3Crect x=%2219.2%22 y=%2210%22 width=%223.4%22 height=%2216%22 rx=%22.8%22/%3E%3Crect x=%2223.6%22 y=%226%22 width=%223.4%22 height=%2220%22 rx=%22.8%22/%3E%3C/g%3E%3C/svg%3E">
+<link rel="preload" href="/static/fonts/sans-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/static/fonts/serif-600.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/static/css/app.css">
 <style>
-  .rep h2 { margin-top: 6px; border-bottom: 2px solid var(--gold); padding-bottom: 4px; }
-  .cover { background: var(--navy-deep); color: #fff; border-radius: var(--radius); padding: 22px; margin-bottom: 14px; }
-  .cover h1 { color: #fff; font-size: 1.6rem; margin-bottom: 4px; }
-  .cover .gold { color: var(--gold); letter-spacing: .18em; font-weight: 700; font-size: .8rem; }
-  .explain { font-size: .86rem; color: var(--ink-2); background: #F7F9FB; border-left: 3px solid var(--teal); padding: 8px 12px; margin: 8px 0 12px; }
+  .rep { max-width: 1120px; }
+  .rep .card > h2 { display: flex; align-items: center; gap: 12px; padding-bottom: 12px; margin-bottom: 14px; border-bottom: 1px solid var(--line); }
+  .secnum { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; border: 1.5px solid var(--gold); color: var(--gold-ink); font-family: var(--font); font-size: .9rem; font-weight: 700; flex: none; }
+  .cover { background: var(--navy-deep); color: #fff; border-radius: var(--radius); padding: 34px 36px 28px; margin-bottom: 18px; position: relative; overflow: hidden; box-shadow: inset 0 -5px 0 var(--gold); }
+  .cover::after { content: ""; position: absolute; right: 36px; top: 34px; width: 120px; height: 96px; opacity: .9;
+    background: linear-gradient(var(--gold),var(--gold)) 0 100%/18px 20% no-repeat, linear-gradient(var(--gold),var(--gold)) 25.5px 100%/18px 40% no-repeat, linear-gradient(var(--gold),var(--gold)) 51px 100%/18px 60% no-repeat, linear-gradient(var(--gold),var(--gold)) 76.5px 100%/18px 80% no-repeat, linear-gradient(var(--gold),var(--gold)) 102px 100%/18px 100% no-repeat; }
+  .cover h1 { color: #fff; font-family: var(--display); font-size: clamp(2rem, 4vw, 2.9rem); margin: 10px 0 18px; max-width: calc(100% - 150px); }
+  .cover .eyebrow { color: var(--gold); font-weight: 600; font-size: .95rem; }
+  .covermeta { display: flex; flex-wrap: wrap; gap: 10px 36px; margin: 0; }
+  .covermeta dt { font-size: .82rem; color: #AFC0D6; }
+  .covermeta dd { margin: 0; font-weight: 600; font-size: 1.02rem; }
+  .explain { font-size: .94rem; color: var(--ink-2); background: var(--sunken); border-left: 3px solid var(--teal); padding: 10px 14px; margin: 0 0 16px; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+  @media (max-width: 640px) { .cover::after { display: none; } .cover h1 { max-width: none; } .cover { padding: 24px 20px; } }
   @media print {
     body { background: #fff; font-size: 11.5px; }
     .noprint { display: none !important; }
-    .card { box-shadow: none; break-inside: avoid; }
+    .card { break-inside: avoid; border-color: #E0E5EB; }
     .wrap { max-width: none; padding: 0; }
-    .cover { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .tag, .banner, .bar .fill, th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .cover, .cover::after, .secnum { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .tag, .banner, .bar .fill, th, .dim-letter { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .pb { break-before: page; }
   }
 </style>
 </head>
 <body>
-<div class="topbar noprint"><span class="brand">A I T O <b>·</b> MAP</span><span class="sub">Report riservato</span><span class="spacer"></span>
+<div class="topbar noprint"><span class="brand"><svg viewBox="0 0 26 22" aria-hidden="true"><rect x="0" y="16" width="4" height="6" rx="1" fill="#C9A84C" fill-opacity=".45"/><rect x="5.5" y="12" width="4" height="10" rx="1" fill="#C9A84C" fill-opacity=".6"/><rect x="11" y="8" width="4" height="14" rx="1" fill="#C9A84C" fill-opacity=".75"/><rect x="16.5" y="4" width="4" height="18" rx="1" fill="#C9A84C" fill-opacity=".9"/><rect x="22" y="0" width="4" height="22" rx="1" fill="#C9A84C"/></svg>AITO Map</span><span class="sub">Report riservato</span><span class="spacer"></span>
   <label class="small hidden" id="prevwrap" style="color:#fff"><input type="checkbox" id="prev"> anteprima con dati dimostrativi</label>
   <a class="btn gold sm" id="pdfbtn" href="#">Scarica PDF</a></div>
 <div class="wrap rep" id="app"><p class="muted">Caricamento…</p></div>

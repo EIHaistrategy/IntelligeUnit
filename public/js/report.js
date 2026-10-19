@@ -27,22 +27,22 @@ async function boot() {
   const flagged = R.coherence.filter((c) => c.flagged);
 
   app.innerHTML = `
-  ${R.preview ? '<div class="banner preview">ANTEPRIMA: il benchmark include aziende DEMO e TEST. Non è un report ufficiale.</div>' : ''}
+  ${R.preview ? '<div class="banner preview">Anteprima: il benchmark include aziende DEMO e TEST. Non è un report ufficiale.</div>' : ''}
   ${R.draft ? '<div class="banner warn noprint"><b>Bozza</b>: versione calcolata ora, non ancora rilasciata. L\'azienda vede solo le versioni rilasciate, che non cambiano più.</div>' : ''}
   ${R.snapshot ? `<div class="banner ok">Versione rilasciata v${R.snapshot.version} · ${esc(R.snapshot.sessionTitle)} · ${fmtDate(R.snapshot.releasedAt)}</div>` : ''}
   <div id="versions" class="noprint"></div>
-  <div class="cover"><div class="gold">AI TRANSFORMATION &amp; ADOPTION MAP · REPORT RISERVATO</div>
+  <div class="cover"><div class="eyebrow">AI Transformation &amp; Adoption Map · report riservato</div>
     <h1>${esc(R.company.name)}</h1>
-    <div>Perimetro: ${esc(R.company.perimeter || 'non indicato')} · Dimensioni misurate: <b>${R.dimsComplete}/8</b> · Generato il ${fmtDate(R.generatedAt)}</div>
-    <div class="small" style="opacity:.8;margin-top:6px">Strumento V${esc(R.instrumentVersion)} · scoring ${esc(R.scoringVersion)} · Benchmark: ${[...new Set(Object.values(R.benchVersions))].map(esc).join(' · ') || 'nessuna versione congelata'}</div>
+    <dl class="covermeta"><div><dt>Perimetro</dt><dd>${esc(R.company.perimeter || 'non indicato')}</dd></div><div><dt>Dimensioni misurate</dt><dd>${R.dimsComplete} di 8</dd></div><div><dt>Generato il</dt><dd>${fmtDate(R.generatedAt)}</dd></div></dl>
+    <div class="small" style="color:#AFC0D6;margin-top:14px">Strumento V${esc(R.instrumentVersion)} · scoring ${esc(R.scoringVersion)} · Benchmark: ${[...new Set(Object.values(R.benchVersions))].map(esc).join(' · ') || 'nessuna versione congelata'}</div>
   </div>
 
   <div class="card"><h2>Come leggere questo report</h2>
     <p class="small ink2">La Map descrive la capacità dell'azienda di trasformare l'AI in pratica governata, adottata e scalabile. Non è una graduatoria e non esiste un livello giusto in assoluto. La lettura principale è la <b>coerenza tra le capacità</b>: livelli bassi ma allineati possono indicare un percorso coerente, mentre una forte distanza tra una capacità e quella da cui dipende segnala un punto da esaminare. Il benchmark confronta l'azienda con le altre aziende AITO (non con il mercato) e indica sempre su quante aziende si basa.</p>
   </div>
 
-  <div class="card"><h2>1 · Il profilo AI</h2>
-    <div class="grid c2"><div class="chart">${radar(radarDims)}<div class="legend"><span><i style="background:#005172"></i>Azienda</span><span><i style="background:#1FB5B8"></i>Mediana peer</span></div></div>
+  <div class="card"><h2><span class="secnum">1</span>Il profilo AI</h2>
+    <div class="grid c2"><div class="chart">${radar(radarDims)}<div class="legend"><span><i style="background:#005172"></i>Azienda</span><span><i style="background:#1FB5B8"></i>Mediana delle altre aziende</span></div></div>
     <div><table><thead><tr><th>Dimensione</th><th class="num">Score</th><th>Fascia</th></tr></thead><tbody>
       ${R.dims.map((d) => `<tr><td><span class="dim-letter">${d.id}</span>${esc(d.name)}</td><td class="num"><b>${fmtScore(d.score)}</b></td><td>${d.score == null ? `<span class="muted small">${esc(I.sessions.find((s) => s.id === d.session).name)}</span>` : bandTag(d.score, SC)}</td></tr>`).join('')}
     </tbody></table>
@@ -50,7 +50,7 @@ async function boot() {
     ${R.overall != null ? `<br>Indicatore sintetico complessivo (lettura secondaria, Map completa): <b>${fmtScore(R.overall)}</b>` : ''}</p></div></div>
   </div>
 
-  <div class="card"><h2>2 · Lettura di coerenza</h2>
+  <div class="card"><h2><span class="secnum">2</span>Lettura di coerenza</h2>
     <div class="explain">Ogni regola confronta una capacità abilitante con una capacità che ne dipende. Se l'abilitante è più avanti è prudenza; se la dipendente è più avanti di almeno ${SC.coherenceThreshold} punti (due livelli pieni) è un rischio da esaminare nella call con il leader. La soglia è un'ipotesi del pilot.</div>
     ${R.coherence.length ? R.coherence.map((c) => `<div style="margin-bottom:10px"><b>${c.id} · ${esc(c.label)}</b> ${c.flagged ? '<span class="tag risk">da esaminare</span>' : c.comparisons.some((x) => x.status === 'prudenza') ? '<span class="tag teal">prudenza</span>' : '<span class="tag ok">coerente</span>'}
       ${c.crossSession ? '<span class="tag">confronta sessioni diverse: da validare nella call</span>' : ''}
@@ -60,7 +60,7 @@ async function boot() {
     ${R.usoDirezione ? `<p class="small"><b>Uso e direzione.</b> Quota di persone che usano l'AI ogni settimana: <b>${fmtNum(R.usoDirezione.uso)}%</b>; direzione strategica (Q1): livello <b>${R.usoDirezione.q1}</b>. ${R.usoDirezione.q1 <= 2 ? 'Una direzione ancora informale accanto a un uso già presente indica una pratica che può precedere la strategia: da discutere.' : ''} <span class="muted">(Lettura qualitativa: la nota non fissa una soglia.)</span></p>` : ''}
   </div>
 
-  <div class="card pb"><h2>3 · Capacità per item</h2>
+  <div class="card pb"><h2><span class="secnum">3</span>Capacità per item</h2>
     <div class="explain">Il livello è la scelta consolidata in sala; la lettera è la sotto-opzione scelta con una scelta forzata tra fatti osservabili. Lo stesso "2B" non vale lo stesso in tutti gli item (dipende da quante sotto-opzioni ha il livello), per questo è indicato anche il valore numerico.</div>
     <div class="tablewrap"><table><thead><tr><th>Item</th><th>Posizione</th><th class="num">Score</th><th>Qualità del dato</th><th>Benchmark AITO</th></tr></thead><tbody>
     ${R.items.map((it) => `<tr><td><b>${esc(it.itemId)}</b> ${esc(it.title)}<div class="small muted">Dim. ${it.dimension}</div></td>
@@ -72,20 +72,20 @@ async function boot() {
     </tbody></table></div>
   </div>
 
-  <div class="card"><h2>4 · Dove intervenire</h2>
+  <div class="card"><h2><span class="secnum">4</span>Dove intervenire</h2>
     <div class="explain">Ogni punto è una dimensione completa. Orizzontale: lo score dell'azienda. Verticale: quanto è sopra (+) o sotto (−) la mediana delle altre aziende. Essere sopra la mediana non significa essere consolidati: la linea verticale a 70 separa le capacità consolidate.</div>
     ${wherePts.length ? `<div class="grid c2"><div class="chart">${whereMap(wherePts, { names })}</div><div><table><tbody>${R.dims.filter((d) => d.quadrant).map((d) => `<tr><td><span class="dim-letter">${d.id}</span>${esc(d.name)}</td><td><b>${esc(d.quadrant.name)}</b><div class="small muted">nome alternativo proposto: ${esc(d.quadrant.altName)}</div></td><td class="num">${d.quadrant.delta > 0 ? '+' : ''}${fmtNum(d.quadrant.delta)}</td></tr>`).join('')}</tbody></table></div></div>`
       : '<p class="muted">La mappa richiede un benchmark disponibile (almeno 5 aziende) per le dimensioni misurate.</p>'}
     <table style="margin-top:10px"><thead><tr><th>Dimensione</th><th>Benchmark</th></tr></thead><tbody>${R.dims.filter((d) => d.score != null).map((d) => `<tr><td>${d.id} ${esc(d.name)}</td><td class="small">${benchStrip(d.bench, d.score)}<br>${benchTxt(d.bench)}</td></tr>`).join('')}</tbody></table>
   </div>
 
-  <div class="card"><h2>5 · Qualità del dato</h2>
+  <div class="card"><h2><span class="secnum">5</span>Qualità del dato</h2>
     ${R.pairs.map((p) => `<p><b>${esc(p.session.title)}</b> · ${p.participants} partecipanti · funzioni: ${p.functions.map(fnLabel).map(esc).join(', ') || '—'}</p>
       <ul class="small">${p.pairs.map((x) => `<li>Confronto ${esc(x.a)} vs ${esc(x.b)}: ${x.counts.A} per ${esc(x.a)}, ${x.counts.B} per ${esc(x.b)}, ${x.counts.ND} N.D.${x.discordant ? ` — <b>${x.discordant}</b> ${x.discordant === 1 ? 'risposta' : 'risposte'} in contrasto con i livelli dati dalla stessa persona` : ''}</li>`).join('')}</ul>`).join('') || '<p class="muted">—</p>'}
     <p class="small muted">I confronti a coppie sono un controllo di qualità interno: non entrano nel benchmark.</p>
   </div>
 
-  <div class="card"><h2>6 · Priorità</h2>
+  <div class="card"><h2><span class="secnum">6</span>Priorità</h2>
     <div class="explain">L'ordine proposto segue la nota: prima riportare a coerenza, poi i prerequisiti fondativi, poi le dimensioni sotto 70 e sotto la mediana peer. È una proposta trasparente, non sostituisce il giudizio dell'azienda.</div>
     ${R.mapComplete ? `<h3>Tre priorità provvisorie</h3><p class="small muted">Provvisorie dopo Scalare; si confermano dopo l'allineamento finale di settembre 2027, quando tutte le dimensioni hanno la stessa data (§11.1, §14.1).</p>
       <ol>${R.priorities.slice(0, 3).map((p) => `<li><b>${p.dimension} · ${esc(p.name)}</b> (${fmtScore(p.score)}) — <span class="small">${esc(p.reasons.join('; ') || 'nessun segnale specifico')}</span></li>`).join('')}</ol>`
@@ -95,7 +95,7 @@ async function boot() {
       ${R.commitments.map((c) => `<tr><td>${esc(c.session_title)}</td><td>${esc(c.priority_item)} ${esc(I.items[c.priority_item]?.title || '')}</td><td>${esc(c.action)}</td><td>${esc(c.owner)}</td><td>${esc(c.due_date)}</td><td>${esc(c.kpi)}${c.peer_interest ? '<br><span class="tag teal">interesse peer</span>' : ''}</td><td>${esc(c.status || 'aperto')}${c.status_note ? `<br><span class="small muted">${esc(c.status_note)}</span>` : ''}</td></tr>`).join('')}</tbody></table>` : '<p class="muted">Nessun commitment registrato.</p>'}
   </div>
 
-  <div class="card"><h2>7 · Profilo di approccio</h2>
+  <div class="card"><h2><span class="secnum">7</span>Profilo di approccio</h2>
     <p class="small muted">Caratteristiche non ordinate: descrivono come l'azienda si trasforma, non quanto è avanti. Non entrano nello score.</p>
     ${Object.values(R.profile).length ? `<table><tbody>${Object.values(R.profile).map((p) => `<tr><td>${esc(p.q)}</td><td><b>${esc(p.value)}${typeof p.value === 'number' ? '%' : ''}</b></td></tr>`).join('')}</tbody></table>` : '<p class="muted">Profilo non compilato.</p>'}
   </div>

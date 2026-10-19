@@ -1,4 +1,4 @@
-import { api, esc, $, $$, toast, poll, distBars, confTag, phaseChips } from './ui.js';
+import { api, esc, $, $$, toast, poll, distBars, confTag, phaseChips, alt } from './ui.js';
 
 const code = location.pathname.split('/').pop();
 const preCompany = (new URLSearchParams(location.search).get('c') || '').toUpperCase();
@@ -35,7 +35,7 @@ async function renderJoin() {
   $('#sesstitle').textContent = info.session.title;
   const pre = info.preselected;
   const companyField = pre
-    ? `<div class="tag navy" style="font-size:.95rem;padding:6px 12px">${esc(pre.name)}</div><input type="hidden" id="ccode" value="${esc(pre.code)}">`
+    ? `<div class="picked"><span class="small muted">Azienda</span><b>${esc(pre.name)}</b></div><input type="hidden" id="ccode" value="${esc(pre.code)}">`
     : info.mode === 'elenco'
       ? `<label class="f" for="company">Azienda</label><select id="company"><option value="">— Seleziona la tua azienda —</option>${info.companies.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select>`
       : `<label class="f" for="ccode">Codice azienda</label><input type="text" id="ccode" autocomplete="off" autocapitalize="characters" maxlength="10" aria-describedby="ccode-help" style="text-transform:uppercase;letter-spacing:.15em">
@@ -43,13 +43,13 @@ async function renderJoin() {
   app.innerHTML = `
     <div class="card">
       <h1>${esc(info.session.title)}</h1>
-      <p class="ink2">AI Transformation &amp; Adoption Map · fase individuale (10 minuti). Rispondi solo sui temi che conosci: se non hai visibilità su un punto scegli <b>N.D.</b></p>
-      ${pre ? '<p class="f" style="margin-bottom:4px">Azienda</p>' : ''}${companyField}
+      <p class="ink2">Dieci minuti di risposte individuali, poi il confronto con i colleghi. Rispondi solo sui temi che conosci: se non hai visibilità su un punto scegli <b>N.D.</b></p>
+      ${companyField}
       <label class="f" for="name">Nome e cognome</label><input type="text" id="name" autocomplete="name" maxlength="120">
       <label class="f" for="func">Funzione</label>
       <select id="func"><option value="">— Seleziona —</option>${info.functions.map((f) => `<option value="${f.id}">${esc(f.label)}</option>`).join('')}</select>
-      <div class="card flat" style="margin-top:14px;background:#F7F9FB">
-        <p class="small" style="margin:0 0 6px"><b>Come vengono usate le tue risposte</b></p>
+      <div class="card flat" style="margin:18px 0 16px">
+        <h3 style="margin:0 0 6px">Chi vede le tue risposte</h3>
         <p class="small ink2" style="margin:0">ELIS vede le tue risposte individuali. Il referente della tua azienda vede il tuo nome, la funzione e se hai inviato, ma non le singole risposte. I colleghi vedono solo la distribuzione anonima delle risposte dell'azienda (con meno di 3 risposte solo mediana e range). Nel benchmark entra solo il valore consolidato dell'azienda. Su questo telefono resta un codice tecnico che ti permette di riprendere la compilazione.
         ${info.privacyUrl ? ` <a href="${esc(info.privacyUrl)}" target="_blank" rel="noopener">Informativa privacy ELIS</a>.` : ''}</p>
         <label class="check" style="margin-top:8px"><input type="checkbox" id="ack"> <span>Ho letto come vengono usate le mie risposte</span></label>
@@ -69,7 +69,7 @@ async function renderJoin() {
 }
 
 function header() {
-  return `<div class="row between" style="margin-bottom:10px"><div><b>${esc(state.company)}</b> <span class="muted small">· ${esc(state.participant.name)}</span></div></div>${phaseChips(state.session.phase)}<div style="height:12px"></div>`;
+  return `<div class="who"><b>${esc(state.company)}</b><span>${esc(state.participant.name)}</span></div>${phaseChips(state.session.phase)}<div style="height:18px"></div>`;
 }
 
 function renderPhase() {
@@ -78,7 +78,7 @@ function renderPhase() {
   lastComparisonKey = '';
   const ph = state.session.phase;
   if (ph === 'preparazione') {
-    app.innerHTML = `${header()}<div class="card" role="status"><h2>Registrazione completata</h2><p>Attendi che il facilitatore apra la fase individuale. La pagina si aggiorna da sola.</p></div>`;
+    app.innerHTML = `${header()}<div class="card waitcard" role="status">${alt(1)}<h2>Sei registrato</h2><p>Attendi che il facilitatore apra la fase individuale. La pagina si aggiorna da sola: puoi tenere il telefono in tasca.</p></div>`;
   } else if (ph === 'individuale') {
     renderIndividual();
   } else {
@@ -100,15 +100,15 @@ function renderIndividual() {
     const cur = state.answered.includes(it.id) ? state.answers[it.id] : undefined;
     app.innerHTML = `${header()}${bar}
       <div class="card">
-        <div class="muted small">Item ${step + 1} di ${n} · ${esc(it.id)}</div>
+        <div class="qmeta"><span>Domanda ${step + 1} di ${n}</span><span class="tag navy">${esc(it.id)}</span></div>
         <h2 id="qt">${esc(it.title)}</h2>
-        <p class="ink2"><i>${esc(it.statement)}</i></p>
+        <p class="statement">${esc(it.statement)}</p>
         ${it.help ? `<p class="small muted">${esc(it.help)}</p>` : ''}
-        <p class="small">Scegli il livello che descrive meglio la situazione <b>praticata oggi</b> (ciò che è solo pianificato non conta).</p>
+        <p class="small ink2">Scegli il livello che descrive la situazione <b>praticata oggi</b>. Ciò che è solo pianificato non conta.</p>
         <div class="levels" role="group" aria-labelledby="qt">
           ${it.levels.map((l) => `<div class="levelwrap">
-            <button type="button" class="level ${cur === l.level ? 'sel' : ''}" data-l="${l.level}" aria-pressed="${cur === l.level}"><span class="n" aria-hidden="true">${l.level}</span><span><span class="sr-only">Livello ${l.level}: </span>${esc(l.descriptor)}</span></button>
-            ${l.sub ? `<details class="subs"><summary class="small">Sotto-opzioni del livello ${l.level} (si scelgono nel consolidamento)</summary>${l.sub.map((s) => `<div><b>${l.level}${s.key}</b> — ${esc(s.text)}</div>`).join('')}</details>` : ''}</div>`).join('')}
+            <button type="button" class="level ${cur === l.level ? 'sel' : ''}" data-l="${l.level}" aria-pressed="${cur === l.level}"><span class="n" aria-hidden="true">${l.level}${alt(l.level)}</span><span><span class="sr-only">Livello ${l.level}: </span>${esc(l.descriptor)}</span></button>
+            ${l.sub ? `<details class="subs"><summary>Varianti del livello ${l.level} · si scelgono nel consolidamento</summary>${l.sub.map((s) => `<div><b>${l.level}${s.key}</b> — ${esc(s.text)}</div>`).join('')}</details>` : ''}</div>`).join('')}
           <button type="button" class="level nd ${cur === null ? 'sel' : ''}" data-l="nd" aria-pressed="${cur === null}">N.D. — non ho sufficiente visibilità</button>
         </div>
       </div>
@@ -123,8 +123,8 @@ function renderIndividual() {
       } catch (e) { toast(e.message, true); refresh(); }
     });
   } else if (step === n) {
-    app.innerHTML = `${header()}${bar}<div class="card"><h2>Confronti a coppie</h2>
-      <p class="small ink2">Domande secche: un giudizio relativo tra due capacità della stessa sessione.</p>
+    app.innerHTML = `${header()}${bar}<div class="card"><div class="qmeta"><span>Ultimo passo prima del riepilogo</span></div><h2>Confronti a coppie</h2>
+      <p class="small ink2">Tra due capacità della stessa sessione, quale è più avanti nella tua azienda?</p>
       ${state.pairs.map(([a, b], i) => {
         const A = state.items.find((x) => x.id === a), B = state.items.find((x) => x.id === b);
         const cur = state.pairAnswers.find((x) => x.item_a === a && x.item_b === b)?.answer;
@@ -175,8 +175,8 @@ function renderComparison() {
   const msg = { confronto: 'Confronto in corso: guardate dove le risposte divergono e quali evidenze le sostengono.',
     consolidamento: 'Il referente sta registrando la posizione ufficiale dell\'azienda.', chiusa: 'Sessione chiusa. Grazie per la partecipazione.' }[state.session.phase];
   app.innerHTML = `${header()}<div class="banner info" role="status">${msg}</div>
-    <div class="card"><h2>Le risposte della vostra azienda</h2><p class="small muted">Vista anonima: ${c.participants} partecipanti, ${c.submitted} hanno inviato. Funzioni presenti: ${c.functions.length}.</p></div>
-    ${c.items.map((it) => `<div class="card"><div class="row between"><h3>${esc(it.itemId)} · ${esc(it.title)}</h3>${confTag(it.confidence)}</div>
+    <div class="card"><h2>Le risposte della vostra azienda</h2><p class="small muted" style="margin:0">Vista anonima: ${c.participants} partecipanti, ${c.submitted} hanno inviato, ${c.functions.length} funzioni presenti.</p></div>
+    ${c.items.map((it) => `<div class="card"><div class="row between" style="align-items:flex-start;margin-bottom:12px"><h3 style="margin:0">${esc(it.itemId)} · ${esc(it.title)}</h3>${confTag(it.confidence)}</div>
       ${it.summary.hidden ? '<p class="small muted">Meno di 3 risposte valide: per proteggere l\'anonimato si mostrano solo mediana e range.</p>' : distBars(it.summary)}
       <p class="small" style="margin-top:8px">Mediana: <b>${it.summary.median ?? '—'}</b> · Range: <b>${it.summary.range ?? '—'}</b> · N.D.: <b>${it.summary.nd}</b></p>
       ${it.summary.divergent ? '<div class="banner warn">Divergenza di due o più livelli: discussione necessaria.</div>' : ''}</div>`).join('')}

@@ -4,55 +4,67 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AITO Map · Benchmark live</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%231F3864%22/%3E%3Ctext x=%2216%22 y=%2222%22 font-size=%2216%22 font-family=%22Arial%22 font-weight=%22700%22 fill=%22%23C9A84C%22 text-anchor=%22middle%22%3EA%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%227%22 fill=%22%231F3864%22/%3E%3Cg fill=%22%23C9A84C%22%3E%3Crect x=%226%22 y=%2220%22 width=%223.4%22 height=%226%22 rx=%22.8%22/%3E%3Crect x=%2210.4%22 y=%2217%22 width=%223.4%22 height=%229%22 rx=%22.8%22/%3E%3Crect x=%2214.8%22 y=%2214%22 width=%223.4%22 height=%2212%22 rx=%22.8%22/%3E%3Crect x=%2219.2%22 y=%2210%22 width=%223.4%22 height=%2216%22 rx=%22.8%22/%3E%3Crect x=%2223.6%22 y=%226%22 width=%223.4%22 height=%2220%22 rx=%22.8%22/%3E%3C/g%3E%3C/svg%3E">
+<link rel="preload" href="/static/fonts/sans-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/static/fonts/serif-600.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/static/css/app.css">
 <style>
-  body { font-size: 16px; }
-  .wrap { max-width: 1400px; }
-  .live-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #2ECC71; margin-right: 6px; animation: pulse 1.6s infinite; }
-  @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
-  .tiles { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 14px; margin-bottom: 14px; }
-  .tile { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
-  .tile .v { font-size: 2.3rem; font-weight: 700; color: var(--navy-deep); font-variant-numeric: tabular-nums; line-height: 1.1; }
-  .tile .l { font-size: .85rem; color: var(--ink-2); font-weight: 600; }
-  .hero { font-size: 3rem; font-weight: 700; color: var(--navy-deep); font-variant-numeric: tabular-nums; line-height: 1; }
-  .seg { display: flex; height: 34px; border-radius: 6px; overflow: hidden; gap: 2px; background: #fff; }
-  .seg > div { display: grid; place-items: center; color: #fff; font-weight: 700; font-size: .82rem; min-width: 0; white-space: nowrap; overflow: hidden; }
-  .seg > div:first-child { border-radius: 6px 0 0 6px; } .seg > div:last-child { border-radius: 0 6px 6px 0; }
-  .l1 { background: #C9D1DB; color: #17212E !important; } .l2 { background: #9FD3E2; color: #0E2A3A !important; } .l3 { background: #4FC7C9; color: #0B2B2C !important; } .l4 { background: #0B7FA0; } .l5 { background: #1F3864; }
-  .b-FOND { background: #F2B37A; color: #3B1F05 !important; } .b-COST { background: #E3CB86; color: #3A2D07 !important; } .b-CONS { background: #17784B; }
-  @media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } }
-  .waiting { text-align: center; padding: 40px 20px; }
-  .waiting .big { font-size: 4rem; font-weight: 700; color: var(--navy); }
-  .meter { height: 14px; background: var(--line-2); border-radius: 7px; overflow: hidden; max-width: 520px; margin: 14px auto; }
-  .meter > div { height: 100%; background: var(--teal); border-radius: 7px; transition: width .6s; }
-  .legend i { border-radius: 2px; }
-  .strip svg { width: 100%; height: 40px; }
-  @media (max-width: 900px) { .tiles { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+  .wrap { max-width: 1480px; padding-top: 28px; }
+  .live-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #3DDC84; margin-right: 8px; box-shadow: 0 0 0 0 rgba(61,220,132,.6); animation: ping 2s infinite; }
+  @keyframes ping { 0% { box-shadow: 0 0 0 0 rgba(61,220,132,.55); } 70% { box-shadow: 0 0 0 8px rgba(61,220,132,0); } 100% { box-shadow: 0 0 0 0 rgba(61,220,132,0); } }
+  .lhead { display: grid; grid-template-columns: 1fr minmax(320px, 520px); gap: 16px 40px; align-items: end; margin-bottom: 22px; }
+  .lhead h1 { font-family: var(--display); font-size: clamp(2.2rem, 3.6vw, 3.2rem); margin: 0; line-height: 1; }
+  .lhead p { margin: 8px 0 0; font-size: 1.12rem; color: var(--ink-2); }
+  .tally { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 18px; }
+  .tally > div { padding: 16px 22px; border-left: 1px solid var(--line-2); }
+  .tally > div:first-child { border-left: 0; }
+  .tally .v { font-family: var(--display); font-size: 2.6rem; line-height: 1; color: var(--navy-deep); font-variant-numeric: tabular-nums lining-nums; }
+  .tally .l { font-size: .95rem; color: var(--ink-2); font-weight: 600; margin-top: 6px; }
+  .tally .l em { font-style: normal; color: var(--ink-3); font-weight: 400; }
+  .dimcard h2 { font-size: 1.45rem; display: flex; align-items: center; }
+  .hero { font-family: var(--display); font-size: 4.2rem; font-weight: 600; color: var(--navy-deep); font-variant-numeric: tabular-nums lining-nums; line-height: .95; }
+  .herorow { display: flex; align-items: flex-end; gap: 18px; flex-wrap: wrap; margin: 6px 0 14px; }
+  .herorow .ink2 { padding-bottom: 6px; line-height: 1.35; }
+  .strip svg { width: 100%; height: 46px; display: block; }
+  .zlab { display: flex; font-size: .84rem; color: var(--ink-3); font-weight: 600; margin-top: 4px; }
+  .zlab span { padding-left: 6px; border-left: 1.5px solid #C4CDD8; }
+  .zlab span:first-child { border-left: 0; padding-left: 0; }
+  .waiting { text-align: center; padding: 56px 20px; }
+  .waiting .big { font-family: var(--display); font-size: 5.5rem; line-height: 1; color: var(--navy-deep); font-variant-numeric: tabular-nums lining-nums; }
+  .waiting .big span { color: var(--ink-3); }
+  .meter { display: grid; gap: 6px; max-width: 520px; margin: 22px auto; }
+  .meter > div { height: 14px; border-radius: 3px; background: var(--line-2); }
+  .meter > div.on { background: var(--navy); }
+  .b-FOND { background: var(--band-fond); color: #3B1F05 !important; } .b-COST { background: var(--band-cost); color: #3A2D07 !important; } .b-CONS { background: var(--band-cons); color: #fff; }
+  .itemcard h3 { margin: 0; font-size: 1.08rem; }
+  .itemcard .seg { margin-top: 12px; height: 38px; }
+  .itemcard .seg > div { font-size: .9rem; }
+  @media (max-width: 900px) { .lhead { grid-template-columns: 1fr; } .tally { grid-template-columns: repeat(2, minmax(0,1fr)); } .tally > div:nth-child(3) { border-left: 0; } .tally > div:nth-child(n+3) { border-top: 1px solid var(--line-2); } .hero { font-size: 3.2rem; } }
 </style>
 </head>
 <body>
-<div class="topbar"><span class="brand">A I T O <b>·</b> MAP</span><span class="sub" id="ttl">Benchmark in tempo reale</span><span class="spacer"></span>
-  <span class="small" id="upd" style="color:#fff"></span>
-  <label class="small" style="color:#fff;margin-left:14px"><input type="checkbox" id="prev"> anteprima con dati dimostrativi</label></div>
+<div class="topbar"><span class="brand"><svg viewBox="0 0 26 22" aria-hidden="true"><rect x="0" y="16" width="4" height="6" rx="1" fill="#C9A84C" fill-opacity=".45"/><rect x="5.5" y="12" width="4" height="10" rx="1" fill="#C9A84C" fill-opacity=".6"/><rect x="11" y="8" width="4" height="14" rx="1" fill="#C9A84C" fill-opacity=".75"/><rect x="16.5" y="4" width="4" height="18" rx="1" fill="#C9A84C" fill-opacity=".9"/><rect x="22" y="0" width="4" height="22" rx="1" fill="#C9A84C"/></svg>AITO Map</span><span class="sub" id="ttl">Benchmark in tempo reale</span><span class="spacer"></span>
+  <span class="small" id="upd" style="color:#fff;white-space:nowrap"></span>
+  <label style="margin-left:16px"><input type="checkbox" id="prev"> anteprima con dati dimostrativi</label></div>
 <div class="wrap" id="app"><p class="muted">Caricamento…</p></div>
 <script type="module">
-import { api, esc, $, fmtScore } from '/static/js/ui.js';
+import { api, esc, $, fmtScore, phaseChips } from '/static/js/ui.js';
 const sid = location.pathname.split('/').pop();
 const params = new URLSearchParams(location.search);
 const preview = params.get('preview') === '1';
 $('#prev').checked = preview;
 $('#prev').onchange = (e) => { params.set('preview', e.target.checked ? '1' : '0'); location.search = params.toString(); };
-const PH = { preparazione: 'Preparazione', individuale: 'Fase individuale', confronto: 'Confronto', consolidamento: 'Consolidamento', chiusa: 'Sessione chiusa' };
 
-// fascia mediana / Q1–Q3 su scala 0–100 con le soglie 44 e 70
+// fascia 0–100 con le tre zone del pilot (Fondativa < 44, In costruzione 44–69, Consolidata ≥ 70), Q1–Q3 e mediana
 function strip(st) {
-  const X = (v) => 10 + (v / 100) * 980;
-  let g = `<line x1="10" y1="20" x2="990" y2="20" stroke="#DDE3EA" stroke-width="4" stroke-linecap="round"/>`;
-  for (const t of [44, 70]) g += `<line x1="${X(t)}" y1="4" x2="${X(t)}" y2="36" stroke="#9AA6B6" stroke-width="2" stroke-dasharray="4 4"/>`;
-  g += `<rect x="${X(st.q1)}" y="11" width="${Math.max(4, X(st.q3) - X(st.q1))}" height="18" rx="4" fill="#1FB5B8" fill-opacity=".35"><title>Q1–Q3: ${fmtScore(st.q1)}–${fmtScore(st.q3)}</title></rect>`;
-  g += `<line x1="${X(st.median)}" y1="8" x2="${X(st.median)}" y2="32" stroke="#005172" stroke-width="5" stroke-linecap="round"><title>Mediana: ${fmtScore(st.median)}</title></line>`;
-  return `<div class="strip"><svg viewBox="0 0 1000 40" preserveAspectRatio="none" role="img" aria-label="Mediana ${fmtScore(st.median)}, Q1–Q3 ${fmtScore(st.q1)}–${fmtScore(st.q3)}">${g}</svg></div>`;
+  const X = (v) => (v / 100) * 1000;
+  const zones = [[0, 44, '#FCEBDD', 'Fondativa'], [44, 70, '#F5EDD3', 'In costruzione'], [70, 100, '#E1F2E8', 'Consolidata']];
+  let g = zones.map(([a, b, c]) => `<rect x="${X(a)}" y="8" width="${X(b) - X(a)}" height="30" fill="${c}"/>`).join('');
+  for (const t of [44, 70]) g += `<line x1="${X(t)}" y1="4" x2="${X(t)}" y2="42" stroke="#9AA6B6" stroke-width="1.5"/>`;
+  g += `<rect x="${X(st.q1)}" y="13" width="${Math.max(4, X(st.q3) - X(st.q1))}" height="18" rx="3" fill="#45AEBB" fill-opacity=".55"><title>Q1–Q3: ${fmtScore(st.q1)}–${fmtScore(st.q3)}</title></rect>`;
+  g += `<line x1="${X(st.median)}" y1="2" x2="${X(st.median)}" y2="44" stroke="#1F3864" stroke-width="5" stroke-linecap="round"><title>Mediana: ${fmtScore(st.median)}</title></line>`;
+  const lab = zones.map(([a, b, , n]) => `<span style="width:${b - a}%">${n}</span>`).join('');
+  return `<div class="strip"><svg viewBox="0 0 1000 46" preserveAspectRatio="none" role="img" aria-label="Mediana ${fmtScore(st.median)}, metà centrale delle aziende tra ${fmtScore(st.q1)} e ${fmtScore(st.q3)}">${g}</svg><div class="zlab" aria-hidden="true">${lab}</div></div>`;
 }
 const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
 
@@ -62,35 +74,36 @@ async function draw() {
   catch (e) { $('#app').innerHTML = `<div class="card"><p>${esc(e.message)} — accedi prima da <a href="/admin">/admin</a>.</p></div>`; return; }
   const P = D.progress;
   $('#ttl').textContent = `${D.session.title} · benchmark in tempo reale`;
+  document.title = `${D.def.name} · benchmark live`;
   $('#upd').innerHTML = `<span class="live-dot"></span>aggiornato alle ${new Date(D.updatedAt).toLocaleTimeString('it-IT')}`;
   const ready = P.benchmarkN >= P.minN;
   $('#app').innerHTML = `
-    ${D.preview ? '<div class="banner preview">ANTEPRIMA CON DATI DIMOSTRATIVI E DI TEST — non è il benchmark della community</div>' : ''}
-    <div class="row between" style="margin:6px 0 12px"><h1 style="margin:0">${esc(D.def.name)} · come si posiziona la community</h1><span class="tag navy" style="font-size:.9rem;padding:6px 12px">${esc(PH[D.session.phase] || D.session.phase)}</span></div>
-    <div class="tiles">
-      <div class="tile"><div class="v">${P.participants}</div><div class="l">partecipanti registrati · ${P.submitted} hanno inviato</div></div>
-      <div class="tile"><div class="v">${P.active}</div><div class="l">aziende al lavoro in questa sessione</div></div>
-      <div class="tile"><div class="v">${P.consolidatedHere}</div><div class="l">aziende che hanno consolidato</div></div>
-      <div class="tile"><div class="v">${P.benchmarkN}</div><div class="l">aziende nel benchmark · ${P.benchmarkN >= P.stableN ? 'stabile' : P.benchmarkN >= P.minN ? 'indicativo' : `servono ${P.minN}`}</div></div>
+    ${D.preview ? '<div class="banner preview">Anteprima con dati dimostrativi e di test: non è il benchmark della community</div>' : ''}
+    <div class="lhead"><div><h1>${esc(D.def.name)}</h1><p>Come si posiziona la community, in tempo reale</p></div>${phaseChips(D.session.phase)}</div>
+    <div class="tally">
+      <div><div class="v">${P.participants}</div><div class="l">partecipanti in sala <em>· ${P.submitted} hanno inviato</em></div></div>
+      <div><div class="v">${P.active}</div><div class="l">aziende al lavoro</div></div>
+      <div><div class="v">${P.consolidatedHere}</div><div class="l">aziende che hanno consolidato</div></div>
+      <div><div class="v">${P.benchmarkN}</div><div class="l">aziende nel benchmark <em>· ${P.benchmarkN >= P.stableN ? 'stabile' : P.benchmarkN >= P.minN ? 'indicativo' : `ne servono ${P.minN}`}</em></div></div>
     </div>
-    ${!ready ? `<div class="card waiting"><div class="big">${P.benchmarkN} / ${P.minN}</div>
-        <p style="font-size:1.2rem">Il benchmark compare quando almeno <b>${P.minN} aziende</b> hanno consolidato e dato il consenso.</p>
-        <div class="meter"><div style="width:${pct(P.benchmarkN, P.minN)}%"></div></div>
+    ${!ready ? `<div class="card waiting"><div class="big">${P.benchmarkN}<span> / ${P.minN}</span></div>
+        <p style="font-size:1.25rem;margin-top:14px">Il benchmark compare quando almeno <b>${P.minN} aziende</b> hanno consolidato e dato il consenso.</p>
+        <div class="meter" style="grid-template-columns:repeat(${P.minN},1fr)">${Array.from({ length: P.minN }, (_, i) => `<div class="${i < P.benchmarkN ? 'on' : ''}"></div>`).join('')}</div>
         <p class="muted">Sotto questa soglia le singole aziende sarebbero riconoscibili (§9.1).</p></div>` : `
-    <div class="grid c2">${D.dims.map((d) => `<div class="card"><h2><span class="dim-letter">${d.dimension}</span>${esc(d.name)}</h2>
-      ${d.stats.available ? `<div class="row" style="align-items:baseline;gap:14px"><div class="hero">${fmtScore(d.stats.median)}</div><div class="ink2">mediana · Q1–Q3 ${fmtScore(d.stats.q1)}–${fmtScore(d.stats.q3)} · N=${d.stats.n} · ${esc(d.stats.label)}</div></div>
-        ${strip(d.stats)}<div class="small muted">Scala 0–100 · fascia azzurra: metà centrale delle aziende (Q1–Q3) · tratto blu: mediana · linee tratteggiate: soglie 44 e 70</div>
-        <h4 style="margin-top:12px">Aziende per fascia</h4>
-        <div class="seg">${d.bands.filter((b) => b.count).map((b) => `<div class="b-${b.id}" style="flex:${b.count}" title="${esc(b.name)}: ${b.count} aziende">${esc(b.name)} · ${b.count}</div>`).join('')}</div>
-        <div class="legend" style="margin-top:6px">${d.bands.map((b) => `<span><i class="b-${b.id}"></i>${esc(b.name)} ${pct(b.count, d.stats.n)}%</span>`).join('')}</div>
-        ${d.gap?.available ? `<p style="margin-top:10px">Eterogeneità (distanza tra primo e terzo quartile): <b>${fmtScore(d.gap.iqr)} punti</b> → <span class="tag navy">${esc(d.gap.quadrant)}</span></p>` : ''}`
+    <div class="grid c2">${D.dims.map((d) => `<div class="card dimcard"><h2><span class="dim-letter">${d.dimension}</span>${esc(d.name)}</h2>
+      ${d.stats.available ? `<div class="herorow"><div class="hero">${fmtScore(d.stats.median)}</div><div class="ink2">mediana della community<br>metà centrale tra ${fmtScore(d.stats.q1)} e ${fmtScore(d.stats.q3)} · N=${d.stats.n} · ${esc(d.stats.label)}</div></div>
+        ${strip(d.stats)}
+        <h4 style="margin-top:18px">Aziende per fascia</h4>
+        <div class="seg">${d.bands.filter((b) => b.count).map((b) => `<div class="b-${b.id}" style="flex:${b.count}" title="${esc(b.name)}: ${b.count} aziende">${b.count}</div>`).join('')}</div>
+        <div class="legend" style="margin-top:8px">${d.bands.map((b) => `<span><i class="b-${b.id}"></i>${esc(b.name)} ${pct(b.count, d.stats.n)}%</span>`).join('')}</div>
+        ${d.gap?.available ? `<p style="margin:14px 0 0">Distanza tra primo e terzo quartile <b>${fmtScore(d.gap.iqr)} punti</b> <span class="tag navy" style="margin-left:6px">${esc(d.gap.quadrant)}</span></p>` : ''}`
         : `<div class="banner warn">Non ancora disponibile: N = ${d.stats.n}.</div>`}</div>`).join('')}</div>
-    <div class="grid c2">${D.items.map((it) => `<div class="card"><div class="row between"><h3 style="margin:0">${esc(it.itemId)} · ${esc(it.title)}</h3><span class="small muted">${it.dist.available ? `mediana ${fmtScore(it.stats.median)} · N=${it.stats.n}` : ''}</span></div>
-      ${it.dist.available ? `<div class="seg" style="margin-top:10px">${it.dist.levels.filter((l) => l.count).map((l) => `<div class="l${l.level}" style="flex:${l.count}" title="Livello ${l.level}: ${l.count} aziende">Liv. ${l.level} · ${l.count}</div>`).join('')}</div>
-        <p class="small muted" style="margin-top:6px">${it.dist.levels.filter((l) => l.subDist).map((l) => `Liv. ${l.level}: ${l.subDist.map((s) => `${l.level}${s.key} ${s.count}`).join(' · ')}`).join(' — ') || 'Sotto-livelli aggregati al livello: nessuna sotto-opzione raggiunge 5 aziende.'}${it.nd ? ` · ${it.nd} aziende con N.D.` : ''}</p>`
-        : `<div class="banner warn" style="margin-top:8px">Non ancora disponibile: N = ${it.dist.n}.</div>`}</div>`).join('')}</div>
-    <div class="legend" style="margin:4px 0 10px">${[1, 2, 3, 4, 5].map((l) => `<span><i class="l${l}"></i>Livello ${l}</span>`).join('')}</div>`}
-    <p class="small muted">Dati in tempo reale, anonimi e aggregati: si aggiornano ogni 5 secondi man mano che le aziende consolidano. Non sono ancora la versione ufficiale: il benchmark si congela a fine sessione e i report usano quella versione (§9).${D.frozen ? ` Ultima versione congelata: ${esc(D.frozen.label)} (N=${D.frozen.n_companies}).` : ''}</p>`;
+    <div class="row between" style="margin:28px 0 12px"><h2 style="margin:0">Capacità della sessione</h2><div class="legend">${[1, 2, 3, 4, 5].map((l) => `<span><i class="l${l}"></i>Livello ${l}</span>`).join('')}</div></div>
+    <div class="grid c2">${D.items.map((it) => `<div class="card itemcard"><div class="row between"><h3>${esc(it.itemId)} · ${esc(it.title)}</h3><span class="small muted">${it.dist.available ? `mediana ${fmtScore(it.stats.median)} · N=${it.stats.n}` : ''}</span></div>
+      ${it.dist.available ? `<div class="seg">${it.dist.levels.filter((l) => l.count).map((l) => `<div class="l${l.level}" style="flex:${l.count}" title="Livello ${l.level}: ${l.count} aziende">${l.count}</div>`).join('')}</div>
+        <p class="small muted" style="margin:8px 0 0">${it.dist.levels.filter((l) => l.subDist).map((l) => `Liv. ${l.level}: ${l.subDist.map((s) => `${l.level}${s.key} ${s.count}`).join(' · ')}`).join(' — ') || 'Varianti dei livelli non mostrate: nessuna raggiunge 5 aziende.'}${it.nd ? ` · ${it.nd} aziende con N.D.` : ''}</p>`
+        : `<div class="banner warn" style="margin-top:8px">Non ancora disponibile: N = ${it.dist.n}.</div>`}</div>`).join('')}</div>`}
+    <p class="small muted" style="margin-top:20px;max-width:none">Dati anonimi e aggregati, aggiornati ogni 5 secondi man mano che le aziende consolidano. Non sono ancora la versione ufficiale: il benchmark si congela a fine sessione e i report usano quella versione (§9).${D.frozen ? ` Ultima versione congelata: ${esc(D.frozen.label)} (N=${D.frozen.n_companies}).` : ''}</p>`;
 }
 draw();
 setInterval(draw, 5000);

@@ -34,10 +34,13 @@ export const PHASES = [
   { id: 'consolidamento', label: 'Consolidamento' },
   { id: 'chiusa', label: 'Chiusa' },
 ];
-export function phaseChips(current) {
+export function phaseChips(current, { dark = false } = {}) {
   const idx = PHASES.findIndex((p) => p.id === current);
-  return `<div class="phases" aria-label="Fasi della sessione">${PHASES.map((p, i) => `<span class="phase ${i === idx ? 'on' : i < idx ? 'done' : ''}" ${i === idx ? 'aria-current="step"' : ''}>${p.label}</span>`).join('')}</div>`;
+  return `<ol class="phases${dark ? ' on-dark' : ''}" aria-label="Fasi della sessione">${PHASES.map((p, i) => `<li class="phase ${i === idx ? 'on' : i < idx ? 'done' : ''}" ${i === idx ? 'aria-current="step"' : ''}><span class="dot" aria-hidden="true">${i < idx ? '✓' : ''}</span><span class="lbl">${p.label}</span></li>`).join('')}</ol>`;
 }
+
+// I cinque gradini del livello: il segno grafico ricorrente della Map.
+export const alt = (level) => `<span class="alt" aria-hidden="true">${[1, 2, 3, 4, 5].map((k) => `<i class="${k <= level ? 'on' : ''}"></i>`).join('')}</span>`;
 
 export function bandTag(score, scoring) {
   if (score == null) return '<span class="tag">N.D.</span>';

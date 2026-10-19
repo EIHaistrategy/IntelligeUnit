@@ -2,17 +2,18 @@
 // Generato sul server con PDFKit, senza browser: leggero anche sul piano gratuito di Render.
 import PDFDocument from 'pdfkit';
 import SVGtoPDF from 'svg-to-pdfkit';
-import { createRequire } from 'node:module';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import * as E from './engine/index.js';
 import { radar, whereMap, benchStrip } from '../public/js/charts.js';
 
-const require = createRequire(import.meta.url);
-const FONT_DIR = path.join(path.dirname(require.resolve('dejavu-fonts-ttf/package.json')), 'ttf');
+// Source Sans 3 e Source Serif 4 (SIL OFL), ridotti ai caratteri usati: gli stessi della piattaforma web.
+const FONT_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fonts');
 const I = E.INSTRUMENT, SC = E.SCORING;
-const C = { navy: '#005172', deep: '#1F3864', gold: '#C9A84C', teal: '#1FB5B8', ink: '#17212E', ink2: '#4A5668', ink3: '#7B8798', line: '#DDE3EA', bg: '#F4F6F8',
-  risk: '#C0392B', ok: '#1E8E5A', warn: '#B7791F' };
-const BAND_COLOR = { FOND: '#D9822B', COST: '#B08B2E', CONS: '#1E8E5A' };
+const C = { navy: '#005172', deep: '#1F3864', gold: '#C9A84C', goldInk: '#6F5718', teal: '#1FB5B8', ink: '#16202D', ink2: '#44505F', ink3: '#5B6777', line: '#D8DFE7', bg: '#F1F4F7',
+  risk: '#B03424', ok: '#17784B', warn: '#8A5A12' };
+const BAND_COLOR = { FOND: '#A4520F', COST: '#6F5718', CONS: '#17784B' };
+const BAND_BG = { FOND: '#FCEBDD', COST: '#F5EDD3', CONS: '#E1F2E8' };
 
 const n1 = (x) => (x == null ? 'N.D.' : (Math.round(x * 10) / 10).toLocaleString('it-IT', { minimumFractionDigits: 1, maximumFractionDigits: 1 }));
 const lvl = (l, s) => (l == null ? 'N.D.' : `${l}${s || ''}`);
@@ -21,57 +22,72 @@ const dateIt = (d) => new Date(d).toLocaleDateString('it-IT', { day: '2-digit', 
 export function buildCompanyPdf(R) {
   const doc = new PDFDocument({ size: 'A4', margins: { top: 50, bottom: 56, left: 48, right: 48 }, bufferPages: true,
     info: { Title: `AITO Map — ${R.company.name}`, Author: 'ELIS Innovation Hub · AITO', Subject: 'AI Transformation & Adoption Map — report riservato' } });
-  doc.registerFont('Body', path.join(FONT_DIR, 'DejaVuSans.ttf'));
-  doc.registerFont('Bold', path.join(FONT_DIR, 'DejaVuSans-Bold.ttf'));
+  doc.registerFont('Body', path.join(FONT_DIR, 'sans-400.ttf'));
+  doc.registerFont('Semi', path.join(FONT_DIR, 'sans-600.ttf'));
+  doc.registerFont('Bold', path.join(FONT_DIR, 'sans-700.ttf'));
+  doc.registerFont('Serif', path.join(FONT_DIR, 'serif-600.ttf'));
+  doc.registerFont('Display', path.join(FONT_DIR, 'serifd-600.ttf'));
+  // i cinque gradini dei livelli, segno ricorrente della Map
+  const mark = (x, y, h, color) => { const bw = h * 0.17, gap = h * 0.07; for (let k = 0; k < 5; k++) { const bh = h * (0.2 + 0.2 * k); doc.roundedRect(x + k * (bw + gap), y + h - bh, bw, bh, bw * 0.15).fillOpacity(0.45 + 0.1375 * k).fill(color); } doc.fillOpacity(1); };
   const W = doc.page.width - 96, X0 = 48;
   const bottom = () => doc.page.height - 56;
   const ensure = (h) => { if (doc.y + h > bottom()) doc.addPage(); };
   const svg = (s, x, y, w, h) => SVGtoPDF(doc, s, x, y, { width: w, height: h, preserveAspectRatio: 'xMidYMid meet', fontCallback: (fam, bold) => (bold ? 'Bold' : 'Body') });
-  const para = (t, opts = {}) => { doc.font(opts.bold ? 'Bold' : 'Body').fontSize(opts.size || 9).fillColor(opts.color || C.ink).text(t, opts.x ?? X0, opts.y, { width: opts.w ?? W, lineGap: 1.5, ...opts.pdf }); };
+  const para = (t, opts = {}) => { doc.font(opts.bold ? 'Bold' : 'Body').fontSize((opts.size || 9) + 0.6).fillColor(opts.color || C.ink).text(t, opts.x ?? X0, opts.y, { width: opts.w ?? W, lineGap: 1.5, ...opts.pdf }); };
   const h2 = (t) => {
-    ensure(60);
-    doc.moveDown(0.6);
-    doc.font('Bold').fontSize(13).fillColor(C.deep).text(t, X0, doc.y, { width: W });
-    const y = doc.y + 2; doc.moveTo(X0, y).lineTo(X0 + W, y).lineWidth(1.5).strokeColor(C.gold).stroke();
-    doc.y = y + 8;
+    ensure(120);
+    doc.moveDown(0.9);
+    const m = t.match(/^(\d) · (.*)$/);
+    const y0 = doc.y;
+    let x = X0;
+    if (m) {
+      doc.circle(X0 + 9, y0 + 8, 9).lineWidth(1).strokeColor(C.gold).stroke();
+      doc.font('Bold').fontSize(9).fillColor(C.goldInk).text(m[1], X0, y0 + 3.6, { width: 18, align: 'center' });
+      x = X0 + 26;
+    }
+    doc.font('Serif').fontSize(15).fillColor(C.deep).text(m ? m[2] : t, x, y0, { width: W - (x - X0) });
+    const y = doc.y + 4; doc.moveTo(X0, y).lineTo(X0 + W, y).lineWidth(0.6).strokeColor(C.line).stroke();
+    doc.y = y + 10;
   };
   const explain = (t) => {
-    doc.font('Body').fontSize(8.3);
-    const h = doc.heightOfString(t, { width: W - 16, lineGap: 1.5 }) + 10;
-    ensure(h + 6);
+    doc.font('Body').fontSize(8.8);
+    const h = doc.heightOfString(t, { width: W - 20, lineGap: 1.6 }) + 14;
+    ensure(h + 8);
     const y = doc.y;
-    doc.rect(X0, y, W, h).fill('#F7F9FB'); doc.rect(X0, y, 3, h).fill(C.teal);
-    doc.fillColor(C.ink2).text(t, X0 + 10, y + 5, { width: W - 16, lineGap: 1.5 });
-    doc.y = y + h + 6;
+    doc.rect(X0, y, W, h).fill('#F5F7FA'); doc.rect(X0, y, 2.5, h).fill(C.teal);
+    doc.fillColor(C.ink2).text(t, X0 + 12, y + 7, { width: W - 20, lineGap: 1.6 });
+    doc.y = y + h + 8;
   };
   const tag = (t, color, x, y) => {
-    doc.font('Bold').fontSize(7.5);
-    const w = doc.widthOfString(t) + 10;
-    doc.roundedRect(x, y, w, 12, 6).fill(color); doc.fillColor('#FFFFFF').text(t, x + 5, y + 2.4, { lineBreak: false });
+    doc.font('Bold').fontSize(7.8);
+    const w = doc.widthOfString(t) + 12;
+    doc.roundedRect(x, y, w, 13, 6.5).fill(color); doc.fillColor('#FFFFFF').text(t, x + 6, y + 2.6, { lineBreak: false });
     return w;
   };
   const benchTxt = (b) => (!b ? 'benchmark non ancora congelato' : !b.available ? `benchmark non disponibile (N=${b.n}, servono almeno ${SC.benchmark.minN} aziende)`
     : `mediana ${n1(b.median)} · Q1–Q3 ${n1(b.q1)}–${n1(b.q3)} · N=${b.n} · ${b.label}${b.looApplied ? '' : ' · azienda inclusa (campione residuo < 5)'}`);
 
   // ---------- Copertina ----------
-  doc.rect(0, 0, doc.page.width, 190).fill(C.deep);
-  doc.font('Bold').fontSize(8.5).fillColor(C.gold).text('AI TRANSFORMATION & ADOPTION MAP · REPORT RISERVATO', X0, 46, { characterSpacing: 1.5 });
-  doc.font('Bold').fontSize(24).fillColor('#FFFFFF').text(R.company.name, X0, 66, { width: W });
-  doc.font('Body').fontSize(10).fillColor('#DCE3EE')
+  doc.rect(0, 0, doc.page.width, 196).fill(C.deep);
+  doc.rect(0, 196, doc.page.width, 4).fill(C.gold);
+  mark(X0 + W - 64, 40, 52, C.gold);
+  doc.font('Semi').fontSize(10).fillColor(C.gold).text('AI Transformation & Adoption Map · report riservato', X0, 44, { width: W - 90 });
+  doc.font('Display').fontSize(28).fillColor('#FFFFFF').text(R.company.name, X0, 62, { width: W - 90 });
+  doc.font('Body').fontSize(10.5).fillColor('#DCE3EE')
     .text(`Perimetro valutato: ${R.company.perimeter || 'non indicato'}   ·   Dimensioni misurate: ${R.dimsComplete}/8`, X0, doc.y + 6, { width: W })
     .text(`Sessioni: ${R.sessions.map((s) => s.title).join(' · ') || '—'}`, { width: W })
     .text(`Generato il ${dateIt(R.generatedAt)} · Strumento V${R.instrumentVersion} · scoring ${R.scoringVersion}`, { width: W });
-  doc.fontSize(8).fillColor('#AFC0D6').text(`Benchmark: ${[...new Set(Object.values(R.benchVersions))].join(' · ') || 'nessuna versione congelata'}`, { width: W });
-  doc.y = 206;
+  doc.fontSize(8.5).fillColor('#AFC0D6').text(`Benchmark: ${[...new Set(Object.values(R.benchVersions))].join(' · ') || 'nessuna versione congelata'}`, { width: W });
+  doc.y = 216;
   if (R.draft || R.snapshot) {
-    const txt = R.draft ? 'BOZZA: versione calcolata ora, non ancora rilasciata all\'azienda.' : `Versione rilasciata v${R.snapshot.version} · ${R.snapshot.sessionTitle} · ${dateIt(R.snapshot.releasedAt)}`;
-    doc.rect(X0, doc.y, W, 20).fill(R.draft ? '#FBF0DD' : '#E3F4EA');
-    doc.font('Bold').fontSize(8.5).fillColor(R.draft ? '#7A5212' : '#1B6B45').text(txt, X0 + 8, doc.y + 6);
+    const txt = R.draft ? 'Bozza: versione calcolata ora, non ancora rilasciata all\'azienda.' : `Versione rilasciata v${R.snapshot.version} · ${R.snapshot.sessionTitle} · ${dateIt(R.snapshot.releasedAt)}`;
+    doc.rect(X0, doc.y, W, 22).fill(R.draft ? '#FBF1DF' : '#E3F3EA'); doc.rect(X0, doc.y, 3, 22).fill(R.draft ? C.warn : C.ok);
+    doc.font('Bold').fontSize(9).fillColor(R.draft ? '#6E4A10' : '#1B6B45').text(txt, X0 + 11, doc.y + 6.5);
     doc.y += 28;
   }
   if (R.preview) {
     doc.rect(X0, doc.y, W, 22).fill('#FFF3D6');
-    doc.font('Bold').fontSize(9).fillColor('#6B4E0A').text('ANTEPRIMA: il benchmark include aziende DEMO e TEST. Non è un report ufficiale.', X0 + 8, doc.y + 6.5);
+    doc.font('Bold').fontSize(9).fillColor('#5E4507').text('Anteprima: il benchmark include aziende DEMO e TEST. Non è un report ufficiale.', X0 + 8, doc.y + 6.5);
     doc.y += 30;
   }
   explain('Come leggere il report. La Map descrive la capacità dell\'azienda di trasformare l\'AI in pratica governata, adottata e scalabile. Non è una graduatoria e non esiste un livello giusto in assoluto. La lettura principale è la coerenza tra le capacità: livelli bassi ma allineati possono indicare un percorso coerente, mentre una forte distanza tra una capacità e quella da cui dipende segnala un punto da esaminare. Il benchmark confronta l\'azienda con le altre aziende AITO (non con il mercato), esclude l\'azienda stessa quando il campione lo consente e indica sempre su quante aziende si basa.');
@@ -87,24 +103,24 @@ export function buildCompanyPdf(R) {
   // tabella dimensioni
   const tx = X0 + 222, tw = W - 222;
   let y = yTop;
-  doc.font('Bold').fontSize(6.8).fillColor(C.ink3);
-  doc.text('DIMENSIONE', tx, y); doc.text('SCORE', tx + 128, y, { width: 34, align: 'right' }); doc.text('PEER', tx + 166, y, { width: 34, align: 'right' }); doc.text('FASCIA', tx + 210, y);
+  doc.font('Semi').fontSize(7.8).fillColor(C.ink3);
+  doc.text('Dimensione', tx, y); doc.text('Score', tx + 128, y, { width: 34, align: 'right' }); doc.text('Peer', tx + 166, y, { width: 34, align: 'right' }); doc.text('Fascia', tx + 210, y);
   y += 12;
   for (const d of R.dims) {
-    doc.font('Body').fontSize(7.8);
+    doc.font('Body').fontSize(8.4);
     const hName = doc.heightOfString(d.name, { width: 108 });
     const rowH = Math.max(17, hName + 7);
     doc.moveTo(tx, y - 2).lineTo(tx + tw, y - 2).lineWidth(0.5).strokeColor(C.line).stroke();
-    doc.roundedRect(tx, y + 1, 13, 13, 3).fill(d.score == null ? '#B9C2CE' : C.navy);
+    doc.roundedRect(tx, y + 1, 13, 13, 3).fill(d.score == null ? '#B9C2CE' : C.deep);
     doc.font('Bold').fontSize(7.5).fillColor('#FFFFFF').text(d.id, tx, y + 3.6, { width: 13, align: 'center' });
-    doc.font('Body').fontSize(7.8).fillColor(C.ink).text(d.name, tx + 17, y + 3, { width: 108 });
-    doc.font('Bold').fontSize(8.5).fillColor(C.ink).text(n1(d.score), tx + 128, y + 3, { width: 34, align: 'right' });
+    doc.font('Body').fontSize(8.4).fillColor(C.ink).text(d.name, tx + 17, y + 2.6, { width: 108 });
+    doc.font('Bold').fontSize(9).fillColor(C.ink).text(n1(d.score), tx + 128, y + 2.6, { width: 34, align: 'right' });
     doc.font('Body').fontSize(8).fillColor(C.ink2).text(d.bench?.available ? n1(d.bench.median) : '—', tx + 166, y + 3, { width: 34, align: 'right' });
-    if (d.score != null) { const b = E.band(d.score); doc.font('Bold').fontSize(7).fillColor(BAND_COLOR[b.id]).text(b.name, tx + 210, y + 3.5, { width: tw - 210 }); }
+    if (d.score != null) { const b = E.band(d.score); doc.font('Bold').fontSize(7.4); const bw = doc.widthOfString(b.name) + 10; doc.roundedRect(tx + 210, y + 1.5, bw, 12, 6).fill(BAND_BG[b.id]); doc.fillColor(BAND_COLOR[b.id]).text(b.name, tx + 215, y + 4, { lineBreak: false }); }
     else doc.font('Body').fontSize(7).fillColor(C.ink3).text(I.sessions.find((s) => s.id === d.session).name, tx + 210, y + 3.5, { width: tw - 210 });
     y += rowH;
   }
-  doc.font('Body').fontSize(7).fillColor(C.ink3).text('Fasce del pilot: Fondativa < 44 · In costruzione 44–69 · Consolidata ≥ 70. Le dimensioni non ancora misurate restano N.D. e non sono disegnate come zero.', tx, y + 2, { width: tw });
+  doc.font('Body').fontSize(7.6).fillColor(C.ink3).text('Fasce del pilot: Fondativa < 44 · In costruzione 44–69 · Consolidata ≥ 70. Le dimensioni non ancora misurate restano N.D. e non sono disegnate come zero.', tx, y + 2, { width: tw });
   doc.y = Math.max(yTop + 226, doc.y + 4);
   if (R.overall != null) para(`Indicatore sintetico complessivo (lettura secondaria, Map completa): ${n1(R.overall)}`, { size: 8.5, color: C.ink2 });
 
@@ -116,7 +132,7 @@ export function buildCompanyPdf(R) {
     ensure(46);
     const st = c.flagged ? ['da esaminare', C.risk] : c.comparisons.some((x) => x.status === 'prudenza') ? ['prudenza', C.teal] : ['coerente', C.ok];
     const y0 = doc.y;
-    doc.font('Bold').fontSize(9).fillColor(C.ink).text(`${c.id} · ${c.label}`, X0, y0, { continued: false });
+    doc.font('Bold').fontSize(9.6).fillColor(C.ink).text(`${c.id} · ${c.label}`, X0, y0, { continued: false });
     tag(st[0], st[1], X0 + doc.widthOfString(`${c.id} · ${c.label}`) + 8, y0 - 0.5);
     doc.y = y0 + 13;
     for (const x of c.comparisons) para(x.available ? `${x.enabler} ${n1(x.enablerScore)}  →  ${c.dependent} ${n1(x.dependentScore)}   (scarto ${x.diff > 0 ? '+' : ''}${n1(x.diff)})${x.status === 'da_esaminare' ? '  · da esaminare' : ''}` : `${x.enabler} → ${c.dependent}: non ancora disponibile (abilitante N.D.)`, { size: 8, color: C.ink2 });
@@ -135,23 +151,23 @@ export function buildCompanyPdf(R) {
   explain('Il numero è il livello consolidato in sala, la lettera la sotto-opzione scelta con una scelta forzata tra fatti osservabili. Lo stesso "2B" non vale lo stesso in tutti gli item (dipende da quante sotto-opzioni ha il livello), per questo è indicato anche il valore 0–100. Nella barra: il punto blu è l\'azienda, la fascia azzurra va dal primo al terzo quartile dei peer, il trattino è la mediana.');
   for (const it of R.items) {
     const desc = `${it.descriptor || ''}${it.subText ? `\n${it.subText}` : ''}${it.override ? `\nOverride: ${it.overrideReason || ''}` : ''}`;
-    doc.font('Body').fontSize(7.8);
+    doc.font('Body').fontSize(8.3);
     const hDesc = doc.heightOfString(desc, { width: 215, lineGap: 1 });
-    doc.font('Bold').fontSize(8.5);
+    doc.font('Bold').fontSize(9);
     const hLeft = doc.heightOfString(`${it.itemId} ${it.title}`, { width: 120 }) + 22 + (it.valoriale ? 16 : 0) + 10;
     const h = Math.max(52, hLeft, hDesc + 26);
     ensure(h + 4);
     const y0 = doc.y;
     doc.moveTo(X0, y0).lineTo(X0 + W, y0).lineWidth(0.5).strokeColor(C.line).stroke();
-    doc.font('Bold').fontSize(8.5).fillColor(C.ink).text(`${it.itemId} ${it.title}`, X0, y0 + 5, { width: 120 });
-    doc.font('Body').fontSize(7).fillColor(C.ink3).text(`Dim. ${it.dimension} · ${it.confidence || ''}`, X0, doc.y + 1, { width: 120 });
+    doc.font('Bold').fontSize(9).fillColor(C.ink).text(`${it.itemId} ${it.title}`, X0, y0 + 5, { width: 120 });
+    doc.font('Body').fontSize(7.6).fillColor(C.ink3).text(`Dim. ${it.dimension} · ${it.confidence || ''}`, X0, doc.y + 1, { width: 120 });
     doc.text(`${it.validN} ${it.validN === 1 ? 'risposta valida' : 'risposte valide'} · ${it.ndN} N.D.`, X0, doc.y, { width: 120 });
     if (it.valoriale) tag('valoriale', C.gold, X0, doc.y + 2);
-    doc.font('Bold').fontSize(11).fillColor(C.navy).text(lvl(it.level, it.sub), X0 + 126, y0 + 5, { width: 34 });
-    doc.font('Body').fontSize(7.5).fillColor(C.ink2).text(n1(it.score), X0 + 126, y0 + 21, { width: 34 });
-    doc.font('Body').fontSize(7.8).fillColor(C.ink).text(desc, X0 + 166, y0 + 5, { width: 215, lineGap: 1 });
+    doc.font('Display').fontSize(15).fillColor(C.deep).text(lvl(it.level, it.sub), X0 + 126, y0 + 3, { width: 36 });
+    doc.font('Body').fontSize(8).fillColor(C.ink2).text(n1(it.score), X0 + 126, y0 + 22, { width: 36 });
+    doc.font('Body').fontSize(8.3).fillColor(C.ink).text(desc, X0 + 166, y0 + 5, { width: 215, lineGap: 1 });
     svg(benchStrip(it.bench, it.score, { w: 220, h: 26 }), X0 + W - 118, y0 + 4, 118, 14);
-    doc.font('Body').fontSize(6.8).fillColor(C.ink2).text(benchTxt(it.bench), X0 + W - 118, y0 + 22, { width: 118, lineGap: 0.5 });
+    doc.font('Body').fontSize(7.3).fillColor(C.ink2).text(benchTxt(it.bench), X0 + W - 118, y0 + 22, { width: 118, lineGap: 0.5 });
     doc.y = y0 + h;
   }
 
@@ -165,8 +181,8 @@ export function buildCompanyPdf(R) {
     svg(whereMap(pts, { names: SC.quadrantNames[SC.quadrantNamesInUse] }), X0, y0, 270, 200);
     let yy = y0 + 4;
     for (const d of R.dims.filter((x) => x.quadrant)) {
-      doc.font('Bold').fontSize(8.5).fillColor(C.ink).text(`${d.id} · ${d.name}`, X0 + 285, yy, { width: W - 285 });
-      doc.font('Body').fontSize(8).fillColor(C.ink2).text(`${d.quadrant.name} (alternativo: ${d.quadrant.altName}) · scarto dalla mediana ${d.quadrant.delta > 0 ? '+' : ''}${n1(d.quadrant.delta)}`, X0 + 285, doc.y + 1, { width: W - 285 });
+      doc.font('Bold').fontSize(9).fillColor(C.ink).text(`${d.id} · ${d.name}`, X0 + 285, yy, { width: W - 285 });
+      doc.font('Body').fontSize(8.5).fillColor(C.ink2).text(`${d.quadrant.name} (alternativo: ${d.quadrant.altName}) · scarto dalla mediana ${d.quadrant.delta > 0 ? '+' : ''}${n1(d.quadrant.delta)}`, X0 + 285, doc.y + 1, { width: W - 285 });
       doc.text(benchTxt(d.bench), X0 + 285, doc.y + 1, { width: W - 285 });
       yy = doc.y + 8;
     }
@@ -218,8 +234,10 @@ export function buildCompanyPdf(R) {
   for (let i = range.start; i < range.start + range.count; i++) {
     doc.switchToPage(i);
     doc.page.margins.bottom = 0;
-    doc.font('Body').fontSize(7).fillColor(C.ink3)
-      .text(`AITO · AI Transformation & Adoption Map · ${R.company.name} · riservato`, X0, doc.page.height - 36, { width: W - 60, lineBreak: false })
+    doc.moveTo(X0, doc.page.height - 44).lineTo(X0 + W, doc.page.height - 44).lineWidth(0.5).strokeColor(C.line).stroke();
+    mark(X0, doc.page.height - 37, 8, C.gold);
+    doc.font('Body').fontSize(7.5).fillColor(C.ink3)
+      .text(`AITO Map · ${R.company.name} · riservato`, X0 + 16, doc.page.height - 36, { width: W - 80, lineBreak: false })
       .text(`${i + 1} / ${range.count}`, X0 + W - 60, doc.page.height - 36, { width: 60, align: 'right', lineBreak: false });
   }
   doc.end();
