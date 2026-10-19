@@ -12,6 +12,7 @@ import { buildExport } from './export.js';
 import { pdfBuffer, pdfFileName } from './pdf.js';
 import { liveDashboard } from './live.js';
 import JSZip from 'jszip';
+import { seedDemo, removeDemo, hasDemo } from './demo.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(here, '../public');
@@ -429,6 +430,9 @@ app.post('/api/admin/correct', wrap((req, res) => {
   if (!out.ok) return bad(res, out.errors.join(' · '));
   return out;
 }));
+app.get('/api/admin/demo', wrap(() => ({ present: hasDemo(), vetrina: q.get("SELECT id FROM companies WHERE kind = 'TEST' AND name = 'Vetrina S.p.A. (prova)'")?.id || null })));
+app.post('/api/admin/demo', wrap((req, res) => (hasDemo() ? bad(res, 'Dati dimostrativi già presenti') : seedDemo())));
+app.delete('/api/admin/demo', wrap(() => removeDemo()));
 app.get('/api/admin/audit', wrap(() => q.all('SELECT * FROM audit ORDER BY id DESC LIMIT 500')));
 app.get('/api/admin/export.xlsx', async (req, res) => {
   try {
@@ -461,6 +465,7 @@ app.get('/api/report/:cid', wrap((req, res) => {
 }));
 
 export function start(port = PORT) {
+  if (process.env.DEMO_DATA === '1' && !hasDemo()) { try { console.log('  Dati dimostrativi caricati:', JSON.stringify(seedDemo())); } catch (e) { console.error('Dati dimostrativi non caricati:', e.message); } }
   return app.listen(port, '0.0.0.0', () => {
     console.log('\n  AITO — AI Transformation & Adoption Map');
     console.log('  ─────────────────────────────────────────');

@@ -247,10 +247,18 @@ async function viewSettings() {
       <p class="small ink2">I telefoni devono essere sulla stessa rete Wi-Fi di questo computer. Se il computer ha più indirizzi, scegli quello della rete Wi-Fi della sala. Alcune reti aziendali o per ospiti isolano i dispositivi: in quel caso usa l'hotspot del telefono o un router dedicato.</p>
       <table><tbody>${NET.addresses.map((a) => `<tr><td class="mono">http://${esc(a.address)}:${NET.port}</td><td class="small muted">${esc(a.name)}</td><td><button class="sm ghost" data-url="http://${esc(a.address)}:${NET.port}">Usa questo</button></td></tr>`).join('') || '<tr><td class="muted">Nessuna rete trovata</td></tr>'}</tbody></table>
       <div class="row" style="margin-top:10px"><input type="text" id="custom" placeholder="oppure un indirizzo manuale, es. http://192.168.1.20:3000" value="${esc(NET.custom || '')}" style="max-width:420px"><button class="sm" id="savecustom">Salva</button><button class="sm ghost" id="auto">Automatico</button></div></div>
+    <div class="card"><h2>Dati dimostrativi</h2><div id="demo"><p class="muted small">…</p></div></div>
     <div class="card"><h2>Dati</h2><p class="small">Database: <span class="mono">${esc(NET.db)}</span>. Per un backup basta copiare la cartella <span class="mono">data</span> a server fermo.</p>
       <a class="btn" href="/api/admin/export.xlsx">Scarica export Excel</a></div>
     <div class="card"><h2>Password admin</h2><div class="row"><input type="password" id="pw1" placeholder="Nuova password (min. 8)" style="max-width:280px"><button class="sm" id="pwgo">Cambia</button></div></div>
     <div class="card"><h2>Versioni</h2><p class="small">Strumento <b>${esc(INST.version)}</b> (${esc(INST.status)}) · Scoring <b>${esc(SC.version)}</b></p></div>`;
+  const D = await api('/api/admin/demo');
+  $('#demo').innerHTML = `<p class="small ink2">14 aziende DEMO con valori su tutte e quattro le sessioni e un'azienda vetrina (TEST) con scheda, partecipanti, consolidamento e commitment. Non entrano mai nel benchmark ufficiale: si vedono con l'opzione "anteprima".</p>
+    ${D.present ? `<div class="row"><a class="btn sm" href="/live/1?preview=1" target="_blank">Dashboard live (anteprima)</a><a class="btn sm ghost" href="/plenaria/GOV?preview=1" target="_blank">Plenaria (anteprima)</a>
+      ${D.vetrina ? `<a class="btn sm ghost" href="/report/${D.vetrina}?preview=1" target="_blank">Report vetrina</a><a class="btn sm ghost" href="/api/admin/pdf/${D.vetrina}?preview=1">PDF vetrina</a>` : ''}
+      <button class="sm danger" id="demo_rm">Rimuovi dati dimostrativi</button></div>` : '<button class="sm" id="demo_add">Carica dati dimostrativi</button>'}`;
+  if ($('#demo_add')) $('#demo_add').onclick = async () => { try { await api('/api/admin/demo', { method: 'POST' }); toast('Dati dimostrativi caricati'); viewSettings(); } catch (e) { toast(e.message, true); } };
+  if ($('#demo_rm')) $('#demo_rm').onclick = async () => { if (!confirm('Rimuovere tutte le aziende DEMO e l\'azienda vetrina?')) return; await api('/api/admin/demo', { method: 'DELETE' }); toast('Dati dimostrativi rimossi'); viewSettings(); };
   $$('[data-url]').forEach((b) => b.onclick = async () => { await api('/api/admin/network', { method: 'PUT', body: { url: b.dataset.url } }); toast('Indirizzo aggiornato'); viewSettings(); });
   $('#savecustom').onclick = async () => { await api('/api/admin/network', { method: 'PUT', body: { url: $('#custom').value } }); viewSettings(); };
   $('#auto').onclick = async () => { await api('/api/admin/network', { method: 'PUT', body: { url: '' } }); viewSettings(); };

@@ -50,7 +50,7 @@ Dopo la sessione: *Rilascia* il report al referente (lo vede dal suo link), regi
 - Benchmark congelati per versione; solo aziende `REALE` con consenso al benchmark. Le aziende `TEST` e `DEMO` compaiono solo nelle **anteprime** (con banner).
 - Plenaria anonima, report riservato stampabile in PDF, export Excel di tutti i dati.
 - Sessioni ad hoc per aziende assenti (stesso flusso, modalità registrata).
-- `npm run demo` crea 14 aziende DEMO con dati fittizi per provare plenaria e report in anteprima.
+- Dati dimostrativi: da *Impostazioni → Dati dimostrativi* (o `npm run demo`, o con la variabile d'ambiente `DEMO_DATA=1` all'avvio) si creano 14 aziende DEMO con valori su tutte le sessioni e un'azienda vetrina (TEST) con scheda, partecipanti, consolidamento e commitment. Si vedono solo nelle anteprime e si rimuovono con un clic. Prima della rilevazione reale togliere `DEMO_DATA`.
 
 ## 6. Non ancora presente (fasi successive)
 
