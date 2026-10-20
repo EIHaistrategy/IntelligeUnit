@@ -215,7 +215,9 @@ function referent(req, res) {
 // Il referente vede solo le sessioni del suo ambiente: azienda reale → sessioni di produzione, azienda di prova → sessioni di prova.
 function refSession(r, sid, res) {
   const s = L.getSession(sid);
-  if (!s || (s.seeded ? 1 : 0) !== (r.company_seeded ? 1 : 0)) { bad(res, 'Sessione non trovata', 404); return null; }
+  // una sessione ad hoc è visibile solo all'azienda per cui è stata aperta
+  if (!s || (s.seeded ? 1 : 0) !== (r.company_seeded ? 1 : 0)
+    || (s.mode !== 'workshop' && !q.get('SELECT 1 FROM session_company WHERE session_id = ? AND company_id = ?', s.id, r.company_id))) { bad(res, 'Sessione non trovata', 404); return null; }
   return s;
 }
 const refActor = (r) => `referente:${r.id}:${r.name}`;
@@ -256,7 +258,9 @@ app.get('/api/r/:t/session/:sid', wrap((req, res) => {
 }));
 app.delete('/api/r/:t/session/:sid/participant/:pid', wrap((req, res) => {
   const r = referent(req, res); if (!r) return;
-  const p = q.get('SELECT * FROM participants WHERE id = ? AND company_id = ? AND session_id = ?', req.params.pid, r.company_id, req.params.sid);
+  const s = refSession(r, req.params.sid, res); if (!s) return;
+  if (s.phase === 'chiusa') return bad(res, 'La sessione è chiusa: per correggere i partecipanti contatta ELIS');
+  const p = q.get('SELECT * FROM participants WHERE id = ? AND company_id = ? AND session_id = ?', req.params.pid, r.company_id, s.id);
   if (!p) return bad(res, 'Partecipante non trovato', 404);
   q.run('UPDATE participants SET removed = 1 WHERE id = ?', p.id);
   L.invalidateComparison(p.session_id, p.company_id);
