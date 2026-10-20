@@ -491,7 +491,7 @@ async function viewTables(sid) {
 async function viewQr(id) {
   const C = await api(`/api/admin/sessions/${id}/control`);
   app.innerHTML = `<div class="qrfull"><div><h1>${esc(C.session.title)}</h1>
-    <p style="font-size:1.2rem">Se sul tavolo c'è il QR della tua azienda, usa quello.<br>Altrimenti inquadra questo e inserisci il codice della tua azienda.<br><span class="muted">Il telefono deve essere sulla stessa rete Wi-Fi.</span></p>
+    <p style="font-size:1.2rem">Se sul tavolo c'è il QR della tua azienda, usa quello.<br>Altrimenti inquadra questo e inserisci il codice della tua azienda.</p>
     <div style="margin:18px auto">${qrImg(C.joinUrl, 420)}</div><div class="url">${esc(C.joinUrl)}</div>
     <p><a href="#/sessione/${id}">chiudi</a></p></div></div>`;
 }
