@@ -31,8 +31,19 @@ async function start() {
 async function renderJoin() {
   let info;
   try { info = await api(`/api/join/${code}${preCompany ? `?c=${encodeURIComponent(preCompany)}` : ''}`); }
-  catch (e) { app.innerHTML = `<div class="card"><h2>Sessione non trovata</h2><p>${esc(e.message)}</p></div>`; return; }
+  catch (e) {
+    const msg = e.status === 404 ? 'Il QR o l\'indirizzo non corrisponde a nessuna sessione. Chiedi al facilitatore ELIS il QR corretto.' : e.message;
+    app.innerHTML = `<div class="card" role="alert"><h2>${e.status === 404 ? 'Sessione non trovata' : 'Connessione non disponibile'}</h2><p>${esc(msg)}</p>${e.status === 404 ? '' : '<button class="big" id="retry">Riprova</button>'}</div>`;
+    if ($('#retry')) $('#retry').onclick = () => renderJoin();
+    return;
+  }
   $('#sesstitle').textContent = info.session.title;
+  // Dopo la fase individuale non ci si registra più (§2): lo si dice subito, non dopo aver compilato il modulo.
+  if (!['preparazione', 'individuale'].includes(info.session.phase)) {
+    app.innerHTML = `<div class="card waitcard" role="status">${alt(1)}<h2>Registrazioni chiuse</h2><p>La fase delle risposte individuali di questa sessione è terminata, quindi non è più possibile registrarsi. Segui il confronto con i colleghi del tuo tavolo.</p></div>`;
+    focusTitle();
+    return;
+  }
   const pre = info.preselected;
   const companyField = pre
     ? `<div class="picked"><span class="small muted">Azienda</span><b>${esc(pre.name)}</b></div><input type="hidden" id="ccode" value="${esc(pre.code)}">`
@@ -92,8 +103,8 @@ const totalSteps = () => state.items.length + 2; // item + confronti + riepilogo
 
 function renderIndividual() {
   const n = state.items.length;
-  const bar = `<p class="sr-only">Passo ${step + 1} di ${totalSteps()}</p>`;
   if (state.participant.submitted_at && step === 0 && !renderIndividual.reopened) step = totalSteps() - 1;
+  const bar = `<p class="sr-only">Passo ${step + 1} di ${totalSteps()}</p>`;
   if (step < n) {
     const it = state.items[step];
     const cur = state.answered.includes(it.id) ? state.answers[it.id] : undefined;
@@ -119,7 +130,7 @@ function renderIndividual() {
         state.answers[it.id] = level; if (!state.answered.includes(it.id)) state.answered.push(it.id);
         $$('button.level').forEach((x) => { x.classList.toggle('sel', x === b); x.setAttribute('aria-pressed', String(x === b)); });
         $('#next').disabled = false;
-      } catch (e) { toast(e.message, true); refresh(); }
+      } catch (e) { toast(e.message, true); refresh().catch(() => {}); }
     });
   } else if (step === n) {
     app.innerHTML = `${header()}${bar}<div class="card"><div class="qmeta"><span>Ultimo passo prima del riepilogo</span></div><h2>Confronti a coppie</h2>
@@ -141,7 +152,7 @@ function renderIndividual() {
         const ex = state.pairAnswers.find((x) => x.item_a === a && x.item_b === bb);
         if (ex) ex.answer = b.dataset.v; else state.pairAnswers.push({ item_a: a, item_b: bb, answer: b.dataset.v });
         $$('.level', g).forEach((x) => { x.classList.toggle('sel', x === b); x.setAttribute('aria-pressed', String(x === b)); });
-      } catch (e) { toast(e.message, true); refresh(); }
+      } catch (e) { toast(e.message, true); refresh().catch(() => {}); }
     }));
   } else {
     const missingItems = state.items.map((it, i) => ({ it, i })).filter(({ it }) => !state.answered.includes(it.id));
@@ -174,12 +185,12 @@ function renderComparison() {
   const msg = { confronto: 'Confronto in corso: guardate dove le risposte divergono e quali evidenze le sostengono.',
     consolidamento: 'Il referente sta registrando la posizione ufficiale dell\'azienda.', chiusa: 'Sessione chiusa. Grazie per la partecipazione.' }[state.session.phase];
   app.innerHTML = `${header()}<div class="banner info" role="status">${msg}</div>
-    <div class="card"><h2>Le risposte della vostra azienda</h2><p class="small muted" style="margin:0">Vista anonima: ${c.participants} partecipanti, ${c.submitted} hanno inviato, ${c.functions.length} funzioni presenti.</p></div>
+    <div class="card"><h2>Le risposte della vostra azienda</h2><p class="small muted" style="margin:0">Vista anonima: ${c.participants} partecipanti, ${c.submitted} ${c.submitted === 1 ? 'ha' : 'hanno'} inviato, ${c.functions.length} ${c.functions.length === 1 ? 'funzione presente' : 'funzioni presenti'}.</p></div>
     ${c.items.map((it) => `<div class="card"><div class="cardhead"><h3>${esc(it.itemId)} · ${esc(it.title)}</h3>${confTag(it.confidence)}</div>
       ${it.summary.hidden ? '<p class="small muted">Meno di 3 risposte valide: per proteggere l\'anonimato si mostrano solo mediana e range.</p>' : distBars(it.summary)}
       <p class="small" style="margin-top:8px">Mediana: <b>${it.summary.median ?? '—'}</b> · Range: <b>${it.summary.range ?? '—'}</b> · N.D.: <b>${it.summary.nd}</b></p>
       ${it.summary.divergent ? '<div class="banner warn">Divergenza di due o più livelli: discussione necessaria.</div>' : ''}</div>`).join('')}
-    <div class="card"><h3>Confronti a coppie</h3>${c.pairs.map((p) => p.hidden ? `<p><b>${esc(p.a)}</b> vs <b>${esc(p.b)}</b>: non mostrato con meno di 3 partecipanti.</p>` : `<p><b>${esc(p.a)}</b> ${p.counts.A} · <b>${esc(p.b)}</b> ${p.counts.B} · N.D. ${p.counts.ND}
+    <div class="card"><h3>Confronti a coppie</h3>${c.pairs.map((p) => p.hidden ? `<p><b>${esc(p.a)}</b> vs <b>${esc(p.b)}</b>: meno di 3 risposte valide, per proteggere l'anonimato non si mostra.</p>` : `<p><b>${esc(p.a)}</b> ${p.counts.A} · <b>${esc(p.b)}</b> ${p.counts.B} · N.D. ${p.counts.ND}
       </p>${p.discordant ? `<p class="note risk">${p.discordant} ${p.discordant === 1 ? 'risposta' : 'risposte'} in contrasto con i livelli scelti dalla stessa persona</p>` : ''}`).join('')}</div>`;
 }
 

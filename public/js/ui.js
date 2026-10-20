@@ -6,7 +6,10 @@ export const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 export async function api(url, opts = {}) {
   const init = { method: opts.method || 'GET', headers: {} };
   if (opts.body !== undefined) { init.headers['Content-Type'] = 'application/json'; init.body = JSON.stringify(opts.body); }
-  const res = await fetch(url, init);
+  let res;
+  // Senza rete il browser dà un errore tecnico in inglese ("Failed to fetch"): lo si traduce.
+  try { res = await fetch(url, init); }
+  catch { throw new Error('Connessione non disponibile: l\'ultima operazione non è stata salvata. Controlla la rete e riprova.'); }
   let data = null;
   try { data = await res.json(); } catch { /* vuoto */ }
   if (!res.ok) { const e = new Error(data?.error || `Errore ${res.status}`); e.status = res.status; throw e; }

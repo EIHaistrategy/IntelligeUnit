@@ -81,7 +81,12 @@ export function participantComparison(sessionId, companyId) {
   for (const it of c.items) {
     if (it.summary.valid > 0 && it.summary.valid < 3) { it.summary = { ...it.summary, counts: null, hidden: true }; }
   }
-  if (c.participants < 3) c.pairs = c.pairs.map((p) => ({ ...p, counts: null, hidden: true }));
+  // Confronti a coppie: stessa soglia degli item, sulle risposte valide (A o B), non sui registrati.
+  // Con 1–2 risposte valide conteggi e discordanze identificherebbero le singole persone.
+  c.pairs = c.pairs.map((p) => {
+    const valid = p.counts.A + p.counts.B;
+    return c.participants < 3 || (valid > 0 && valid < 3) ? { ...p, counts: null, discordant: null, evaluable: null, hidden: true } : p;
+  });
   return c;
 }
 
