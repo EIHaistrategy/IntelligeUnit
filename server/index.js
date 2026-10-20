@@ -137,8 +137,9 @@ function rosterFor(s, c) {
   const sc = q.get('SELECT qr_generated_at FROM session_company WHERE session_id = ? AND company_id = ?', s.id, c.id);
   if (!['preparazione', 'individuale'].includes(s.phase) || !sc?.qr_generated_at) return [];
   const active = L.activeParticipants(s.id, c.id);
+  const refs = q.all('SELECT name FROM referents WHERE company_id = ?', c.id).map((r) => normName(r.name));
   return q.all('SELECT id, name, func FROM roster WHERE company_id = ? ORDER BY name', c.id)
-    .map((r) => ({ ...r, taken: takenFor(active, r) }));
+    .map((r) => ({ ...r, taken: takenFor(active, r), referent: refs.includes(normName(r.name)) }));
 }
 
 app.get('/api/join/:code', wrap((req, res) => {
@@ -499,14 +500,20 @@ function lockReason(req, res, companyId) {
 }
 const EMAIL = /^[^\s@,;<>"]+@[^\s@,;<>"]+\.[^\s@,;<>"]+$/;
 app.post('/api/admin/companies/:id/referents', wrap((req, res) => {
-  const { name, email, role } = req.body || {};
+  const { name, email, role, func } = req.body || {};
   if (!String(name || '').trim()) return bad(res, 'Nome obbligatorio');
+  // il referente risponde anche lui in sala: entra tra le persone iscritte, con la sua funzione reale
+  if (!I.functions.some((f) => f.id === func)) return bad(res, 'Scegli la funzione del referente: serve per iscriverlo tra le persone che rispondono');
   if (email && !EMAIL.test(txt(email, 200))) return bad(res, 'Email non valida: scrivi un solo indirizzo, ad esempio nome@azienda.it');
   const lk = lockReason(req, res, req.params.id); if (!lk.ok) return;
   const t = token();
   if (!q.get('SELECT 1 FROM companies WHERE id = ?', req.params.id)) return bad(res, 'Azienda non trovata', 404);
   q.run('INSERT INTO referents (company_id, name, email, role, token) VALUES (?,?,?,?,?)', req.params.id, txt(name, 120), txt(email, 200), txt(role, 120), t);
-  audit(ADMIN, 'referent', req.params.id, 'create', null, { name, email, role }, lk.reason);
+  audit(ADMIN, 'referent', req.params.id, 'create', null, { name, email, role, func }, lk.reason);
+  if (!q.all('SELECT name FROM roster WHERE company_id = ?', req.params.id).some((r) => normName(r.name) === normName(name))) {
+    const r = q.run('INSERT INTO roster (company_id, name, func) VALUES (?,?,?)', req.params.id, txt(name, 120), func);
+    audit(ADMIN, 'roster', r.lastInsertRowid, 'create', null, { name: txt(name, 120), func }, 'Referente iscritto in automatico');
+  }
   return { token: t };
 }));
 app.post('/api/admin/referents/:id/regenerate', wrap((req, res) => {
