@@ -57,6 +57,11 @@ await ref.click('button[type=submit]'); await ref.waitForSelector('text=compilat
 const ctl = await (await admin.request.get(`${BASE}/api/admin/sessions/1/control`)).json();
 const company = ctl.companies.find((c) => c.name.startsWith('Azienda Amica'));
 const joinPath = new URL(ctl.joinUrl).pathname + `?c=${company.joinCode}`;
+// passo 4 della preparazione: generare i QR della sessione blocca il referente fino alla chiusura
+const qr = await (await admin.request.post(`${BASE}/api/admin/sessions/1/qr`, { data: {} })).json();
+const regen = await admin.request.post(`${BASE}/api/admin/referents/${company.referents[0].id}/regenerate`, { data: {} });
+console.log('QR generati:', qr.generated, '· rigenera link del referente dopo il QR:', regen.status(), '(atteso 409)');
+if (regen.status() !== 409) errors.push('il referente non è bloccato dopo la generazione dei QR');
 
 const people = [
   { name: 'Anna Bianchi', func: 'CEO', a: { Q1: 3, Q2: 2, Q9: 3, Q10: 'nd' }, p: ['A', 'A'] },

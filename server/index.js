@@ -397,8 +397,15 @@ app.put('/api/admin/companies/:id/consent', wrap((req, res) => {
   audit(ADMIN, 'consent', `${req.params.id}/${type}`, granted ? 'grant' : 'revoke', before, { granted: !!granted }, req.body.reason);
   return { ok: true };
 }));
+// Dopo che i QR di una sessione sono stati generati, il referente dell'azienda non si cambia fino alla chiusura della sessione.
+function referentLock(companyId) {
+  return q.get(`SELECT s.title FROM session_company sc JOIN sessions s ON s.id = sc.session_id
+    WHERE sc.company_id = ? AND sc.qr_generated_at IS NOT NULL AND s.phase != 'chiusa' ORDER BY s.date LIMIT 1`, companyId);
+}
+const lockMsg = (l) => `Il referente non si può cambiare: i QR di ${l.title} sono già stati generati. Si potrà cambiare dopo la chiusura della sessione.`;
 app.post('/api/admin/companies/:id/referents', wrap((req, res) => {
   const { name, email, role } = req.body || {};
+  const lock = referentLock(req.params.id); if (lock) return bad(res, lockMsg(lock), 409);
   if (!String(name || '').trim()) return bad(res, 'Nome obbligatorio');
   const t = token();
   if (!q.get('SELECT 1 FROM companies WHERE id = ?', req.params.id)) return bad(res, 'Azienda non trovata', 404);
@@ -408,12 +415,14 @@ app.post('/api/admin/companies/:id/referents', wrap((req, res) => {
 }));
 app.post('/api/admin/referents/:id/regenerate', wrap((req, res) => {
   const r = q.get('SELECT * FROM referents WHERE id = ?', req.params.id); if (!r) return bad(res, 'Referente non trovato', 404);
+  const lock = referentLock(r.company_id); if (lock) return bad(res, lockMsg(lock), 409);
   q.run('UPDATE referents SET token = ? WHERE id = ?', token(), r.id);
   audit(ADMIN, 'referent', r.id, 'regenerate_link', null, null, 'Link precedente disattivato');
   return { ok: true };
 }));
-app.delete('/api/admin/referents/:id', wrap((req) => {
+app.delete('/api/admin/referents/:id', wrap((req, res) => {
   const r = q.get('SELECT * FROM referents WHERE id = ?', req.params.id);
+  const lock = r && referentLock(r.company_id); if (lock) return bad(res, lockMsg(lock), 409);
   q.run('DELETE FROM referents WHERE id = ?', req.params.id);
   audit(ADMIN, 'referent', req.params.id, 'delete', r ? { name: r.name } : null, null);
   return { ok: true };
@@ -442,6 +451,35 @@ app.put('/api/admin/sessions/:id/phase', wrap((req, res) => {
   audit(ADMIN, 'session', s.id, 'phase', { phase: s.phase }, { phase: req.body.phase }, txt(req.body?.reason, 1000) || null);
   return { ok: true };
 }));
+// Passo 3 della preparazione: ELIS segna l'invito al referente come inviato (l'email parte dal programma di posta).
+app.post('/api/admin/sessions/:sid/companies/:cid/invited', wrap((req, res) => {
+  const s = L.getSession(req.params.sid); const c = q.get('SELECT * FROM companies WHERE id = ?', req.params.cid);
+  if (!s || !c || (s.seeded ? 1 : 0) !== (c.seeded ? 1 : 0)) return bad(res, 'Non trovata', 404);
+  L.ensureSessionCompany(s.id, c.id);
+  q.run("UPDATE session_company SET invited_at = datetime('now') WHERE session_id = ? AND company_id = ?", s.id, c.id);
+  audit(ADMIN, 'invite', `${s.id}/${c.id}`, 'sent', null, { session: s.title, company: c.name });
+  return { ok: true };
+}));
+// Passo 4: genera i QR della sessione. Solo per aziende con referente; da quel momento il referente è bloccato.
+// Sessioni del calendario: tutte le aziende dell'ambiente; sessioni ad hoc: un'azienda alla volta (companyId).
+app.post('/api/admin/sessions/:sid/qr', wrap((req, res) => {
+  const s = L.getSession(req.params.sid); if (!s) return bad(res, 'Non trovata', 404);
+  if (s.phase === 'chiusa') return bad(res, 'La sessione è chiusa');
+  const one = req.body?.companyId ? Number(req.body.companyId) : null;
+  if (s.mode !== 'workshop' && !one) return bad(res, 'Nelle sessioni ad hoc i QR si generano un\'azienda alla volta');
+  const cs = q.all(`SELECT c.* FROM companies c WHERE c.seeded = ? ${one ? 'AND c.id = ?' : ''} AND EXISTS (SELECT 1 FROM referents r WHERE r.company_id = c.id)`,
+    ...(one ? [s.seeded ? 1 : 0, one] : [s.seeded ? 1 : 0]));
+  let n = 0;
+  for (const c of cs) {
+    const sc = L.ensureSessionCompany(s.id, c.id);
+    if (sc.qr_generated_at) continue;
+    q.run("UPDATE session_company SET qr_generated_at = datetime('now') WHERE session_id = ? AND company_id = ?", s.id, c.id);
+    audit(ADMIN, 'qr', `${s.id}/${c.id}`, 'generate', null, { session: s.title, company: c.name }, 'Da ora il referente è bloccato fino alla chiusura della sessione');
+    n++;
+  }
+  if (one && !cs.length) return bad(res, 'Per generare il QR serve prima un referente');
+  return { ok: true, generated: n };
+}));
 app.get('/api/admin/sessions/:id/control', wrap((req, res) => {
   const s = L.getSession(req.params.id); if (!s) return bad(res, 'Non trovata', 404);
   const def = L.baseDef(s);
@@ -455,7 +493,8 @@ app.get('/api/admin/sessions/:id/control', wrap((req, res) => {
       answered, expected: parts.length * def.items.length, functions: [...new Set(parts.map((p) => p.func))],
       presession: pre.updated_at, consolidated_at: sc?.consolidated_at || null, report_released_at: sc?.report_released_at || null,
       commitment: !!q.get('SELECT 1 FROM commitments WHERE session_id = ? AND company_id = ?', s.id, c.id),
-      referents: q.all('SELECT id, name, token FROM referents WHERE company_id = ?', c.id), leader_call_note: sc?.leader_call_note || '' };
+      referents: q.all('SELECT id, name, email, token FROM referents WHERE company_id = ?', c.id), leader_call_note: sc?.leader_call_note || '',
+      invited_at: sc?.invited_at || null, qr_generated_at: sc?.qr_generated_at || null };
   });
   const phaseSince = q.get("SELECT ts FROM audit WHERE entity = 'session' AND entity_id = ? AND action = 'phase' ORDER BY id DESC LIMIT 1", String(s.id))?.ts || null;
   return { session: s, def, baseUrl: baseUrl(), joinUrl: `${baseUrl()}/j/${s.code}`, companies: comps, phaseSince,
@@ -551,6 +590,7 @@ app.get('/api/admin/companies/:cid/journey', wrap((req) => {
     return { id: s.id, title: s.title, base: s.base, date: s.date, mode: s.mode, phase: s.phase,
       presession: L.getPresession(c.id, s.base).updated_at || null, participants: parts.length, submitted: parts.filter((p) => p.submitted_at).length,
       consolidated_at: sc?.consolidated_at || null, report_released_at: sc?.report_released_at || null, leader_call_note: sc?.leader_call_note || '',
+      qr_generated_at: sc?.qr_generated_at || null,
       commitment: q.get('SELECT priority_item, status FROM commitments WHERE session_id = ? AND company_id = ?', s.id, c.id) || null };
   });
 }));

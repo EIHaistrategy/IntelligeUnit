@@ -262,9 +262,43 @@ async function viewControl(arg) {
   let tab = TABS.some((t) => t.id === tabArg) ? tabArg : null;
   let sel = null;          // passo mostrato nel pannello
   let confirming = false;  // conferma del passaggio di fase aperta
+  const mailed = new Set(); // aziende per cui si è appena aperta la bozza dell'email: si chiede se è stata inviata
   const names = (list, max = 4) => list.slice(0, max).map((c) => esc(c.name)).join(', ') + (list.length > max ? ` e altre ${list.length - max}` : '');
   const meter = (a, b, label) => `<div class="meter"><div class="meter-top"><b>${a}</b><span> di ${b} ${label}</span></div><div class="meter-bar"><i style="width:${b ? Math.round((a / b) * 100) : 0}%"></i></div></div>`;
   const ck = (kind, html) => `<li class="ck ${kind}"><span aria-hidden="true">${kind === 'ok' ? '✓' : kind === 'warn' ? '!' : 'i'}</span><div>${html}</div></li>`;
+
+  // Preparazione: una riga per azienda con i passi 2–5 (referente, email, QR, scheda)
+  const mailtoFor = (c) => {
+    const s = C.session, due = s.date ? (() => { const d = new Date(`${s.date}T12:00:00`); d.setDate(d.getDate() - 7); return longDate(isoDay(d)); })() : '';
+    const to = c.referents.map((r) => r.email).filter(Boolean).join(',');
+    const who = c.referents.length === 1 ? `Gentile ${c.referents[0].name},` : 'Gentili referenti,';
+    const links = c.referents.map((r) => `${c.referents.length > 1 ? `${r.name}: ` : ''}${C.baseUrl}/r/${r.token}`).join('\n');
+    const subject = `AITO Map · ${s.title} · scheda pre-sessione di ${c.name}`;
+    const one = c.referents.length === 1; // Lei a un solo referente, voi a più referenti
+    const body = `${who}\n\nin vista della sessione ${s.title.split(' · ')[0]}${s.date ? ` del ${longDate(s.date)}` : ''}, ${one ? 'Le' : 'vi'} chiediamo di compilare la scheda pre-sessione di ${c.name}${due ? ` entro il ${due}` : ''}. Sono dati fattuali che in sala servono per il consolidamento.\n\nDal link personale si compila la scheda, si seguono in sala i partecipanti e si registra la posizione ufficiale dell'azienda:\n${links}\n\nIl link è personale: ${one ? 'La' : 'vi'} preghiamo di non inoltrarlo.\n\nGrazie,\nTeam AI Strategy ELIS`;
+    return `mailto:${encodeURIComponent(to).replace(/%2C/g, ',')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  };
+  const prepTable = () => {
+    const cos = C.companies, s = C.session;
+    const prow = (c) => {
+      const has = c.referents.length;
+      const noMail = has && !c.referents.some((r) => r.email);
+      const invite = !has ? '<span class="muted small">serve il referente</span>'
+        : c.invited_at && !mailed.has(c.id) ? `<span class="tag ok">inviata</span> <span class="small muted">${fmtDate(c.invited_at)}</span><div><a class="small" href="${mailtoFor(c)}" data-mail="${c.id}">prepara di nuovo</a></div>`
+        : mailed.has(c.id) ? `<div class="small">L'hai inviata?</div><div class="row" style="margin-top:4px"><button class="sm" data-invited="${c.id}">Sì, segna come inviata</button><button class="sm ghost" data-unmail="${c.id}">Non ancora</button></div>`
+        : `<a class="btn sm" href="${mailtoFor(c)}" data-mail="${c.id}">Prepara l'email</a>${noMail ? '<div class="small" style="color:var(--warn)">manca l\'email del referente</div>' : ''}`;
+      const qr = !has ? '<span class="muted small">serve il referente</span>'
+        : c.qr_generated_at ? `<span class="tag ok">generato</span> <span class="small muted">${fmtDate(c.qr_generated_at)}</span><div><a class="small" href="#/tavolo/${s.id}:${c.id}">QR azienda</a> · <span class="small muted">referente bloccato</span></div>`
+        : `<button class="sm ghost" data-genqr="${c.id}">Genera il QR</button>`;
+      return `<tr><td><b>${esc(c.name)}</b> ${c.kind !== 'REALE' ? `<span class="tag warn">${esc(c.kind)}</span>` : ''} <span class="small mono muted" title="Codice azienda">${esc(c.joinCode)}</span></td>
+        <td class="small">${has ? c.referents.map((r) => `<div><a href="/r/${r.token}" target="_blank">${esc(r.name)}</a>${r.email ? ` · <span class="muted">${esc(r.email)}</span>` : ''}</div>`).join('') : `<a href="#/azienda/${c.id}">Indica il referente</a>`}</td>
+        <td>${invite}</td><td>${qr}</td>
+        <td>${c.presession ? `<span class="tag ok">compilata</span> <span class="small muted">${fmtDate(c.presession)}</span>` : '<span class="small muted">—</span>'}</td></tr>`;
+    };
+    return `<div class="card"><h2>Aziende del programma</h2><div class="tablewrap"><table>
+      <thead><tr><th>1 · Azienda</th><th>2 · Referente</th><th>3 · Email</th><th>4 · QR</th><th>5 · Scheda</th></tr></thead>
+      <tbody>${cos.map(prow).join('') || '<tr><td colspan="5" class="muted">Nessuna azienda: aggiungile da <a href="#/aziende">Aziende e referenti</a>.</td></tr>'}</tbody></table></div></div>`;
+  };
 
   const draw = () => {
     const s = C.session;
@@ -310,18 +344,28 @@ async function viewControl(arg) {
     // ---- contenuto del pannello
     let what = '', checks = [], extra = '';
     if (f.id === 'preparazione') {
-      // elenco delle cose da fare prima della sessione, con lo stato reale (niente spunte verdi a programma vuoto)
+      // i cinque passi della preparazione, nell'ordine del flusso, con lo stato reale (niente spunte verdi a programma vuoto)
       const due = s.date ? (() => { const d = new Date(`${s.date}T12:00:00`); d.setDate(d.getDate() - 7); return longDate(isoDay(d)); })() : '';
-      what = `Cosa preparare prima della sessione${s.date ? ` del ${esc(longDate(s.date))}` : ''}. In sala i partecipanti si registrano con il QR, ma vedono le domande solo quando apri le risposte individuali.`;
+      what = `Cosa preparare prima della sessione${s.date ? ` del ${esc(longDate(s.date))}` : ''}, nell'ordine. Nella tabella sotto trovi, azienda per azienda, i pulsanti per l'email e il QR.`;
       const noRef = cos.filter((c) => !c.referents.length), noPre = withRef.filter((c) => !c.presession);
-      checks.push(!cos.length ? ck('warn', `<b>Aziende e referenti:</b> nessuna azienda ${PROVA ? 'di prova' : 'in Produzione'}. <a href="#/aziende">Aggiungi le aziende e i loro referenti</a>, poi manda a ogni referente il suo link.`)
-        : noRef.length ? ck('warn', `<b>Aziende e referenti:</b> ${noRef.length} di ${cos.length} ${cos.length === 1 ? 'azienda' : 'aziende'} senza referente: ${names(noRef)}. <a href="#/aziende">Aggiungi i referenti</a>`)
-        : ck('ok', `<b>Aziende e referenti:</b> ${cos.length === 1 ? 'l\'azienda ha' : `tutte le ${cos.length} aziende hanno`} un referente`));
-      checks.push(!withRef.length ? ck('info', `<b>Schede pre-sessione:</b> le compilano i referenti dal loro link${due ? `, entro il ${esc(due)}` : ''}. Prima servono aziende e referenti.`)
-        : noPre.length ? ck('warn', `<b>Schede pre-sessione:</b> compilate ${withRef.length - noPre.length} di ${withRef.length}${due ? `, da chiudere entro il ${esc(due)}` : ''}. Mancano: ${names(noPre)}`)
-        : ck('ok', `<b>Schede pre-sessione:</b> tutte compilate (${withRef.length})`));
-      checks.push(ck('info', `<b>QR delle aziende:</b> stampa i cartoncini dei tavoli o manda l'immagine ai referenti, e prova un QR dal telefono. <a href="#/tavoli/${s.id}">Apri i QR delle aziende</a>
-        <div class="small muted" style="margin-top:4px">Riserva: il QR di sala (<a href="#/qr/${s.id}">a schermo intero</a>) chiede il codice azienda · <span class="mono" style="word-break:break-all">${esc(C.joinUrl)}</span></div>`));
+      const invited = withRef.filter((c) => c.invited_at), withQr = withRef.filter((c) => c.qr_generated_at);
+      const adhoc = s.mode !== 'workshop';
+      checks.push(cos.length ? ck('ok', `<b>1 · Aziende:</b> ${cos.length} ${cos.length === 1 ? 'azienda' : 'aziende'} ${PROVA ? 'di prova' : 'nel programma'}. <a href="#/aziende">Aggiungine altre</a>`)
+        : ck('warn', `<b>1 · Aziende:</b> nessuna azienda ${PROVA ? 'di prova' : 'in Produzione'}. <a href="#/aziende">Aggiungi le aziende</a>`));
+      checks.push(!cos.length ? ck('info', '<b>2 · Referenti:</b> dopo le aziende, indica per ognuna il referente (nome ed email).')
+        : noRef.length ? ck('warn', `<b>2 · Referenti:</b> ${noRef.length} di ${cos.length} ${cos.length === 1 ? 'azienda' : 'aziende'} senza referente: ${names(noRef)}. <a href="#/aziende">Indica il referente</a>`)
+        : ck('ok', `<b>2 · Referenti:</b> ${cos.length === 1 ? 'l\'azienda ha' : `tutte le ${cos.length} aziende hanno`} un referente`));
+      checks.push(!withRef.length ? ck('info', `<b>3 · Email al referente:</b> con il link personale e la scadenza della scheda${due ? ` (${esc(due)})` : ''}. Si prepara dalla tabella sotto quando c'è il referente.`)
+        : invited.length < withRef.length ? ck('warn', `<b>3 · Email al referente:</b> inviata a ${invited.length} di ${withRef.length}. Usa <i>Prepara l'email</i> nella tabella sotto: si apre il programma di posta con il testo pronto.`)
+        : ck('ok', `<b>3 · Email al referente:</b> inviata a tutti (${withRef.length})`));
+      checks.push(ck(withRef.length && withQr.length === withRef.length ? 'ok' : withRef.length ? 'warn' : 'info', `<b>4 · QR della sessione:</b> ${withQr.length ? `generati per ${withQr.length} di ${withRef.length} ${withRef.length === 1 ? 'azienda' : 'aziende'}. <a href="#/tavoli/${s.id}">Apri i QR delle aziende</a> per stamparli o scaricarli.` : 'non ancora generati.'}
+        Dal momento in cui generi il QR di un'azienda, il suo referente <b>non si può più cambiare</b> fino alla chiusura della sessione.
+        ${!adhoc && withRef.length > withQr.length ? `<div style="margin-top:8px"><button class="sm" id="genqr">${withQr.length ? 'Genera i QR mancanti' : 'Genera i QR della sessione'}</button></div>` : ''}
+        ${adhoc && withRef.length > withQr.length ? '<div class="small muted" style="margin-top:4px">Sessione ad hoc: genera il QR solo per le aziende che partecipano, dalla tabella sotto.</div>' : ''}
+        <div class="small muted" style="margin-top:6px">Riserva: il QR di sala (<a href="#/qr/${s.id}">a schermo intero</a>) chiede il codice azienda · <span class="mono" style="word-break:break-all">${esc(C.joinUrl)}</span></div>`));
+      checks.push(!withRef.length ? ck('info', `<b>5 · Schede pre-sessione:</b> le compilano i referenti dal loro link${due ? `, entro il ${esc(due)}` : ''}.`)
+        : noPre.length ? ck('warn', `<b>5 · Schede pre-sessione:</b> compilate ${withRef.length - noPre.length} di ${withRef.length}${due ? `, da chiudere entro il ${esc(due)}` : ''}. Mancano: ${names(noPre)}`)
+        : ck('ok', `<b>5 · Schede pre-sessione:</b> tutte compilate (${withRef.length})`));
       if (totP) checks.push(ck('info', `<b>Partecipanti già registrati:</b> ${totP}`));
     } else if (f.id === 'individuale') {
       what = 'Ognuno risponde da solo, senza vedere le risposte dei colleghi. Chi non ha visibilità su un punto sceglie N.D.';
@@ -412,13 +456,29 @@ async function viewControl(arg) {
         ${extra}
         ${action}${back}
       </section>`}
-      ${tab === 'risultati' ? '' : `<div class="card"><h2>${s.phase === 'preparazione' ? 'Aziende del programma' : 'Aziende in questa sessione'}</h2><div class="tablewrap"><table>
+      ${tab === 'risultati' ? '' : s.phase === 'preparazione' ? prepTable() : `<div class="card"><h2>Aziende in questa sessione</h2><div class="tablewrap"><table>
         <thead><tr><th>Azienda</th><th>Scheda</th><th class="num">Partecipanti</th><th>Risposte</th><th>Funzioni</th><th>Consolidato</th><th>Commitment</th><th>Report</th><th>Tavolo</th></tr></thead>
-        <tbody>${cos.filter((c) => s.phase === 'preparazione' || c.participants || c.consolidated_at || c.presession).map(row).join('') || `<tr><td colspan="9" class="muted">${cos.length ? 'Nessuna azienda ancora attiva in questa sessione.' : 'Nessuna azienda: aggiungile da <a href="#/aziende">Aziende e referenti</a>.'}</td></tr>`}</tbody></table></div>
-        ${s.phase !== 'preparazione' && cos.some((c) => !(c.participants || c.consolidated_at || c.presession)) ? `<details style="margin-top:10px"><summary class="small">Altre aziende censite (${cos.filter((c) => !(c.participants || c.consolidated_at || c.presession)).length})</summary><table><tbody>${cos.filter((c) => !(c.participants || c.consolidated_at || c.presession)).map(row).join('')}</tbody></table></details>` : ''}</div>`}`;
+        <tbody>${cos.filter((c) => c.participants || c.consolidated_at || c.presession).map(row).join('') || `<tr><td colspan="9" class="muted">${cos.length ? 'Nessuna azienda ancora attiva in questa sessione.' : 'Nessuna azienda: aggiungile da <a href="#/aziende">Aziende e referenti</a>.'}</td></tr>`}</tbody></table></div>
+        ${cos.some((c) => !(c.participants || c.consolidated_at || c.presession)) ? `<details style="margin-top:10px"><summary class="small">Altre aziende censite (${cos.filter((c) => !(c.participants || c.consolidated_at || c.presession)).length})</summary><table><tbody>${cos.filter((c) => !(c.participants || c.consolidated_at || c.presession)).map(row).join('')}</tbody></table></details>` : ''}</div>`}`;
 
     const reload = async () => { C = await api(`/api/admin/sessions/${id}/control`); draw(); };
     $$('[data-step]').forEach((b) => b.onclick = () => { sel = b.dataset.step; confirming = false; draw(); });
+    // preparazione: email al referente (bozza nel programma di posta) e QR della sessione
+    $$('[data-mail]').forEach((a) => a.addEventListener('click', () => { mailed.add(Number(a.dataset.mail)); setTimeout(draw, 300); }));
+    $$('[data-unmail]').forEach((b) => b.onclick = () => { mailed.delete(Number(b.dataset.unmail)); draw(); });
+    $$('[data-invited]').forEach((b) => b.onclick = async () => {
+      try { await api(`/api/admin/sessions/${id}/companies/${b.dataset.invited}/invited`, { method: 'POST', body: {} }); mailed.delete(Number(b.dataset.invited)); toast('Email segnata come inviata'); await reload(); }
+      catch (e) { toast(e.message, true); }
+    });
+    const genQr = async (companyId) => {
+      const msg = companyId ? 'Generare il QR di questa azienda? Da questo momento il suo referente non si potrà cambiare fino alla chiusura della sessione.'
+        : 'Generare i QR della sessione per tutte le aziende con referente? Da questo momento i referenti non si potranno cambiare fino alla chiusura della sessione.';
+      if (!confirm(msg)) return;
+      try { const r = await api(`/api/admin/sessions/${id}/qr`, { method: 'POST', body: companyId ? { companyId } : {} }); toast(r.generated ? `QR generati: ${r.generated}` : 'Nessun QR nuovo da generare'); await reload(); }
+      catch (e) { toast(e.message, true); }
+    };
+    $$('[data-genqr]').forEach((b) => b.onclick = () => genQr(Number(b.dataset.genqr)));
+    if ($('#genqr')) $('#genqr').onclick = () => genQr(null);
     $$('[data-tab]').forEach((b) => b.onclick = () => { tab = b.dataset.tab; sel = null; confirming = false; history.replaceState(null, '', `#/sessione/${s.id}/${tab}`); draw(); });
     $$('[data-goto]').forEach((b) => b.onclick = () => { sel = b.dataset.goto; tab = TABS.find((t) => t.steps.includes(sel)).id; draw(); });
     if ($('#nextphase')) $('#nextphase').onclick = () => { confirming = true; draw(); $('#yes')?.focus(); };
@@ -489,11 +549,13 @@ const bindPng = (C, cs) => $$('[data-png]').forEach((b) => b.onclick = async () 
 // Tutti i QR delle aziende di una sessione, da stampare in una volta o scaricare uno per uno
 async function viewTables(sid) {
   const C = await api(`/api/admin/sessions/${sid}/control`);
-  const cs = C.companies.filter((c) => c.kind !== 'DEMO' || C.session.seeded);
+  const all = C.companies.filter((c) => c.kind !== 'DEMO' || C.session.seeded);
+  const cs = all.filter((c) => c.qr_generated_at), missing = all.filter((c) => !c.qr_generated_at);
   app.innerHTML = `<p class="noprint"><a class="back" href="#/sessione/${sid}">← Control room</a></p>
     <div class="pagehead noprint"><div><h1>QR delle aziende</h1><p>Un QR per azienda, con il nome scritto sotto: chi lo inquadra è già abbinato alla sua azienda e non deve scegliere né digitare nulla. Mettilo sul tavolo o mandalo al referente come immagine.</p></div></div>
-    <div class="row noprint" style="margin-bottom:16px"><button onclick="print()">Stampa ${cs.length} ${cs.length === 1 ? 'cartoncino' : 'cartoncini'}</button></div>
-    ${cs.length ? `<div class="tablecards">${cs.map((c) => tableCard(C, c, 220)).join('')}</div>` : '<div class="card"><p class="muted" style="margin:0">Nessuna azienda in questa sessione: aggiungile da <a href="#/aziende">Aziende e referenti</a>.</p></div>'}`;
+    ${missing.length ? `<div class="banner warn noprint">QR non ancora generati per: ${missing.map((c) => esc(c.name)).join(', ')}. Si generano dalla <a href="#/sessione/${sid}/prima">control room</a> (passo 4), dopo aver indicato il referente.</div>` : ''}
+    ${cs.length ? `<div class="row noprint" style="margin-bottom:16px"><button onclick="print()">Stampa ${cs.length} ${cs.length === 1 ? 'cartoncino' : 'cartoncini'}</button></div>
+      <div class="tablecards">${cs.map((c) => tableCard(C, c, 220)).join('')}</div>` : '<div class="card"><p class="muted" style="margin:0">Nessun QR generato per questa sessione.</p></div>'}`;
   bindPng(C, cs);
 }
 
@@ -509,7 +571,7 @@ async function viewTableCard(arg) {
   const [sid, cid] = arg.split(':').map(Number);
   const C = await api(`/api/admin/sessions/${sid}/control`);
   const c = C.companies.find((x) => x.id === cid);
-  if (!c) { app.innerHTML = `<p><a href="#/tavoli/${sid}">← QR delle aziende</a></p><div class="card"><p>Azienda non trovata in questa sessione.</p></div>`; return; }
+  if (!c || !c.qr_generated_at) { app.innerHTML = `<p><a href="#/tavoli/${sid}">← QR delle aziende</a></p><div class="card"><p>${c ? 'Il QR di questa azienda non è ancora stato generato: si genera dalla control room (passo 4).' : 'Azienda non trovata in questa sessione.'}</p></div>`; return; }
   app.innerHTML = `<p class="noprint"><a href="#/tavoli/${sid}">← QR delle aziende</a> · <button class="sm" onclick="print()">Stampa</button></p>
     <div class="single">${tableCard(C, c, 280)}</div>`;
   bindPng(C, [c]);
@@ -541,6 +603,7 @@ async function viewCompany(id) {
   const c = cs.find((x) => x.id === Number(id));
   const R = await api(`/api/admin/report/${id}`);
   const J = await api(`/api/admin/companies/${id}/journey`);
+  const lock = J.find((x) => x.qr_generated_at && x.phase !== 'chiusa'); // referente bloccato dai QR della sessione
   const stp = (ok, label, title = '') => `<li class="${ok ? 'ok' : ''}" title="${esc(title)}"><span aria-hidden="true">${ok ? '✓' : '·'}</span>${label}</li>`;
   const journey = `<div class="card"><h2>Percorso nelle sessioni</h2><div class="journey">${J.filter((x) => x.mode === 'workshop' || x.consolidated_at || x.participants).map((x) => `<div class="jcol ph-${x.phase}">
       <a href="#/sessione/${x.id}"><b>${esc(INST.sessions.find((k) => k.id === x.base).name)}</b></a><small>${esc(x.mode === 'adhoc' ? 'ad hoc · ' : '')}${esc(shortDate(x.date))}</small>
@@ -559,13 +622,14 @@ async function viewCompany(id) {
       <div class="card"><h2>Consensi</h2><p class="small muted">Distinti e revocabili (§16). Senza consenso al benchmark l'azienda riceve comunque il proprio report ma non entra nelle distribuzioni.</p>
         ${['benchmark', 'peer', 'testimonianza', 'followup'].map((k) => `<label class="check"><input type="checkbox" data-consent="${k}" ${c.consents[k]?.granted ? 'checked' : ''}> ${{ benchmark: 'Benchmark anonimo', peer: 'Peer matching', testimonianza: 'Testimonianza', followup: 'Follow-up' }[k]} <span class="small muted">${c.consents[k] ? fmtDate(c.consents[k].at) : ''}</span></label>`).join('')}</div>
       <div class="card"><h2>Referenti</h2>
-        ${c.referents.map((r) => `<div class="card flat"><div class="row between"><b>${esc(r.name)}</b><div class="row"><button class="sm ghost" data-regen="${r.id}" title="Disattiva il link attuale e ne crea uno nuovo">Rigenera link</button><button class="sm danger" data-delref="${r.id}">Elimina</button></div></div>
+        ${lock ? `<div class="banner info">Referente bloccato: i QR di <b>${esc(lock.title)}</b> sono stati generati il ${fmtDate(lock.qr_generated_at)}. Si potrà cambiare dopo la chiusura della sessione.</div>` : ''}
+        ${c.referents.map((r) => `<div class="card flat"><div class="row between"><b>${esc(r.name)}</b>${lock ? '' : `<div class="row"><button class="sm ghost" data-regen="${r.id}" title="Disattiva il link attuale e ne crea uno nuovo">Rigenera link</button><button class="sm danger" data-delref="${r.id}">Elimina</button></div>`}</div>
           <div class="small muted">${esc(r.role || '')} ${esc(r.email || '')}</div>
           <div class="row" style="margin-top:6px"><input type="text" readonly value="${esc(NET.baseUrl)}/r/${esc(r.token)}" class="mono small"><button class="sm ghost" data-copy="${esc(NET.baseUrl)}/r/${esc(r.token)}">Copia link</button></div>
           <details><summary class="small">QR del link referente</summary>${qrImg(`${NET.baseUrl}/r/${r.token}`, 160)}</details></div>`).join('') || '<p class="muted">Nessun referente.</p>'}
-        <div class="grid c3"><input type="text" id="r_name" placeholder="Nome e cognome"><input type="text" id="r_role" placeholder="Ruolo"><input type="email" id="r_email" placeholder="Email"></div>
-        <div style="margin-top:8px"><button class="sm" id="r_add">Aggiungi referente</button></div>
-        <p class="small muted">Il link è personale: chi lo possiede compila la scheda e consolida per l'azienda. Funziona sulla rete locale del computer ELIS.</p></div>
+        ${lock ? '' : `<div class="grid c3"><input type="text" id="r_name" placeholder="Nome e cognome" aria-label="Nome e cognome del referente"><input type="text" id="r_role" placeholder="Ruolo" aria-label="Ruolo del referente"><input type="email" id="r_email" placeholder="Email" aria-label="Email del referente"></div>
+        <div style="margin-top:8px"><button class="sm" id="r_add">Aggiungi referente</button></div>`}
+        <p class="small muted">Il link è personale: chi lo possiede compila la scheda e consolida per l'azienda.</p></div>
     </div>
     <div class="card"><h2>Commitment e verifica</h2><p class="small muted">Lo stato si aggiorna nella call con il leader e con l'item pulse della sessione successiva (§11, §12).</p><div id="commits"><p class="muted small">Caricamento…</p></div></div>
     <div class="card"><h2>Report rilasciati</h2><div id="snaps"><p class="muted small">Caricamento…</p></div></div>
@@ -593,9 +657,9 @@ async function viewCompany(id) {
     try { await api(`/api/admin/companies/${id}/consent`, { method: 'PUT', body: { type: b.dataset.consent, granted: b.checked, reason } }); toast('Consenso aggiornato'); }
     catch (e) { b.checked = !b.checked; toast(e.message, true); }
   });
-  $('#r_add').onclick = async () => { try { await api(`/api/admin/companies/${id}/referents`, { method: 'POST', body: { name: $('#r_name').value, role: $('#r_role').value, email: $('#r_email').value } }); viewCompany(id); } catch (e) { toast(e.message, true); } };
-  $$('[data-regen]').forEach((b) => b.onclick = async () => { if (confirm('Il link attuale smetterà di funzionare. Creare un nuovo link per questo referente?')) { await api(`/api/admin/referents/${b.dataset.regen}/regenerate`, { method: 'POST', body: {} }); viewCompany(id); } });
-  $$('[data-delref]').forEach((b) => b.onclick = async () => { if (confirm('Eliminare il referente? Il suo link smetterà di funzionare.')) { await api(`/api/admin/referents/${b.dataset.delref}`, { method: 'DELETE' }); viewCompany(id); } });
+  if ($('#r_add')) $('#r_add').onclick = async () => { try { await api(`/api/admin/companies/${id}/referents`, { method: 'POST', body: { name: $('#r_name').value, role: $('#r_role').value, email: $('#r_email').value } }); viewCompany(id); } catch (e) { toast(e.message, true); } };
+  $$('[data-regen]').forEach((b) => b.onclick = async () => { if (confirm('Il link attuale smetterà di funzionare. Creare un nuovo link per questo referente?')) { try { await api(`/api/admin/referents/${b.dataset.regen}/regenerate`, { method: 'POST', body: {} }); viewCompany(id); } catch (e) { toast(e.message, true); } } });
+  $$('[data-delref]').forEach((b) => b.onclick = async () => { if (confirm('Eliminare il referente? Il suo link smetterà di funzionare.')) { try { await api(`/api/admin/referents/${b.dataset.delref}`, { method: 'DELETE' }); viewCompany(id); } catch (e) { toast(e.message, true); } } });
   $$('[data-copy]').forEach((b) => b.onclick = async () => { try { await navigator.clipboard.writeText(b.dataset.copy); toast('Link copiato'); } catch { prompt('Copia il link', b.dataset.copy); } });
   $$('[data-fix]').forEach((b) => b.onclick = async () => {
     const it = b.dataset.fix;
