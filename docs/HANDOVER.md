@@ -39,9 +39,15 @@ Le scelte che la piattaforma ha dovuto rendere univoche sono nel README §7. Le 
 - soglie pilota delle mappe: 50% / 22 punti e 6 / 5;
 - terminologia: oggi l'interfaccia usa i termini della nota ("Confidence", "Score", "Owner", "KPI"). Se si preferisce l'italiano, si cambiano i testi.
 
+## Decisioni prese il 20/10/2026
+
+- **QR per azienda** come QR principale, con il nome dell'azienda sotto il QR (cartoncino A4 e PNG). Il QR di sala resta come riserva, con il codice azienda.
+- **Pagina del referente**: solo le sessioni del proprio ambiente (Produzione o Prova), in evidenza la sessione in corso o la prossima, e per ogni sessione la striscia completa delle sei fasi (scheda pre-sessione, partecipanti, consolidamento, commitment; report rilasciato e call con il leader a cura di ELIS). Le sei fasi si ripetono in tutte le sessioni, call con il leader compresa. Nessun passo di "verifica del commitment precedente".
+- **Report**: ogni rilascio resta com'è oggi (tutta la mappa dell'azienda fino a quella sessione). A settembre 2027 si manda un **report cumulativo**, generato **dopo l'allineamento finale** (§14.1): va costruita la funzione, insieme all'allineamento.
+
 ## Non ancora costruito
 
-Dal README §6: item pulse (da Efficientare), ordinamento delle 8 dimensioni e tre priorità registrabili (Scalare), classificazione degli use case (Allegato D), abbinamento nominativo del peer matching (§13), allineamento finale e benchmark allineato di settembre 2027 (§14.1), distribuzioni del profilo in plenaria, vista degli indicatori del pilot (§19.1), account ELIS nominativi e ruoli distinti (§21).
+Dal README §6: item pulse (da Efficientare), ordinamento delle 8 dimensioni e tre priorità registrabili (Scalare), classificazione degli use case (Allegato D), abbinamento nominativo del peer matching (§13), allineamento finale e benchmark allineato di settembre 2027 (§14.1) con il report cumulativo che ne deriva, distribuzioni del profilo in plenaria, vista degli indicatori del pilot (§19.1), account ELIS nominativi e ruoli distinti (§21).
 
 Limiti noti:
 - una sola password admin condivisa;

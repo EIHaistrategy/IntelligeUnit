@@ -40,7 +40,7 @@ await shot(admin, '02-admin-azienda');
 // ---- Referente: scheda pre-sessione
 const refCtx = await browser.newContext({ viewport: { width: 1200, height: 900 } });
 const ref = await refCtx.newPage(); watch(ref, 'ref');
-await ref.goto(`${BASE}/r/${refToken}`); await ref.waitForSelector('text=Apri scheda');
+await ref.goto(`${BASE}/r/${refToken}`); await ref.waitForSelector('text=Compila la scheda');
 await shot(ref, '03-ref-home');
 await ref.click('a[href="#/scheda/GOV"]'); await ref.waitForSelector('#f');
 await ref.check('input[name="Q1_L3"][value="Sì"]');

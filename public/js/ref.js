@@ -37,17 +37,25 @@ function route() {
 async function renderHome() {
   me = await api(`/api/r/${T}`);
   const { active, done, later } = splitSessions(me.sessions);
+  const finished = !active.length && done.length;
+  const activeTitle = finished ? 'Programma' : !active.length || active.every((s) => s.phase === 'preparazione') ? 'Prossima sessione' : 'Sessione in corso';
+  const activeNote = finished ? 'Le sessioni del programma sono concluse. ELIS vi contatterà per l\'allineamento finale di settembre 2027.'
+    : !active.length ? 'Nessuna sessione in programma in questo momento.' : later ? 'Le sessioni successive del programma compariranno qui quando saranno le prossime.' : '';
+  // al telefono la sessione attiva viene subito dopo l'intestazione; report e sessioni concluse sotto
   app.innerHTML = `
     <div class="pagehead"><div><h1>${esc(me.referent.company)}</h1>
       <p>Perimetro valutato: <b>${esc(me.referent.perimeter || 'non indicato')}</b>${me.referent.kind !== 'REALE' ? ` <span class="tag warn">${esc(me.referent.kind)}</span>` : ''}</p></div></div>
-    <p class="lede" style="margin-bottom:20px">Da qui compili la scheda pre-sessione una settimana prima, segui i partecipanti in sala e registri la posizione ufficiale dell'azienda nel consolidamento.</p>
-    <div class="${me.reports.length ? 'card' : 'hidden'}">
-      ${me.reports.length ? `<h2>Report riservati</h2><table><tbody>${me.reports.map((v) => `<tr><td><b>${esc(v.session_title)}</b>${v.version > 1 ? ` <span class="tag">versione ${v.version}</span>` : ''}</td><td class="small muted">rilasciato il ${fmtDate(v.created_at)}</td>
-        <td><a href="/report/${me.referent.companyId}?t=${T}&snap=${v.id}" target="_blank">Apri</a> · <a href="/api/report/${me.referent.companyId}/pdf?t=${T}&snap=${v.id}">PDF</a></td></tr>`).join('')}</tbody></table>` : ''}
-    </div>
-    ${sessionsCard(!active.length || active.every((s) => s.phase === 'preparazione') ? 'Prossima sessione' : 'Sessione in corso', active, active.length ? (later ? 'Le sessioni successive del programma compariranno qui quando saranno le prossime.' : '') : 'Nessuna sessione in programma in questo momento.')}
-    ${done.length ? sessionsCard('Sessioni concluse', done, '') : ''}`;
+    ${sessionsCard(activeTitle, active, activeNote, true)}
+    ${me.reports.length ? `<div class="card"><h2>Report riservati</h2><div class="sesslist">${me.reports.map((v) => `<div class="sessrow">
+      <div class="sr-main"><h3 class="sr-title">${esc(v.session_title)}</h3>${v.version > 1 ? ` <span class="tag">versione ${v.version}</span>` : ''}</div>
+      <div class="small muted sr-sub">rilasciato il ${dOnly(v.created_at)}</div>
+      <div class="sr-act row"><a class="btn sm ghost" href="/report/${me.referent.companyId}?t=${T}&snap=${v.id}" target="_blank">Apri il report<span class="sr-only"> di ${esc(v.session_title)} (si apre in una nuova scheda)</span></a>
+        <a class="btn sm ghost" href="/api/report/${me.referent.companyId}/pdf?t=${T}&snap=${v.id}">Scarica PDF<span class="sr-only"> di ${esc(v.session_title)}</span></a></div></div>`).join('')}</div></div>` : ''}
+    ${done.length ? sessionsCard('Sessioni concluse', done, '', false) : ''}`;
 }
+
+const dOnly = (d) => fmtDate(d).split(',')[0]; // al referente basta il giorno
+const minus7 = (d) => { const x = new Date(`${d}T12:00:00`); x.setDate(x.getDate() - 7); return x.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' }); };
 
 // Si mostra solo la sessione in corso o la prossima del calendario (più eventuali sessioni ad hoc aperte):
 // le successive compaiono quando arriva il loro turno; sotto, le sessioni concluse a cui l'azienda ha partecipato.
@@ -64,33 +72,63 @@ function splitSessions(list) {
 }
 
 // Le sei fasi che si ripetono in ogni sessione: le prime quattro sono dell'azienda, le ultime due di ELIS.
-// "Tocca a voi" segna il passo che il referente può fare adesso.
-function steps(s) {
-  const room = ['consolidamento', 'chiusa'].includes(s.phase);
+// "Tocca a voi" segna il passo che il referente può fare adesso; il pulsante principale dice quell'azione.
+function phases(s) {
+  const closed = s.phase === 'chiusa';
+  const report = me.reports.find((v) => v.session_id === s.id); // l'ultima versione rilasciata (elenco dal più recente)
   const az = [
-    { label: 'Scheda pre-sessione', done: !!s.presession_updated_at, todo: ['preparazione', 'individuale'].includes(s.phase), detail: s.presession_updated_at ? `compilata il ${fmtDate(s.presession_updated_at)}` : 'da compilare' },
-    { label: 'Partecipanti', done: s.participants > 0, detail: s.participants ? String(s.participants) : '' },
-    { label: 'Consolidamento', done: !!s.consolidated_at, todo: s.phase === 'consolidamento', detail: s.consolidated_at ? fmtDate(s.consolidated_at) : '' },
-    { label: 'Commitment', done: !!s.commitment, todo: room && !!s.consolidated_at },
+    { label: 'Scheda pre&#8209;sessione', done: !!s.presession_updated_at, todo: ['preparazione', 'individuale'].includes(s.phase),
+      detail: s.presession_updated_at ? `compilata il ${dOnly(s.presession_updated_at)}` : closed ? '' : s.date ? `da compilare entro il ${minus7(s.date)}` : 'da compilare' },
+    { label: 'Partecipanti', done: s.participants > 0, detail: s.participants ? `${s.participants} ${s.participants === 1 ? 'partecipante' : 'partecipanti'}` : '' },
+    { label: 'Consolidamento', done: !!s.consolidated_at, todo: s.phase === 'consolidamento' && !s.consolidated_at, detail: s.consolidated_at ? dOnly(s.consolidated_at) : '' },
+    { label: 'Commitment', done: !!s.commitment, todo: ['consolidamento', 'chiusa'].includes(s.phase) && !!s.consolidated_at && !s.commitment },
   ];
+  const elisWait = closed ? 'in attesa di ELIS' : 'dopo la sessione';
   const elis = [
-    { label: 'Report rilasciato', done: !!s.report_released_at, detail: s.report_released_at ? fmtDate(s.report_released_at) : '' },
-    { label: 'Call con il leader', done: !!s.leader_call },
+    { label: 'Report rilasciato', done: !!s.report_released_at, detail: s.report_released_at ? dOnly(s.report_released_at) : elisWait,
+      href: report ? `/report/${me.referent.companyId}?t=${T}&snap=${report.id}` : null },
+    { label: 'Call con il leader', done: !!s.leader_call, detail: s.leader_call ? '' : elisWait },
   ];
-  const li = (x) => `<li class="${x.done ? 'ok' : x.todo ? 'todo' : ''}"><span class="si" aria-hidden="true">${x.done ? '✓' : x.todo ? '●' : ''}</span>
-    <span>${x.label}<span class="sr-only">: ${x.done ? 'fatto' : x.todo ? 'tocca a voi' : 'non ancora'}</span>${x.detail ? `<small>${esc(x.detail)}</small>` : ''}${!x.done && x.todo ? '<small class="todo-t" aria-hidden="true">tocca a voi</small>' : ''}</span></li>`;
-  return `<div class="steps6"><div class="sg"><span class="sgl">La vostra azienda</span><ol>${az.map(li).join('')}</ol></div>
-    <div class="sg elis"><span class="sgl">ELIS</span><ol>${elis.map(li).join('')}</ol></div></div>`;
+  return { az, elis, all: [...az, ...elis] };
 }
 
-function sessionsCard(title, list, note) {
-  // righe a blocchi invece di una tabella: sul telefono del referente tutto resta visibile senza scorrere di lato
-  return `<div class="card"><h2>${title}</h2>${list.length ? `<div class="sesslist">${list.map((s) => `<div class="sessrow">
-      <div class="sr-main"><b>${esc(s.title)}</b>${s.mode === 'adhoc' ? ' <span class="tag gold">ad hoc</span>' : ''}
-        <span class="tag ${['chiusa', 'preparazione'].includes(s.phase) ? '' : 'navy'}">${esc(s.phase.charAt(0).toUpperCase() + s.phase.slice(1))}</span></div>
-      ${steps(s)}
-      <div class="sr-act row"><a class="btn sm ghost" href="#/scheda/${s.base}" aria-label="Apri scheda pre-sessione di ${esc(s.title)}">Apri scheda</a><a class="btn sm" href="#/sessione/${s.id}" aria-label="Apri ${esc(s.title)}">Apri</a></div></div>`).join('')}</div>` : ''}
-      ${note ? `<p class="small muted" style="margin:${list.length ? '12px' : '0'} 0 0">${note}</p>` : ''}</div>`;
+function steps(s) {
+  const { az, elis } = phases(s);
+  const li = (x) => {
+    const state = x.done ? 'fatto' : x.todo ? 'tocca a voi' : 'non ancora';
+    const body = `${x.label}<span class="sr-only">: ${state}${x.detail ? ',' : ''}</span>${x.detail ? `<small>${esc(x.detail)}</small>` : ''}${!x.done && x.todo ? '<small class="todo-t" aria-hidden="true">tocca a voi</small>' : ''}`;
+    return `<li class="${x.done ? 'ok' : x.todo ? 'todo' : ''}"><span class="si" aria-hidden="true">${x.done ? '✓' : x.todo ? '●' : ''}</span>
+      <span>${x.href ? `<a href="${x.href}" target="_blank">${body}<span class="sr-only"> (apri il report in una nuova scheda)</span></a>` : body}</span></li>`;
+  };
+  return `<div class="steps6"><div class="sg"><span class="sgl" id="sga-${s.id}">La vostra azienda</span><ol role="list" aria-labelledby="sga-${s.id}">${az.map(li).join('')}</ol></div>
+    <div class="sg elis"><span class="sgl" id="sge-${s.id}">ELIS</span><ol role="list" aria-labelledby="sge-${s.id}">${elis.map(li).join('')}</ol></div></div>`;
+}
+
+// Pulsante principale = l'azione del passo "tocca a voi"; altrimenti un link secondario alla sessione.
+function actions(s) {
+  const todo = phases(s).az.find((x) => x.todo && !x.done);
+  const see = (main) => `<a class="btn sm ${main ? '' : 'ghost'}" href="#/sessione/${s.id}">Vedi la sessione<span class="sr-only"> ${esc(s.title)}</span></a>`;
+  const scheda = (main) => `<a class="btn sm ${main ? '' : 'ghost'}" href="#/scheda/${s.base}">${main ? 'Compila la scheda' : 'Apri la scheda'}<span class="sr-only"> pre-sessione di ${esc(s.title)}</span></a>`;
+  if (!todo) return `${see(false)}${scheda(false)}`;
+  if (todo.label.startsWith('Scheda')) return `${scheda(true)}${see(false)}`;
+  const verb = todo.label === 'Consolidamento' ? 'Registra il consolidamento' : 'Scrivi il commitment';
+  return `<a class="btn sm" href="#/sessione/${s.id}">${verb}<span class="sr-only"> di ${esc(s.title)}</span></a>${scheda(false)}`;
+}
+
+function sessionsCard(title, list, note, open) {
+  // righe a blocchi invece di una tabella: sul telefono del referente tutto resta visibile senza scorrere di lato.
+  // Le sessioni concluse sono compatte (riepilogo), la striscia completa si apre con un clic.
+  const row = (s) => {
+    const head = `<h3 class="sr-title">${esc(s.title)}</h3>${s.mode === 'adhoc' ? ' <span class="tag gold">ad hoc</span>' : ''}
+      <span class="tag ${['chiusa', 'preparazione'].includes(s.phase) ? '' : 'navy'}">${s.phase === 'preparazione' ? 'In preparazione' : esc(s.phase.charAt(0).toUpperCase() + s.phase.slice(1))}</span>`;
+    if (open) return `<section class="sessrow" aria-label="${esc(s.title)}"><div class="sr-main">${head}</div>${steps(s)}<div class="sr-act row">${actions(s)}</div></section>`;
+    const all = phases(s).all, n = all.filter((x) => x.done).length, miss = all.filter((x) => !x.done).map((x) => x.label.replace('&#8209;', '-').toLowerCase());
+    return `<section class="sessrow" aria-label="${esc(s.title)}"><div class="sr-main">${head}</div>
+      <details class="sr-more"><summary class="small">${n} di ${all.length} fasi fatte${miss.length ? ` · manca: ${esc(miss.join(', '))}` : ''}</summary>${steps(s)}</details>
+      <div class="sr-act row">${actions(s)}</div></section>`;
+  };
+  return `<div class="card"><h2>${title}</h2>${list.length ? `<div class="sesslist">${list.map(row).join('')}</div>` : ''}
+    ${note ? `<p class="small muted" style="margin:${list.length ? '12px' : '0'} 0 0">${note}</p>` : ''}</div>`;
 }
 
 // ---------- Scheda pre-sessione ----------
