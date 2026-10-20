@@ -9,7 +9,11 @@ export async function api(url, opts = {}) {
   let res;
   // Senza rete il browser dà un errore tecnico in inglese ("Failed to fetch"): lo si traduce.
   try { res = await fetch(url, init); }
-  catch { throw new Error('Connessione non disponibile: l\'ultima operazione non è stata salvata. Controlla la rete e riprova.'); }
+  catch {
+    const e = new Error(init.method === 'GET' ? 'Connessione non disponibile. Controlla la rete e riprova.'
+      : 'Connessione non disponibile: l\'ultima operazione non è stata salvata. Controlla la rete e riprova.');
+    e.status = 0; e.network = true; throw e;
+  }
   let data = null;
   try { data = await res.json(); } catch { /* vuoto */ }
   if (!res.ok) { const e = new Error(data?.error || `Errore ${res.status}`); e.status = res.status; throw e; }

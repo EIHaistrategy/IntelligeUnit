@@ -9,6 +9,7 @@ let state = null;
 let step = 0;
 let lastPhase = null;
 let lastComparisonKey = '';
+let closedNotice = false; // la fase individuale si è chiusa mentre il telefono era aperto
 
 function saveTok(t) { tok = t; try { t ? localStorage.setItem(KEY, t) : localStorage.removeItem(KEY); } catch { /* */ } }
 const focusTitle = () => { const h = $('#app h2, #app h1'); if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); } };
@@ -32,15 +33,18 @@ async function renderJoin() {
   let info;
   try { info = await api(`/api/join/${code}${preCompany ? `?c=${encodeURIComponent(preCompany)}` : ''}`); }
   catch (e) {
-    const msg = e.status === 404 ? 'Il QR o l\'indirizzo non corrisponde a nessuna sessione. Chiedi al facilitatore ELIS il QR corretto.' : e.message;
-    app.innerHTML = `<div class="card" role="alert"><h2>${e.status === 404 ? 'Sessione non trovata' : 'Connessione non disponibile'}</h2><p>${esc(msg)}</p>${e.status === 404 ? '' : '<button class="big" id="retry">Riprova</button>'}</div>`;
+    const nf = e.status === 404;
+    const msg = nf ? 'Il QR o l\'indirizzo non corrisponde a nessuna sessione. Chiedi al facilitatore ELIS il QR corretto.'
+      : e.network ? e.message : 'Il servizio non risponde. Riprova tra qualche istante.';
+    app.innerHTML = `<div class="card" role="alert"><h2>${nf ? 'Sessione non trovata' : e.network ? 'Connessione non disponibile' : 'Servizio non disponibile'}</h2><p>${esc(msg)}</p>${nf ? '' : '<button class="big" id="retry">Riprova</button>'}</div>`;
     if ($('#retry')) $('#retry').onclick = () => renderJoin();
     return;
   }
   $('#sesstitle').textContent = info.session.title;
   // Dopo la fase individuale non ci si registra più (§2): lo si dice subito, non dopo aver compilato il modulo.
   if (!['preparazione', 'individuale'].includes(info.session.phase)) {
-    app.innerHTML = `<div class="card waitcard" role="status">${alt(1)}<h2>Registrazioni chiuse</h2><p>La fase delle risposte individuali di questa sessione è terminata, quindi non è più possibile registrarsi. Segui il confronto con i colleghi del tuo tavolo.</p></div>`;
+    const next = { confronto: 'Segui il confronto con i colleghi del tuo tavolo.', consolidamento: 'Il referente della tua azienda sta registrando la posizione ufficiale.', chiusa: 'La sessione è conclusa.' }[info.session.phase] || '';
+    app.innerHTML = `<div class="card waitcard">${alt(1)}<h2>Registrazioni chiuse</h2><p>La fase delle risposte individuali di questa sessione è terminata, quindi non è più possibile registrarsi. ${next}</p></div>`;
     focusTitle();
     return;
   }
@@ -114,7 +118,7 @@ function renderIndividual() {
         <h2 id="qt">${esc(it.title)}</h2>
         <p class="statement">${esc(it.statement)}</p>
         ${it.help ? `<p class="small muted">${esc(it.help)}</p>` : ''}
-        <p class="small ink2">Scegli il livello che descrive la situazione <b>praticata oggi</b>. Ciò che è solo pianificato non conta.</p>
+        <p class="small ink2">Scegli il livello che descrive la situazione <b>praticata oggi</b>. Ciò che è solo pianificato non conta. Ogni risposta si salva da sola.</p>
         <div class="levels" role="group" aria-labelledby="qt">
           ${it.levels.map((l) => `<div class="levelwrap">
             <button type="button" class="level ${cur === l.level ? 'sel' : ''}" data-l="${l.level}" aria-pressed="${cur === l.level}"><span class="n" aria-hidden="true">${l.level}${alt(l.level)}</span><span><span class="sr-only">Livello ${l.level}: </span>${esc(l.descriptor)}</span></button>
@@ -161,9 +165,9 @@ function renderIndividual() {
     app.innerHTML = `${header()}${bar}<div class="card"><h2>Riepilogo</h2>
       <table><tbody>${state.items.map((i) => `<tr><td>${esc(i.id)} ${esc(i.title)}</td><td class="num"><b>${state.answered.includes(i.id) ? (state.answers[i.id] ?? 'N.D.') : '—'}</b></td></tr>`).join('')}
       ${state.pairs.map(([a, b]) => { const v = state.pairAnswers.find((x) => x.item_a === a && x.item_b === b)?.answer; return `<tr><td>Più avanti: ${esc(a)} o ${esc(b)}?</td><td class="num"><b>${v === 'A' ? a : v === 'B' ? b : v === 'ND' ? 'N.D.' : '—'}</b></td></tr>`; }).join('')}</tbody></table>
-      ${state.participant.submitted_at ? '<div class="banner ok" role="status" style="margin-top:12px">Risposte inviate. Puoi ancora modificarle finché la fase individuale è aperta.</div>' : ''}
+      ${state.participant.submitted_at ? '<div class="banner ok" role="status" style="margin-top:12px">Risposte inviate. Finché la fase individuale è aperta puoi ancora modificarle: ogni modifica si salva da sola.</div>' : '<p class="small muted" style="margin-top:12px">Le risposte sono già salvate: con <b>Invia</b> confermi di aver finito.</p>'}
       ${missing ? `<div class="banner warn" style="margin-top:12px">Mancano ${missing} risposte: ${missingItems.map(({ it, i }) => `<button class="link" data-goto="${i}">${esc(it.id)}</button>`).join(', ')}${missingPairs ? `${missingItems.length ? ', ' : ''}<button class="link" data-goto="${state.items.length}">confronti a coppie</button>` : ''}</div>` : ''}</div>
-      <div class="sticky-foot"><button class="ghost" id="prev">Modifica</button><button id="submit" ${missing ? 'disabled' : ''}>${state.participant.submitted_at ? 'Invia di nuovo' : 'Invia le risposte'}</button></div>`;
+      <div class="sticky-foot"><button class="ghost" id="prev">Modifica</button>${state.participant.submitted_at ? '' : `<button id="submit" ${missing ? 'disabled' : ''}>Invia le risposte</button>`}</div>`;
     $$('[data-goto]').forEach((b) => b.onclick = () => { renderIndividual.reopened = true; step = Number(b.dataset.goto); renderIndividual(); scrollTo(0, 0); focusTitle(); });
     const s = $('#submit');
     if (s) s.onclick = async () => {
@@ -184,11 +188,12 @@ function renderComparison() {
   lastComparisonKey = key;
   const msg = { confronto: 'Confronto in corso: guardate dove le risposte divergono e quali evidenze le sostengono.',
     consolidamento: 'Il referente sta registrando la posizione ufficiale dell\'azienda.', chiusa: 'Sessione chiusa. Grazie per la partecipazione.' }[state.session.phase];
-  app.innerHTML = `${header()}<div class="banner info" role="status">${msg}</div>
+  const mine = (id) => (state.answered.includes(id) ? (state.answers[id] ?? 'N.D.') : 'nessuna');
+  app.innerHTML = `${header()}${closedNotice ? '<div class="banner ok">Il facilitatore ha chiuso le risposte individuali: quelle che hai dato sono registrate.</div>' : ''}<div class="banner info" role="status">${msg}</div>
     <div class="card"><h2>Le risposte della vostra azienda</h2><p class="small muted" style="margin:0">Vista anonima: ${c.participants} partecipanti, ${c.submitted} ${c.submitted === 1 ? 'ha' : 'hanno'} inviato, ${c.functions.length} ${c.functions.length === 1 ? 'funzione presente' : 'funzioni presenti'}.</p></div>
     ${c.items.map((it) => `<div class="card"><div class="cardhead"><h3>${esc(it.itemId)} · ${esc(it.title)}</h3>${confTag(it.confidence)}</div>
       ${it.summary.hidden ? '<p class="small muted">Meno di 3 risposte valide: per proteggere l\'anonimato si mostrano solo mediana e range.</p>' : distBars(it.summary)}
-      <p class="small" style="margin-top:8px">Mediana: <b>${it.summary.median ?? '—'}</b> · Range: <b>${it.summary.range ?? '—'}</b> · N.D.: <b>${it.summary.nd}</b></p>
+      <p class="small" style="margin-top:8px">La tua risposta: <b>${mine(it.itemId)}</b> · Mediana: <b>${it.summary.median ?? '—'}</b> · Range: <b>${it.summary.range ?? '—'}</b> · N.D.: <b>${it.summary.nd}</b></p>
       ${it.summary.divergent ? '<div class="banner warn">Divergenza di due o più livelli: discussione necessaria.</div>' : ''}</div>`).join('')}
     <div class="card"><h3>Confronti a coppie</h3>${c.pairs.map((p) => p.hidden ? `<p><b>${esc(p.a)}</b> vs <b>${esc(p.b)}</b>: meno di 3 risposte valide, per proteggere l'anonimato non si mostra.</p>` : `<p><b>${esc(p.a)}</b> ${p.counts.A} · <b>${esc(p.b)}</b> ${p.counts.B} · N.D. ${p.counts.ND}
       </p>${p.discordant ? `<p class="note risk">${p.discordant} ${p.discordant === 1 ? 'risposta' : 'risposte'} in contrasto con i livelli scelti dalla stessa persona</p>` : ''}`).join('')}</div>`;
@@ -203,7 +208,7 @@ async function refresh() {
   s.items = state.items; s.pairs = state.pairs; s.pairQuestion = state.pairQuestion;
   const changed = s.session.phase !== lastPhase;
   state = s;
-  if (changed) { step = 0; renderIndividual.reopened = false; renderPhase(); }
+  if (changed) { closedNotice = lastPhase === 'individuale'; step = 0; renderIndividual.reopened = false; renderPhase(); }
   else if (s.session.phase !== 'individuale' && s.session.phase !== 'preparazione') renderComparison();
 }
 

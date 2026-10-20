@@ -16,7 +16,11 @@ const itemScore = (itemId, level, sub) => {
 
 async function boot() {
   const i = await api('/api/instrument'); INST = i.instrument; SC = i.scoring;
-  try { me = await api(`/api/r/${T}`); } catch (e) { app.innerHTML = `<div class="card"><h2>Link non valido</h2><p>${esc(e.message)}</p></div>`; return; }
+  try { me = await api(`/api/r/${T}`); } catch (e) {
+    app.innerHTML = e.network ? `<div class="card" role="alert"><h2>Connessione non disponibile</h2><p>${esc(e.message)}</p><button onclick="location.reload()">Riprova</button></div>`
+      : `<div class="card"><h2>Link non valido</h2><p>${esc(e.message)}</p></div>`;
+    return;
+  }
   $('#who').textContent = `${me.referent.company} · ${me.referent.name}`;
   addEventListener('hashchange', route);
   route();

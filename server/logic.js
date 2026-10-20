@@ -85,7 +85,9 @@ export function participantComparison(sessionId, companyId) {
   // Con 1–2 risposte valide conteggi e discordanze identificherebbero le singole persone.
   c.pairs = c.pairs.map((p) => {
     const valid = p.counts.A + p.counts.B;
-    return c.participants < 3 || (valid > 0 && valid < 3) ? { ...p, counts: null, discordant: null, evaluable: null, hidden: true } : p;
+    if (c.participants < 3 || (valid > 0 && valid < 3)) return { ...p, counts: null, discordant: null, evaluable: null, hidden: true };
+    // la discordanza si calcola su un sottoinsieme (chi ha dato anche i due livelli): stessa soglia dei 3
+    return p.evaluable > 0 && p.evaluable < 3 ? { ...p, discordant: null, evaluable: null } : p;
   });
   return c;
 }

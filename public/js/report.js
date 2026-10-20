@@ -10,7 +10,7 @@ async function boot() {
   const { instrument: I, scoring: SC } = await api('/api/instrument');
   let R;
   try { R = await api(`/api/report/${cid}?${t ? `t=${encodeURIComponent(t)}&` : ''}${params.get('snap') ? `snap=${params.get('snap')}` : ''}`); }
-  catch (e) { app.innerHTML = `<div class="card"><h2>Report non disponibile</h2><p>${esc(e.message)}</p></div>`; return; }
+  catch (e) { app.innerHTML = `<div class="card"><h2>${e.network ? 'Connessione non disponibile' : 'Report non disponibile'}</h2><p>${esc(e.message)}</p>${e.network ? '<button onclick="location.reload()">Riprova</button>' : ''}</div>`; return; }
   const snap = params.get('snap');
   $('#pdfbtn').href = `/api/report/${cid}/pdf?${t ? `t=${encodeURIComponent(t)}&` : ''}${snap ? `snap=${snap}` : ''}`;
 
