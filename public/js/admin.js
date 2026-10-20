@@ -581,13 +581,28 @@ async function viewTableCard(arg) {
 }
 
 // ---------- Aziende ----------
+// Elenchi per perimetro e settore; "Altro" apre un campo libero. I nomi dei settori sono quelli dei dati di prova.
+const PERIMETERS = ['Gruppo', 'Società', 'Business unit / divisione'];
+const SECTORS = ['Assicurazioni', 'Banche', 'Consulenza', 'Difesa', 'Energia', 'Farmaceutico', 'ICT e digitale', 'Infrastrutture', 'Logistica',
+  'Manifattura', 'Media', 'Pubblica amministrazione', 'Retail', 'Sanità', 'Servizi', 'Telecomunicazioni', 'Trasporti', 'Utility'];
+const pick = (id, label, list, value = '') => {
+  const other = value && !list.includes(value);
+  return `<div><label class="f" for="${id}">${label}</label><select id="${id}" data-pick>
+      <option value="">— Seleziona —</option>${list.map((x) => `<option ${x === value ? 'selected' : ''}>${esc(x)}</option>`).join('')}<option value="__altro" ${other ? 'selected' : ''}>Altro…</option></select>
+    <input type="text" id="${id}_altro" class="${other ? '' : 'hidden'}" style="margin-top:6px" maxlength="100" placeholder="Scrivi ${label.toLowerCase()}" aria-label="${label}: altro" value="${other ? esc(value) : ''}"></div>`;
+};
+const pickValue = (id) => ($(`#${id}`).value === '__altro' ? $(`#${id}_altro`).value.trim() : $(`#${id}`).value);
+const bindPick = () => $$('[data-pick]').forEach((sel) => sel.onchange = () => {
+  const t = $(`#${sel.id}_altro`); t.classList.toggle('hidden', sel.value !== '__altro'); if (sel.value === '__altro') t.focus();
+});
+
 async function viewCompanies() {
   const cs = await api('/api/admin/companies');
   app.innerHTML = `<div class="pagehead"><div><h1>Aziende e referenti</h1><p>${PROVA ? 'Aziende dell\'ambiente di prova: le nuove aziende create qui sono di tipo TEST e si cancellano con i dati di prova.' : 'Le aziende del programma. Le aziende TEST seguono il flusso vero ma restano sempre fuori dal benchmark.'}</p></div></div>
     <div class="card"><h2>Nuova azienda</h2><div class="grid c4">
-      <div><label class="f">Nome *</label><input type="text" id="n_name"></div>
-      <div><label class="f">Perimetro valutato</label><input type="text" id="n_per" placeholder="gruppo, società o BU"></div>
-      <div><label class="f">Settore</label><input type="text" id="n_sec"></div>
+      <div><label class="f" for="n_name">Nome *</label><input type="text" id="n_name"></div>
+      ${pick('n_per', 'Perimetro valutato', PERIMETERS)}
+      ${pick('n_sec', 'Settore', SECTORS)}
       <div><label class="f">Tipo</label><select id="n_kind" ${PROVA ? 'disabled' : ''}>${PROVA ? '<option value="TEST">TEST (ambiente di prova)</option>' : '<option value="REALE">REALE</option><option value="TEST">TEST (prova del flusso, fuori benchmark)</option>'}</select></div></div>
       <div style="margin-top:12px"><button id="n_go">Aggiungi</button></div></div>
     <div class="card"><div class="tablewrap"><table><thead><tr><th>Azienda</th><th>Tipo</th><th>Perimetro</th><th>Consensi</th><th>Referenti</th><th></th></tr></thead><tbody>
@@ -595,8 +610,9 @@ async function viewCompanies() {
         <td class="small"><div class="consents">${['benchmark', 'peer', 'testimonianza', 'followup'].map((k) => `<span class="${c.consents[k]?.granted ? 'yes' : ''}">${c.consents[k]?.granted ? '✓' : '–'} ${k}</span>`).join('')}</div></td>
         <td class="small">${c.referents.map((r) => esc(r.name)).join('<br>') || '—'}</td><td><a class="btn sm" href="#/azienda/${c.id}">Apri</a></td></tr>`).join('')}
     </tbody></table></div></div>`;
+  bindPick();
   $('#n_go').onclick = async () => {
-    try { const r = await api('/api/admin/companies', { method: 'POST', body: { name: $('#n_name').value, perimeter: $('#n_per').value, sector: $('#n_sec').value, kind: $('#n_kind').value } }); location.hash = `#/azienda/${r.id}`; }
+    try { const r = await api('/api/admin/companies', { method: 'POST', body: { name: $('#n_name').value, perimeter: pickValue('n_per'), sector: pickValue('n_sec'), kind: $('#n_kind').value } }); location.hash = `#/azienda/${r.id}`; }
     catch (e) { toast(e.message, true); }
   };
 }
@@ -617,8 +633,8 @@ async function viewCompany(id) {
     ${journey}
     <details class="card"><summary>Dati dell'azienda</summary><div class="grid c4" style="margin-top:8px">
       <div><label class="f">Nome</label><input type="text" id="e_name" value="${esc(c.name)}"></div>
-      <div><label class="f">Perimetro</label><input type="text" id="e_per" value="${esc(c.perimeter)}"></div>
-      <div><label class="f">Settore</label><input type="text" id="e_sec" value="${esc(c.sector)}"></div>
+      ${pick('e_per', 'Perimetro', PERIMETERS, c.perimeter || '')}
+      ${pick('e_sec', 'Settore', SECTORS, c.sector || '')}
       <div><label class="f">Tipo</label><select id="e_kind" ${PROVA ? 'disabled' : ''}>${(c.kind === 'DEMO' ? ['DEMO'] : PROVA ? [c.kind] : ['REALE', 'TEST']).map((k) => `<option ${c.kind === k ? 'selected' : ''}>${k}</option>`).join('')}</select></div></div>
       <div style="margin-top:12px"><button id="e_save">Salva</button></div></details>
     <div class="grid c2">
@@ -654,7 +670,8 @@ async function viewCompany(id) {
     try { await api(`/api/admin/commitments/${mid}/status`, { method: 'PUT', body: { status: $(`[data-cstat="${mid}"]`).value, note: $(`[data-cnote="${mid}"]`).value } }); toast('Stato aggiornato'); } catch (e) { toast(e.message, true); }
   });
   $('#snaps').innerHTML = sn.length ? `<table><tbody>${sn.map((v) => `<tr><td>v${v.version}</td><td>${esc(v.session_title)}</td><td class="small">${fmtDate(v.created_at)}</td><td><a href="/report/${id}?snap=${v.id}" target="_blank">apri</a> · <a href="/api/admin/pdf/${id}?snap=${v.id}">PDF</a></td></tr>`).join('')}</tbody></table>` : '<p class="muted small">Nessun report rilasciato. Il rilascio si fa dalla control room della sessione.</p>';
-  $('#e_save').onclick = async () => { try { await api(`/api/admin/companies/${id}`, { method: 'PUT', body: { name: $('#e_name').value, perimeter: $('#e_per').value, sector: $('#e_sec').value, kind: $('#e_kind').value } }); toast('Salvato'); } catch (e) { toast(e.message, true); } };
+  bindPick();
+  $('#e_save').onclick = async () => { try { await api(`/api/admin/companies/${id}`, { method: 'PUT', body: { name: $('#e_name').value, perimeter: pickValue('e_per'), sector: pickValue('e_sec'), kind: $('#e_kind').value } }); toast('Salvato'); } catch (e) { toast(e.message, true); } };
   $$('[data-consent]').forEach((b) => b.onchange = async () => {
     const reason = prompt('Riferimento o motivo del cambio di consenso (es. "modulo firmato il 10/11", "revoca via email del 3/12")');
     if (!reason) { b.checked = !b.checked; return; }

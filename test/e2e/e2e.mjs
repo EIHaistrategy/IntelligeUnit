@@ -28,7 +28,7 @@ await admin.fill('#pw', PW); await admin.click('#go');
 await admin.waitForSelector('text=Da fare');
 await shot(admin, '01-admin-sessioni');
 await admin.goto(`${BASE}/admin#/aziende`); await admin.waitForSelector('#n_name');
-await admin.fill('#n_name', 'Azienda Amica S.p.A.'); await admin.fill('#n_per', 'Gruppo'); await admin.fill('#n_sec', 'Servizi');
+await admin.fill('#n_name', 'Azienda Amica S.p.A.'); await admin.selectOption('#n_per', 'Gruppo'); await admin.selectOption('#n_sec', 'Servizi');
 await admin.selectOption('#n_kind', 'TEST'); await admin.click('#n_go');
 await admin.waitForSelector('#r_name');
 await admin.fill('#r_name', 'Mario Rossi'); await admin.fill('#r_role', 'Head of Innovation'); await admin.click('#r_add');
