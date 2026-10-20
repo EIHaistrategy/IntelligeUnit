@@ -173,6 +173,10 @@ td.date, .nowrap { white-space: nowrap; }
 .level.nd:hover { background: transparent; }
 .level.nd.sel:hover { background: #EAF3F7; }
 @media (hover: hover) { .level:not(.sel):hover { background: #F6FAFC; border-color: #7FA3B7; } }
+/* "Chi sei?": una persona per riga; un nome già scelto su un altro telefono è spento, non selezionato */
+.level.person { grid-template-columns: 1fr; }
+.level.person:disabled { cursor: not-allowed; background: var(--sunken); border-color: var(--line-2); color: var(--ink-3); box-shadow: none; }
+.level.person:disabled b { color: var(--ink-3); }
 .level .n { display: grid; justify-items: center; gap: 5px; font-family: var(--display); font-size: 1.5rem; font-weight: 600; color: var(--navy-deep); line-height: 1; font-variant-numeric: lining-nums; }
 .level .n .alt { height: 16px; gap: 2px; }
 .level .n .alt i { width: 5px; }
@@ -528,3 +532,7 @@ a.tl-node:hover b { text-decoration: underline; }
 .jcol.ph-individuale, .jcol.ph-confronto, .jcol.ph-consolidamento { border-color: var(--gold); }
 .sethead { font-size: 1.2rem; margin: 26px 0 10px; color: var(--ink-2); }
 .pagehead + .sethead { margin-top: 0; }
+/* anteprima delle domande (sola lettura) */
+.preview-levels { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
+.preview-levels li { display: grid; grid-template-columns: 56px 1fr; gap: 10px; align-items: start; padding: 10px 12px; border: 1px solid var(--line-2); border-radius: var(--radius-sm); background: var(--sunken); }
+.preview-levels .n { font-family: var(--serif); font-size: 1.2rem; color: var(--navy-deep); display: grid; gap: 4px; justify-items: start; }

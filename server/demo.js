@@ -114,7 +114,7 @@ export function removeDemo() {
       q.run(`DELETE FROM answers WHERE participant_id IN (${pp})`, ...pids);
       q.run(`DELETE FROM pair_answers WHERE participant_id IN (${pp})`, ...pids);
     }
-    for (const t of ['participants', 'presession', 'session_company', 'consolidated', 'commitments', 'report_snapshots', 'consents', 'referents']) {
+    for (const t of ['participants', 'presession', 'session_company', 'consolidated', 'commitments', 'report_snapshots', 'consents', 'referents', 'roster']) {
       q.run(`DELETE FROM ${t} WHERE company_id IN (${ph})`, ...ids);
     }
     q.run(`DELETE FROM companies WHERE id IN (${ph})`, ...ids);

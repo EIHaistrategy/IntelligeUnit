@@ -18,6 +18,7 @@ export async function buildExport() {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'AITO Map';
   sheet(wb, 'Aziende', q.all('SELECT id, name AS azienda, perimeter AS perimetro, sector AS settore, kind AS tipo, join_code AS codice, created_at FROM companies WHERE seeded = 0 ORDER BY id'));
+  sheet(wb, 'Persone iscritte', q.all('SELECT r.id, c.name AS azienda, r.name AS nome, r.func AS funzione, r.created_at FROM roster r JOIN companies c ON c.id = r.company_id WHERE c.seeded = 0 ORDER BY c.name, r.name'));
   sheet(wb, 'Consensi', q.all('SELECT c.name AS azienda, k.type AS consenso, k.granted AS concesso, k.updated_at FROM consents k JOIN companies c ON c.id = k.company_id WHERE c.seeded = 0'));
   sheet(wb, 'Sessioni', q.all('SELECT id, base, title AS titolo, date AS data, mode AS modalita, channel AS canale, phase AS fase, instrument_version, scoring_version FROM sessions WHERE seeded = 0'));
   sheet(wb, 'Partecipanti', q.all(`SELECT p.id, s.title AS sessione, c.name AS azienda, p.name AS nome, p.func AS funzione, p.email, p.submitted_at AS inviato, p.removed AS rimosso

@@ -64,17 +64,23 @@ console.log('QR generati:', qr.generated, '· rigenera link del referente dopo i
 if (regen.status() !== 409) errors.push('il referente non è bloccato dopo la generazione dei QR');
 
 const people = [
-  { name: 'Anna Bianchi', func: 'CEO', a: { Q1: 3, Q2: 2, Q9: 3, Q10: 'nd' }, p: ['A', 'A'] },
+  { name: 'Anna Bianchi', func: 'CEO', roster: true, a: { Q1: 3, Q2: 2, Q9: 3, Q10: 'nd' }, p: ['A', 'A'] },
   { name: 'Luca Verdi', func: 'IT', a: { Q1: 4, Q2: 2, Q9: 3, Q10: 2 }, p: ['A', 'B'] },
   { name: 'Sara Neri', func: 'HR', a: { Q1: 3, Q2: 4, Q9: 2, Q10: 'nd' }, p: ['A', 'ND'] },
 ];
+// persone iscritte da ELIS (solo nome e funzione)
+const ros = await admin.request.post(`${BASE}/api/admin/companies/${company.id}/roster`, { data: { name: 'Anna Bianchi', func: 'CEO' } });
+if (!ros.ok()) errors.push('iscrizione della persona non riuscita');
 const phones = [];
 for (const pp of people) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
   const pg = await ctx.newPage(); watch(pg, pp.name);
-  await pg.goto(BASE + joinPath); await pg.waitForSelector('#name');
+  await pg.goto(BASE + joinPath); await pg.waitForSelector('#go');
   if (phones.length === 0) await shot(pg, '05-phone-join', false);
-  await pg.fill('#name', pp.name); await pg.selectOption('#func', pp.func); await pg.check('#ack'); await pg.click('#go');
+  // la prima persona è iscritta da ELIS e si sceglie dall'elenco; le altre si aggiungono
+  if (pp.roster) await pg.click(`[data-r]:has-text("${pp.name}")`);
+  else { if (await pg.$('[data-r="new"]')) await pg.click('[data-r="new"]'); await pg.fill('#name', pp.name); await pg.selectOption('#func', pp.func); }
+  await pg.check('#ack'); await pg.click('#go');
   await pg.waitForSelector('text=Sei registrato');
   phones.push({ pg, pp });
 }

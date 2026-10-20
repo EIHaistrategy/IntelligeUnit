@@ -161,6 +161,13 @@ CREATE TABLE IF NOT EXISTS report_snapshots (  -- report consegnati: copia conge
 );
 
 CREATE TABLE IF NOT EXISTS admin_tokens (token TEXT PRIMARY KEY, created_at TEXT NOT NULL DEFAULT (datetime('now')));
+
+CREATE TABLE IF NOT EXISTS roster (  -- persone iscritte da ELIS: solo nome e funzione (regola 9); in sala si scelgono dal telefono
+  id INTEGER PRIMARY KEY,
+  company_id INTEGER NOT NULL REFERENCES companies(id),
+  name TEXT NOT NULL, func TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `);
 
 // migrazioni leggere su database già esistenti
@@ -168,7 +175,8 @@ for (const sql of ["ALTER TABLE commitments ADD COLUMN status_note TEXT", "ALTER
   "ALTER TABLE companies ADD COLUMN seeded INTEGER NOT NULL DEFAULT 0", "ALTER TABLE sessions ADD COLUMN seeded INTEGER NOT NULL DEFAULT 0",
   "CREATE UNIQUE INDEX IF NOT EXISTS ux_snap_version ON report_snapshots(session_id, company_id, version)",
   // flusso di preparazione: invito al referente e QR della sessione (dal QR il referente è bloccato fino alla chiusura)
-  "ALTER TABLE session_company ADD COLUMN invited_at TEXT", "ALTER TABLE session_company ADD COLUMN qr_generated_at TEXT"]) {
+  "ALTER TABLE session_company ADD COLUMN invited_at TEXT", "ALTER TABLE session_company ADD COLUMN qr_generated_at TEXT",
+  "ALTER TABLE participants ADD COLUMN roster_id INTEGER"]) {
   try { db.exec(sql); } catch { /* colonna già presente */ }
 }
 
