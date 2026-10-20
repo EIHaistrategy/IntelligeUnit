@@ -307,11 +307,8 @@ app.get('/api/r/:t/presession/:base', wrap((req, res) => {
 }));
 app.put('/api/r/:t/presession/:base', wrap((req, res) => {
   const r = referent(req, res); if (!r) return;
-  if (!E.sessionDef(req.params.base)) return bad(res, 'Sessione non valida');
-  const out = L.validatePresession(req.params.base, req.body?.data || {});
-  if (!out.ok) return bad(res, out.errors.join(' · '));
-  L.savePresession(r.company_id, req.params.base, out.data, refActor(r));
-  return { ok: true };
+  // decisione del team (20/10/2026): la scheda pre-sessione si consulta soltanto; si risponde in sala
+  return bad(res, 'La scheda si consulta soltanto: le risposte si danno in sala, il giorno della sessione', 403);
 }));
 
 app.get('/api/r/:t/session/:sid', wrap((req, res) => {

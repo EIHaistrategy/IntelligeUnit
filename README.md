@@ -21,7 +21,7 @@ La console ELIS è su `http://localhost:3000/admin`. La finestra mostra anche l'
 ## 2. Prima del test
 
 1. **Aziende e referenti** (ambiente *Produzione*) → aggiungi l'azienda (tipo `TEST` per l'azienda amica: così non entra mai nel benchmark ufficiale) e il suo **referente**. Copia il link personale del referente e mandaglielo.
-2. Il referente apre il link e compila la **scheda pre-sessione** (dati fattuali per le sotto-opzioni + profilo di approccio).
+2. Il referente apre il link e **consulta** le domande della sessione e della scheda pre-sessione (dati fattuali e profilo di approccio), in sola lettura, e le inoltra ai colleghi. Non si compila nulla prima: si risponde in sala (decisione del 20/10/2026).
 3. **Impostazioni → Rete**: verifica che l'indirizzo dei QR sia quello della rete Wi-Fi della sala. Prova ad aprirlo da un telefono.
    Le reti per ospiti spesso isolano i dispositivi: in quel caso usa un router dedicato o l'hotspot di un telefono.
 

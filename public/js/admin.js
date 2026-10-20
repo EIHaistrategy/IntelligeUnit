@@ -131,10 +131,8 @@ async function viewProgram() {
   if (next && next.phase === 'preparazione') {
     const C = byId[next.id];
     const days = Math.round((new Date(`${next.date}T09:00:00`) - new Date()) / 864e5);
-    const deadline = next.date ? new Date(new Date(`${next.date}T12:00:00`).getTime() - 7 * 864e5) : null;
-    const noRef = C.companies.filter((c) => !c.referents.length), withRef = C.companies.filter((c) => c.referents.length), noPre = withRef.filter((c) => !c.presession);
+    const noRef = C.companies.filter((c) => !c.referents.length);
     if (noRef.length) add('warn', `<b>${esc(INST.sessions.find((x) => x.id === next.base).name)}</b>: ${noRef.length} ${noRef.length === 1 ? 'azienda senza referente' : 'aziende senza referente'}.`, '#/aziende', 'Aggiungi i referenti');
-    if (noPre.length) add(deadline && isoDay(deadline) < today ? 'warn' : 'info', `Schede pre-sessione compilate: <b>${withRef.length - noPre.length} di ${withRef.length}</b>${deadline ? `, da chiudere entro il ${esc(longDate(isoDay(deadline)))} (una settimana prima)` : ''}.`, `#/sessione/${next.id}/prima`, 'Vedi chi manca');
     if (days >= 0 && days <= 10) add('info', `Mancano ${days} giorni a ${esc(next.title)}: stampa i QR delle aziende e provali sulla rete della sala.`, `#/tavoli/${next.id}`, 'QR delle aziende');
   }
   for (const s of SESSIONS.filter((x) => ['consolidamento', 'chiusa'].includes(x.phase))) {
@@ -269,14 +267,12 @@ async function viewControl(arg) {
   const meter = (a, b, label) => `<div class="meter"><div class="meter-top"><b>${a}</b><span> di ${b} ${label}</span></div><div class="meter-bar"><i style="width:${b ? Math.round((a / b) * 100) : 0}%"></i></div></div>`;
   const ck = (kind, html) => `<li class="ck ${kind}"><span aria-hidden="true">${icon(kind === 'ok' ? 'check' : kind === 'warn' ? 'alert' : 'info')}</span><div>${html}</div></li>`;
 
-  // Preparazione: una riga per azienda con i passi 2–5 (referente, email, QR, scheda)
+  // Preparazione: una riga per azienda con i passi 2–4 (referente e persone, email, QR)
   // Una bozza per ogni referente: ognuno riceve solo il proprio link personale.
   const mailtoFor = (c, r) => {
     const s = C.session;
-    let due = '';
-    if (s.date) { const d = new Date(`${s.date}T12:00:00`); d.setDate(d.getDate() - 7); if (isoDay(d) >= isoDay(new Date())) due = longDate(isoDay(d)); }
-    const subject = `AITO Map · ${s.title} · scheda pre-sessione di ${c.name}`;
-    const body = `Gentile ${r.name},\n\nin vista della sessione ${s.title.split(' · ')[0]}${s.date ? ` del ${longDate(s.date)}` : ''}, Le chiediamo di compilare la scheda pre-sessione di ${c.name} ${due ? `entro il ${due}` : 'appena possibile'}. Sono dati fattuali che in sala servono per il consolidamento.\n\nDal Suo link personale si compila la scheda, si seguono in sala i partecipanti e si registra la posizione ufficiale dell'azienda:\n${C.baseUrl}/r/${r.token}\n\nIl link è personale: La preghiamo di non inoltrarlo. Riceverà a parte il messaggio con le domande da inoltrare ai colleghi iscritti.\n\nIn sala risponderà anche Lei come gli altri: inquadri il QR sul tavolo e scelga il Suo nome dall'elenco. Poi, dal link personale, registrerà la posizione ufficiale dell'azienda.\n\nGrazie,\nTeam AI Strategy ELIS`;
+    const subject = `AITO Map · ${s.title} · le domande della sessione per ${c.name}`;
+    const body = `Gentile ${r.name},\n\nin vista della sessione ${s.title.split(' · ')[0]}${s.date ? ` del ${longDate(s.date)}` : ''}, dal Suo link personale può consultare le domande a cui ${c.name} risponderà in sala e inoltrarle ai colleghi (c'è un pulsante apposito). Non c'è nulla da compilare prima: si risponde in presenza, il giorno della sessione.\n${C.baseUrl}/r/${r.token}\n\nIl link è personale: La preghiamo di non inoltrarlo. Lo stesso link Le servirà in sala per registrare la posizione ufficiale dell'azienda e, dopo la sessione, per leggere il report.\n\nIn sala risponderà anche Lei come gli altri: inquadri il QR sul tavolo e scelga il Suo nome dall'elenco.\n\nGrazie,\nTeam AI Strategy ELIS`;
     return `mailto:${encodeURIComponent(r.email || '')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   };
   // Email da inoltrare ai colleghi iscritti: senza link personale, con l'anteprima delle domande (presa visione)
@@ -307,14 +303,13 @@ async function viewControl(arg) {
       return `<tr><td><b>${esc(c.name)}</b> ${c.kind !== 'REALE' ? `<span class="tag warn">${esc(c.kind)}</span>` : ''} <span class="small mono muted" title="Codice azienda">${esc(c.joinCode)}</span></td>
         <td class="small">${has ? c.referents.map((r) => `<div><a href="/r/${r.token}" target="_blank">${esc(r.name)}</a>${r.email ? ` · <span class="muted">${esc(r.email)}</span>` : ''}</div>`).join('') : `<a href="#/azienda/${c.id}">Indica il referente</a>`}
           <div><a href="#/azienda/${c.id}" class="muted">${c.roster.length ? `${c.roster.length} ${c.roster.length === 1 ? 'persona iscritta' : 'persone iscritte'}` : 'nessuna persona iscritta'}</a></div></td>
-        <td>${invite}</td><td>${qr}</td>
-        <td>${c.presession ? `<span class="tag ok">compilata</span> <span class="small muted">${fmtDate(c.presession)}</span>` : '<span class="small muted">—</span>'}</td></tr>`;
+        <td>${invite}</td><td>${qr}</td></tr>`;
     };
     return `<div class="card"><h2>Aziende del programma</h2>
       ${localBase ? `<div class="banner warn">I link nelle email usano un indirizzo della rete locale (${esc(C.baseUrl)}): fuori dalla rete ELIS non si aprono. Usa la piattaforma online o imposta l'indirizzo pubblico in <a href="#/impostazioni">Impostazioni</a>.</div>` : ''}
       <div class="tablewrap"><table>
-      <thead><tr><th>1 · Azienda</th><th>2 · Referente e persone</th><th>3 · Email</th><th>4 · QR</th><th>5 · Scheda</th></tr></thead>
-      <tbody>${cos.map(prow).join('') || '<tr><td colspan="5" class="muted">Nessuna azienda: aggiungile da <a href="#/aziende">Aziende e referenti</a>.</td></tr>'}</tbody></table></div></div>`;
+      <thead><tr><th>1 · Azienda</th><th>2 · Referente e persone</th><th>3 · Email</th><th>4 · QR</th></tr></thead>
+      <tbody>${cos.map(prow).join('') || '<tr><td colspan="4" class="muted">Nessuna azienda: aggiungile da <a href="#/aziende">Aziende e referenti</a>.</td></tr>'}</tbody></table></div></div>`;
   };
 
   const draw = () => {
@@ -338,7 +333,7 @@ async function viewControl(arg) {
       return released.length && called.length === released.length ? 'done' : released.length ? 'now' : 'todo';
     };
     const summary = {
-      preparazione: `${withRef.length} di ${cos.length} aziende con referente · ${withRef.filter((c) => c.presession).length} schede`,
+      preparazione: `${withRef.length} di ${cos.length} aziende con referente · ${withRef.filter((c) => c.qr_generated_at).length} QR`,
       individuale: totP ? `${totS} di ${totP} hanno inviato` : 'nessun partecipante ancora',
       confronto: `${inRoom.length} ${inRoom.length === 1 ? 'azienda' : 'aziende'} al tavolo`,
       consolidamento: `${consolidated.length} di ${inRoom.length || consolidated.length} consolidate`,
@@ -362,9 +357,8 @@ async function viewControl(arg) {
     let what = '', checks = [], extra = '';
     if (f.id === 'preparazione') {
       // i cinque passi della preparazione, nell'ordine del flusso, con lo stato reale (niente spunte verdi a programma vuoto)
-      const due = s.date ? (() => { const d = new Date(`${s.date}T12:00:00`); d.setDate(d.getDate() - 7); return longDate(isoDay(d)); })() : '';
       what = `Cosa preparare prima della sessione${s.date ? ` del ${esc(longDate(s.date))}` : ''}, nell'ordine. Nella tabella sotto trovi, azienda per azienda, i pulsanti per l'email e il QR.`;
-      const noRef = cos.filter((c) => !c.referents.length), noPre = withRef.filter((c) => !c.presession);
+      const noRef = cos.filter((c) => !c.referents.length);
       const invited = withRef.filter((c) => c.invited_at), withQr = withRef.filter((c) => c.qr_generated_at);
       const adhoc = s.mode !== 'workshop';
       checks.push(cos.length ? ck('ok', `<b>1 · Aziende:</b> ${cos.length} ${cos.length === 1 ? 'azienda' : 'aziende'} ${PROVA ? 'di prova' : 'nel programma'}. <a href="#/aziende">Aggiungine altre</a>`)
@@ -377,7 +371,7 @@ async function viewControl(arg) {
       const refOut = withRef.filter((c) => !c.referents.every((r) => c.roster.some((p) => p.name.trim().toLowerCase() === r.name.trim().toLowerCase())));
       if (refOut.length) checks.push(ck('warn', `<b>Referente tra le persone iscritte:</b> manca per ${names(refOut)}. In sala il referente risponde scegliendo il suo nome dall'elenco: aggiungilo nella pagina dell'azienda.`));
       if (cos.length) checks.push(ck(noRoster.length ? 'info' : 'ok', `<b>Persone iscritte:</b> ${noRoster.length ? `${cos.length - noRoster.length} di ${cos.length} aziende hanno l'elenco. Senza elenco i partecipanti si registrano scrivendo nome e funzione. Mancano: ${names(noRoster)}` : 'tutte le aziende hanno l\'elenco'} · <a href="/anteprima/${s.base}" target="_blank">Anteprima delle domande</a>`));
-      checks.push(!withRef.length ? ck('info', `<b>3 · Email al referente:</b> con il link personale e la scadenza della scheda${due ? ` (${esc(due)})` : ''}. Si prepara dalla tabella sotto quando c'è il referente.`)
+      checks.push(!withRef.length ? ck('info', `<b>3 · Email al referente:</b> con il link personale, da cui consulta le domande e le inoltra ai colleghi. Si prepara dalla tabella sotto quando c'è il referente.`)
         : invited.length < withRef.length ? ck('warn', `<b>3 · Email al referente:</b> inviata a ${invited.length} di ${withRef.length}. Usa <i>Prepara l'email</i> nella tabella sotto: si apre il programma di posta con il testo pronto.`)
         : ck('ok', `<b>3 · Email al referente:</b> inviata a tutti (${withRef.length})`));
       checks.push(ck(withRef.length && withQr.length === withRef.length ? 'ok' : withRef.length ? 'warn' : 'info', `<b>4 · QR della sessione:</b> ${withQr.length ? `generati per ${withQr.length} di ${withRef.length} ${withRef.length === 1 ? 'azienda' : 'aziende'}. <a href="#/tavoli/${s.id}">Apri i QR delle aziende</a> per stamparli o scaricarli.` : 'non ancora generati.'}
@@ -385,18 +379,16 @@ async function viewControl(arg) {
         ${!adhoc && withRef.length > withQr.length ? `<div style="margin-top:8px"><button class="sm" id="genqr">${withQr.length ? 'Genera i QR mancanti' : 'Genera i QR della sessione'}</button></div>` : ''}
         ${adhoc && withRef.length > withQr.length ? '<div class="small muted" style="margin-top:4px">Sessione ad hoc: genera il QR solo per le aziende che partecipano, dalla tabella sotto.</div>' : ''}
         <div class="small muted" style="margin-top:6px">Riserva: il QR di sala (<a href="#/qr/${s.id}">a schermo intero</a>) chiede il codice azienda · <span class="mono" style="word-break:break-all">${esc(C.joinUrl)}</span></div>`));
-      checks.push(!withRef.length ? ck('info', `<b>5 · Schede pre-sessione:</b> le compilano i referenti dal loro link${due ? `, entro il ${esc(due)}` : ''}.`)
-        : noPre.length ? ck('warn', `<b>5 · Schede pre-sessione:</b> compilate ${withRef.length - noPre.length} di ${withRef.length}${due ? `, da chiudere entro il ${esc(due)}` : ''}. Mancano: ${names(noPre)}`)
-        : ck('ok', `<b>5 · Schede pre-sessione:</b> tutte compilate (${withRef.length})`));
+      // la scheda pre-sessione non si compila (decisione del 20/10/2026): il referente consulta le domande dal suo link
       if (totP) checks.push(ck('info', `<b>Partecipanti già registrati:</b> ${totP}`));
     } else if (f.id === 'individuale') {
       what = 'Ognuno risponde da solo, senza vedere le risposte dei colleghi. Chi non ha visibilità su un punto sceglie N.D.';
       extra = st === 'todo' ? '' : `<div class="grid c2">${meter(totS, totP, 'partecipanti hanno inviato')}${meter(answered, expected, 'risposte date')}</div>`;
-      const few = inRoom.filter((c) => c.participants < 3), oneFn = inRoom.filter((c) => c.functions.length < 2), absent = withRef.filter((c) => c.presession && !c.participants);
+      const few = inRoom.filter((c) => c.participants < 3), oneFn = inRoom.filter((c) => c.functions.length < 2), absent = withRef.filter((c) => c.qr_generated_at && !c.participants);
       if (st !== 'todo') {
         checks.push(few.length ? ck('warn', `La confidence sarà più bassa dove ci sono meno di 3 partecipanti: ${names(few)}`) : inRoom.length ? ck('ok', 'Tutte le aziende in sala hanno almeno 3 partecipanti') : ck('info', 'Nessuna azienda ancora in sala'));
         if (oneFn.length) checks.push(ck('warn', `Una sola funzione presente: ${names(oneFn)}`));
-        if (absent.length) checks.push(ck('warn', `Scheda compilata ma nessuno registrato: ${names(absent)}`));
+        if (absent.length) checks.push(ck('warn', `QR generato ma nessuno registrato: ${names(absent)}`));
       }
     } else if (f.id === 'confronto') {
       what = 'Ogni tavolo guarda dove le risposte divergono e su quali evidenze si basano. Le risposte individuali sono bloccate. Dove la divergenza è di due livelli o più, la discussione è obbligatoria prima del consolidamento.';
@@ -479,9 +471,9 @@ async function viewControl(arg) {
         ${action}${back}
       </section>`}
       ${tab === 'risultati' ? '' : s.phase === 'preparazione' ? prepTable() : `<div class="card"><h2>Aziende in questa sessione</h2><div class="tablewrap"><table>
-        <thead><tr><th>Azienda</th><th>Scheda</th><th class="num">Partecipanti</th><th>Risposte</th><th>Funzioni</th><th>Consolidato</th><th>Dopo</th><th><span class="sr-only">Azioni</span></th></tr></thead>
-        <tbody>${cos.filter((c) => c.participants || c.consolidated_at || c.presession).map(row).join('') || `<tr><td colspan="8" class="muted">${cos.length ? 'Nessuna azienda ancora attiva in questa sessione.' : 'Nessuna azienda: aggiungile da <a href="#/aziende">Aziende e referenti</a>.'}</td></tr>`}</tbody></table></div>
-        ${cos.some((c) => !(c.participants || c.consolidated_at || c.presession)) ? `<details style="margin-top:10px"><summary class="small">Altre aziende censite (${cos.filter((c) => !(c.participants || c.consolidated_at || c.presession)).length})</summary><table><tbody>${cos.filter((c) => !(c.participants || c.consolidated_at || c.presession)).map(row).join('')}</tbody></table></details>` : ''}</div>`}`;
+        <thead><tr><th>Azienda</th><th class="num">Partecipanti</th><th>Risposte</th><th>Funzioni</th><th>Consolidato</th><th>Dopo</th><th><span class="sr-only">Azioni</span></th></tr></thead>
+        <tbody>${cos.filter((c) => c.participants || c.consolidated_at).map(row).join('') || `<tr><td colspan="7" class="muted">${cos.length ? 'Nessuna azienda ancora attiva in questa sessione.' : 'Nessuna azienda: aggiungile da <a href="#/aziende">Aziende e referenti</a>.'}</td></tr>`}</tbody></table></div>
+        ${cos.some((c) => !(c.participants || c.consolidated_at)) ? `<details style="margin-top:10px"><summary class="small">Altre aziende censite (${cos.filter((c) => !(c.participants || c.consolidated_at)).length})</summary><table><tbody>${cos.filter((c) => !(c.participants || c.consolidated_at)).map(row).join('')}</tbody></table></details>` : ''}</div>`}`;
 
     const reload = async () => { C = await api(`/api/admin/sessions/${id}/control`); draw(); };
     $$('[data-step]').forEach((b) => b.onclick = () => { sel = b.dataset.step; confirming = false; draw(); });
@@ -533,7 +525,6 @@ async function viewControl(arg) {
   const yes = (when) => `<span class="tag ok" title="${when ? `Fatto il ${esc(fmtDate(when))}` : 'Fatto'}">${icon('check')}<span class="sr-only">sì</span></span>`;
   const row = (c) => `<tr>
     <td><b>${esc(c.name)}</b> ${c.kind !== 'REALE' ? `<span class="tag outline warn">${esc(c.kind)}</span>` : ''}<div class="small">${c.referents.map((r) => `<a href="/r/${r.token}" target="_blank">referente: ${esc(r.name)}</a>`).join('<br>') || '<span class="muted">nessun referente</span>'}</div></td>
-    <td>${c.presession ? yes(c.presession) : '<span class="muted">—</span>'}</td>
     <td class="num">${c.participants}${c.participants ? `<span class="muted small"> · ${c.submitted} ${c.submitted === 1 ? 'inviato' : 'inviati'}</span>` : ''}</td>
     <td class="small">${c.expected ? `${c.answered}/${c.expected}` : '<span class="muted">—</span>'}</td>
     <td class="small">${c.functions.length || '<span class="muted">—</span>'}${c.participants && c.functions.length < 2 ? ' <span class="tag warn">1 sola</span>' : ''}</td>
@@ -645,7 +636,7 @@ async function viewCompany(id) {
   const stp = (ok, label, title = '') => `<li class="${ok ? 'ok' : ''}" title="${esc(title)}"><span aria-hidden="true">${ok ? icon('check') : ''}</span>${label}</li>`;
   const journey = `<div class="card"><h2>Percorso nelle sessioni</h2><div class="journey">${J.filter((x) => x.mode === 'workshop' || x.consolidated_at || x.participants).map((x) => `<div class="jcol ph-${x.phase}">
       <a href="#/sessione/${x.id}"><b>${esc(INST.sessions.find((k) => k.id === x.base).name)}</b></a><small>${esc(x.mode === 'adhoc' ? 'ad hoc · ' : '')}${esc(shortDate(x.date))}</small>
-      <ul>${stp(x.presession, 'Scheda pre-sessione')}${stp(x.participants, `Partecipanti${x.participants ? `: ${x.participants}` : ''}`)}${stp(x.consolidated_at, 'Consolidamento')}${stp(x.commitment, `Commitment${x.commitment ? `: ${esc(x.commitment.priority_item)} · ${esc(x.commitment.status)}` : ''}`)}${stp(x.report_released_at, 'Report rilasciato')}${stp(x.leader_call_note, 'Call con il leader', x.leader_call_note)}</ul></div>`).join('')}</div></div>`;
+      <ul>${stp(x.participants, `Partecipanti${x.participants ? `: ${x.participants}` : ''}`)}${stp(x.consolidated_at, 'Consolidamento')}${stp(x.commitment, `Commitment${x.commitment ? `: ${esc(x.commitment.priority_item)} · ${esc(x.commitment.status)}` : ''}`)}${stp(x.report_released_at, 'Report rilasciato')}${stp(x.leader_call_note, 'Call con il leader', x.leader_call_note)}</ul></div>`).join('')}</div></div>`;
   app.innerHTML = `<a class="back" href="#/aziende">${icon('back')} Aziende e referenti</a>
     <div class="pagehead"><div><h1>${esc(c.name)}</h1><p>${esc(c.perimeter || 'Perimetro non indicato')} · ${esc(c.sector || 'settore non indicato')} · <span class="tag ${c.kind === 'REALE' ? 'ok' : 'warn'}">${esc(c.kind)}</span> · codice <span class="mono">${esc(c.join_code)}</span></p></div>
       <a class="btn sm ghost" href="/report/${c.id}" target="_blank">Report</a></div>
@@ -668,7 +659,7 @@ async function viewCompany(id) {
           <details><summary class="small">QR del link referente</summary>${qrImg(`${NET.baseUrl}/r/${r.token}`, 160)}</details></div>`).join('') || '<p class="muted">Nessun referente.</p>'}
         <div class="grid c3"><input type="text" id="r_name" placeholder="Nome e cognome" aria-label="Nome e cognome del referente"><input type="text" id="r_role" placeholder="Ruolo" aria-label="Ruolo del referente"><input type="email" id="r_email" placeholder="Email" aria-label="Email del referente"></div>
         <div style="margin-top:8px"><button class="sm" id="r_add">Aggiungi referente</button></div>
-        <p class="small muted">Il link è personale: chi lo possiede compila la scheda e consolida per l'azienda.</p></div>
+        <p class="small muted">Il link è personale: chi lo possiede vede le domande, consolida per l'azienda e legge i report.</p></div>
     </div>
     <div class="card"><h2>Persone iscritte <span class="muted" style="font-family:var(--font);font-weight:600">${c.roster.length}</span></h2>
       <p class="small ink2">Chi partecipa alle sessioni per l'azienda, referente compreso se risponde anche lui. In sala, dopo il QR, ognuno sceglie il proprio nome da questo elenco; chi manca si aggiunge dal telefono. Solo nome e funzione.</p>

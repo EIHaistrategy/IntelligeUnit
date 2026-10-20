@@ -37,21 +37,15 @@ const refUrl = await admin.inputValue('input.mono');
 const refToken = refUrl.split('/r/')[1];
 await shot(admin, '02-admin-azienda');
 
-// ---- Referente: scheda pre-sessione
+// ---- Referente: prima della sessione vede solo le domande, in sola lettura (decisione del 20/10/2026)
 const refCtx = await browser.newContext({ viewport: { width: 1200, height: 900 } });
 const ref = await refCtx.newPage(); watch(ref, 'ref');
-await ref.goto(`${BASE}/r/${refToken}`); await ref.waitForSelector('text=Compila la scheda');
-await shot(ref, '03-ref-home');
-await ref.click('a[href="#/scheda/GOV"]'); await ref.waitForSelector('#f');
-await ref.check('input[name="Q1_L3"][value="Sì"]');
-await ref.check('input[name="Q2_L3"][value="Esiste e comprende stabilmente legale/compliance e HR"]');
-await ref.check('input[name="Q2_L4"][value="Efficienza"]'); await ref.check('input[name="Q2_L4"][value="Innovazione"]');
-await ref.check('input[name="Q9_L3"][value="Consultata nella redazione"]');
-await ref.check('input[name="Q10_L2"][value="Sì"]');
-await ref.fill('input[name="P_USO"]', '35');
-await ref.check('input[name="P_AMBIZIONE"][value="Efficienza dei processi"]');
-await shot(ref, '04-ref-scheda');
-await ref.click('button[type=submit]'); await ref.waitForSelector('text=compilata');
+await ref.goto(`${BASE}/r/${refToken}`); await ref.waitForSelector('text=Le domande della sessione');
+await shot(ref, '03-ref-domande');
+if (await ref.$('#app input, #app form')) errors.push('la pagina del referente prima della sessione contiene campi da compilare');
+const save = await ref.request.put(`${BASE}/api/r/${refToken}/presession/GOV`, { data: { data: { Q1_L3: 'Sì' } } });
+console.log('salvataggio della scheda dal referente:', save.status(), '(atteso 403)');
+if (save.status() !== 403) errors.push('la scheda pre-sessione si può ancora salvare');
 
 // ---- Sessione GOV
 const ctl = await (await admin.request.get(`${BASE}/api/admin/sessions/1/control`)).json();
@@ -129,10 +123,9 @@ await shot(ref, '12-ref-confronto');
 await setPhase('consolidamento');
 await ref.waitForSelector('#confirm', { timeout: 10000 });
 await shot(ref, '13-ref-consolidamento-iniziale');
-// Q1: mediana 3, sotto-opzione B (indicatori: sì da scheda) — già suggerita
+// senza dati della scheda (si consulta soltanto) è preselezionata la prima sotto-opzione
 // Q2: mediana 2: confermiamo 2 e scegliamo B
 await ref.click('#it-Q2 [data-s="B"]');
-// Q9: mediana 3, suggerita B dalla scheda
 // prova override su Q1 senza motivazione → errore atteso
 await ref.click('#it-Q1 [data-l="4"]');
 await ref.click('#confirm');

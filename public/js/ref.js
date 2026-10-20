@@ -37,6 +37,10 @@ function route() {
 async function renderHome() {
   me = await api(`/api/r/${T}`);
   const { active, done, later } = splitSessions(me.sessions);
+  // Prima della sessione il referente vede solo le domande, in sola lettura, e le inoltra ai colleghi:
+  // la compilazione è in presenza, il giorno della sessione.
+  const prep = active.find((s) => s.mode === 'workshop' && s.phase === 'preparazione');
+  if (prep && active.every((s) => s.phase === 'preparazione')) return renderQuestions(prep.base);
   const finished = !active.length && done.length;
   const activeTitle = finished ? 'Programma' : !active.length || active.every((s) => s.phase === 'preparazione') ? 'Prossima sessione' : 'Sessione in corso';
   const activeNote = finished ? 'Le sessioni del programma sono concluse. ELIS vi contatterà per l\'allineamento finale di settembre 2027.'
@@ -46,16 +50,18 @@ async function renderHome() {
     <div class="pagehead"><div><h1>${esc(me.referent.company)}</h1>
       <p>Perimetro valutato: <b>${esc(me.referent.perimeter || 'non indicato')}</b></p></div></div>
     ${sessionsCard(activeTitle, active, activeNote, true)}
-    ${me.reports.length ? `<div class="card"><h2>Report riservati</h2><div class="sesslist">${me.reports.map((v) => `<div class="sessrow">
-      <div class="sr-main"><h3 class="sr-title">${esc(v.session_title)}</h3>${v.version > 1 ? ` <span class="tag">versione ${v.version}</span>` : ''}</div>
-      <div class="small muted sr-sub">rilasciato il ${dOnly(v.created_at)}</div>
-      <div class="sr-act row"><a class="btn sm ghost" href="/report/${me.referent.companyId}?t=${T}&snap=${v.id}" target="_blank">Apri il report<span class="sr-only"> di ${esc(v.session_title)} (si apre in una nuova scheda)</span></a>
-        <a class="btn sm ghost" href="/api/report/${me.referent.companyId}/pdf?t=${T}&snap=${v.id}">Scarica PDF<span class="sr-only"> di ${esc(v.session_title)}</span></a></div></div>`).join('')}</div></div>` : ''}
+    ${reportsCard()}
     ${done.length ? sessionsCard('Sessioni concluse', done, '', false) : ''}`;
 }
 
+// report rilasciati: restano raggiungibili anche quando la pagina mostra solo le domande della sessione successiva
+const reportsCard = () => (me.reports.length ? `<div class="card"><h2>Report riservati</h2><div class="sesslist">${me.reports.map((v) => `<div class="sessrow">
+      <div class="sr-main"><h3 class="sr-title">${esc(v.session_title)}</h3>${v.version > 1 ? ` <span class="tag">versione ${v.version}</span>` : ''}</div>
+      <div class="small muted sr-sub">rilasciato il ${dOnly(v.created_at)}</div>
+      <div class="sr-act row"><a class="btn sm ghost" href="/report/${me.referent.companyId}?t=${T}&snap=${v.id}" target="_blank">Apri il report<span class="sr-only"> di ${esc(v.session_title)} (si apre in una nuova scheda)</span></a>
+        <a class="btn sm ghost" href="/api/report/${me.referent.companyId}/pdf?t=${T}&snap=${v.id}">Scarica PDF<span class="sr-only"> di ${esc(v.session_title)}</span></a></div></div>`).join('')}</div></div>` : '');
+
 const dOnly = (d) => fmtDate(d).split(',')[0]; // al referente basta il giorno
-const minus7 = (d) => { const x = new Date(`${d}T12:00:00`); x.setDate(x.getDate() - 7); return x.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' }); };
 
 // Si mostra solo la sessione in corso o la prossima del calendario (più eventuali sessioni ad hoc aperte):
 // le successive compaiono quando arriva il loro turno; sotto, le sessioni concluse a cui l'azienda ha partecipato.
@@ -77,8 +83,6 @@ function phases(s) {
   const closed = s.phase === 'chiusa';
   const report = me.reports.find((v) => v.session_id === s.id); // l'ultima versione rilasciata (elenco dal più recente)
   const az = [
-    { label: 'Scheda pre&#8209;sessione', done: !!s.presession_updated_at, todo: ['preparazione', 'individuale'].includes(s.phase),
-      detail: s.presession_updated_at ? `compilata il ${dOnly(s.presession_updated_at)}` : closed ? '' : s.date ? `da compilare entro il ${minus7(s.date)}` : 'da compilare' },
     { label: 'Partecipanti', done: s.participants > 0, detail: s.participants ? `${s.participants} ${s.participants === 1 ? 'partecipante' : 'partecipanti'}` : '' },
     { label: 'Consolidamento', done: !!s.consolidated_at, todo: s.phase === 'consolidamento' && !s.consolidated_at, detail: s.consolidated_at ? dOnly(s.consolidated_at) : '' },
     { label: 'Commitment', done: !!s.commitment, todo: ['consolidamento', 'chiusa'].includes(s.phase) && !!s.consolidated_at && !s.commitment },
@@ -108,11 +112,10 @@ function steps(s) {
 function actions(s) {
   const todo = phases(s).az.find((x) => x.todo && !x.done);
   const see = (main) => `<a class="btn sm ${main ? '' : 'ghost'}" href="#/sessione/${s.id}">Vedi la sessione<span class="sr-only"> ${esc(s.title)}</span></a>`;
-  const scheda = (main) => `<a class="btn sm ${main ? '' : 'ghost'}" href="#/scheda/${s.base}">${main ? 'Compila la scheda' : 'Apri la scheda'}<span class="sr-only"> pre-sessione di ${esc(s.title)}</span></a>`;
-  if (!todo) return `${see(false)}${scheda(false)}`;
-  if (todo.label.startsWith('Scheda')) return `${scheda(true)}${see(false)}`;
+  const scheda = () => `<a class="btn sm ghost" href="#/scheda/${s.base}">Le domande<span class="sr-only"> di ${esc(s.title)}</span></a>`;
+  if (!todo) return `${see(false)}${scheda()}`;
   const verb = todo.label === 'Consolidamento' ? 'Registra il consolidamento' : 'Scrivi il commitment';
-  return `<a class="btn sm" href="#/sessione/${s.id}">${verb}<span class="sr-only"> di ${esc(s.title)}</span></a>${scheda(false)}`;
+  return `<a class="btn sm" href="#/sessione/${s.id}">${verb}<span class="sr-only"> di ${esc(s.title)}</span></a>${scheda()}`;
 }
 
 function sessionsCard(title, list, note, open) {
@@ -131,49 +134,37 @@ function sessionsCard(title, list, note, open) {
     ${note ? `<p class="small muted" style="margin:${list.length ? '12px' : '0'} 0 0">${note}</p>` : ''}</div>`;
 }
 
-// ---------- Scheda pre-sessione ----------
-async function renderScheda(base) {
+// ---------- Domande della sessione (sola lettura) ----------
+// Le domande dei temi con i livelli e le domande della scheda pre-sessione: si consultano e si inoltrano, non si compilano.
+async function renderScheda(base) { return renderQuestions(base); }
+
+async function renderQuestions(base) {
   const r = await api(`/api/r/${T}/presession/${base}`);
-  const d = r.saved.data || {};
+  const S = INST.sessions.find((x) => x.id === base);
+  const date = S.date ? new Date(`${S.date}T12:00:00`).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
   const byItem = {};
   r.fields.facts.forEach((f) => (byItem[f.itemId] ||= []).push(f));
-  const input = (f) => {
-    const v = d[f.id];
-    if (f.type === 'choice') return f.options.map((o) => `<label class="check"><input type="radio" name="${f.id}" value="${esc(o.label)}" ${v === o.label ? 'checked' : ''}> ${esc(o.label)}</label>`).join('');
-    if (f.type === 'multi') return f.options.map((o) => `<label class="check"><input type="checkbox" name="${f.id}" value="${esc(o.label)}" ${Array.isArray(v) && v.includes(o.label) ? 'checked' : ''}> ${esc(o.label)}</label>`).join('');
-    if (f.type === 'percent') return `<div class="row"><input type="number" min="0" max="100" step="0.1" name="${f.id}" aria-label="${esc(f.q)}" value="${esc(v ?? '')}" style="max-width:140px"> <span>%</span></div>`;
-    if (f.type === 'count') return `<input type="number" min="0" step="1" name="${f.id}" aria-label="${esc(f.q)}" value="${esc(v ?? '')}" style="max-width:140px">`;
-    return '';
-  };
-  app.innerHTML = `<a class="back" href="#/">${icon('back')} Sessioni</a>
-    <div class="pagehead"><div><h1>Scheda pre-sessione: ${esc(r.session.name)}</h1></div></div>
-    <div class="card flat">
-      <p class="ink2" style="margin:0">Da compilare una settimana prima della sessione. Sono dati fattuali: servono in sala per scegliere le sotto-opzioni senza doverli cercare durante il consolidamento. Se un dato non è disponibile, lascia vuoto.</p>
-      ${r.saved.updated_at ? `<p class="small muted" style="margin:8px 0 0">Ultimo salvataggio: ${fmtDate(r.saved.updated_at)}</p>` : ''}</div>
-    <form id="f">
-    ${Object.entries(byItem).map(([itemId, facts]) => `<div class="card"><h2><span class="tag navy" style="margin-right:8px;vertical-align:4px">${esc(itemId)}</span>${esc(INST.items[itemId].title)}</h2>
-      ${facts[0].factOwner ? `<p class="small"><span class="tag gold">${esc(facts[0].factOwner)}</span></p>` : ''}
-      ${facts.map((f) => `<fieldset class="q"><legend>${esc(f.q)}</legend><div class="small muted">Serve per il livello ${f.level}</div>${input(f)}</fieldset>`).join('')}</div>`).join('')}
-    <div class="card"><h2>Profilo di approccio</h2><p class="small muted">Domande fuori punteggio: descrivono come l'azienda si trasforma, non quanto è avanti.</p>
-      ${r.fields.profile.map((p) => `<fieldset class="q"><legend>${esc(p.q)}</legend><div>${p.type === 'percent'
-        ? `<div class="row"><input type="number" min="0" max="100" step="0.1" name="${p.id}" aria-label="${esc(p.q)}" value="${esc(d[p.id] ?? '')}" style="max-width:140px"> <span>%</span></div>`
-        : p.options.map((o) => `<label class="check"><input type="radio" name="${p.id}" value="${esc(o)}" ${d[p.id] === o ? 'checked' : ''}> ${esc(o)}</label>`).join('')}</div></fieldset>`).join('')}</div>
-    <div class="sticky-foot"><button type="submit">Salva la scheda</button></div></form>`;
-  $('#f').onsubmit = async (ev) => {
-    ev.preventDefault();
-    const data = {};
-    for (const f of r.fields.facts) {
-      if (f.type === 'multi') data[f.id] = $$(`[name="${f.id}"]:checked`).map((x) => x.value);
-      else if (f.type === 'choice') { const x = $(`[name="${f.id}"]:checked`); if (x) data[f.id] = x.value; }
-      else { const x = $(`[name="${f.id}"]`).value; if (x !== '') data[f.id] = Number(x); }
-    }
-    for (const p of r.fields.profile) {
-      if (p.type === 'percent') { const x = $(`[name="${p.id}"]`).value; if (x !== '') data[p.id] = Number(x); }
-      else { const x = $(`[name="${p.id}"]:checked`); if (x) data[p.id] = x.value; }
-    }
-    try { await api(`/api/r/${T}/presession/${base}`, { method: 'PUT', body: { data } }); toast('Scheda salvata'); location.hash = '#/'; }
-    catch (e) { toast(e.message, true); }
-  };
+  const opts = (list) => `<ul class="opt-list">${list.map((o) => `<li>${esc(o)}</li>`).join('')}</ul>`;
+  const factAnswer = (f) => (f.type === 'choice' || f.type === 'multi') ? opts(f.options.map((o) => o.label))
+    : `<p class="small muted" style="margin:4px 0 0">${f.type === 'percent' ? 'Una percentuale' : 'Un numero'}</p>`;
+  const subject = `AITO Map: le domande di ${S.name}${S.date ? ` del ${S.date.split('-').reverse().join('/')}` : ''}`;
+  const body = `Buongiorno,\n${date ? `il ${date} ` : ''}parteciperemo alla sessione ${S.name} di AITO Map. Ecco le domande a cui risponderemo in sala, per prepararci (da questa pagina non si risponde):\n${location.origin}/anteprima/${base}\n\nIn sala ognuno risponde dal telefono, per conto suo: inquadrerete il QR sul tavolo dell'azienda e sceglierete il vostro nome dall'elenco. Portate il telefono carico.`;
+  app.innerHTML = `
+    <div class="pagehead"><div><h1>${esc(S.name)}${date ? ` · ${esc(date)}` : ''}</h1>
+      <p>Le domande a cui risponderete in sala. Da questa pagina non si risponde: la compilazione è in presenza, il giorno della sessione.</p></div></div>
+    <div class="row" style="margin-bottom:18px"><a class="btn" href="mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}">Inoltra le domande ai colleghi</a>
+      <span class="small muted">Si apre il programma di posta con il testo pronto, senza il vostro link personale.</span></div>
+    <h2 class="sethead">Le domande della sessione</h2>
+    ${S.items.map((id, i) => { const it = INST.items[id]; return `<section class="card" aria-labelledby="q-${id}">
+      <div class="qmeta"><span>Domanda ${i + 1} di ${S.items.length}</span><span class="tag navy">${esc(id)}</span></div>
+      <h3 id="q-${id}" class="qtitle">${esc(it.title)}</h3><p class="statement">${esc(it.statement)}</p>
+      <ol class="preview-levels">${it.levels.map((l) => `<li><span class="n" aria-hidden="true">${l.level}${alt(l.level)}</span><span><span class="sr-only">Livello ${l.level}: </span>${esc(l.descriptor)}</span></li>`).join('')}</ol>
+      ${byItem[id] ? `<div class="rq-facts"><h4>In sala vi chiederemo anche</h4>${byItem[id].map((f) => `<div class="rq-fact"><p>${esc(f.q)}</p>${factAnswer(f)}</div>`).join('')}</div>` : ''}</section>`; }).join('')}
+    ${(S.pairs || []).length ? `<section class="card"><h3 class="qtitle">Confronti a coppie</h3><p class="small ink2">Dopo le domande: tra due temi della sessione, quale è più avanti nella vostra azienda?</p>
+      <ul>${S.pairs.map(([a, b]) => `<li>${esc(INST.items[a].title)} o ${esc(INST.items[b].title)}?</li>`).join('')}</ul></section>` : ''}
+    ${r.fields.profile.length ? `<section class="card"><h3 class="qtitle">Profilo di approccio</h3><p class="small muted">Domande fuori punteggio: descrivono come l'azienda si trasforma, non quanto è avanti.</p>
+      ${r.fields.profile.map((p) => `<div class="rq-fact"><p>${esc(p.q)}</p>${p.type === 'percent' ? '<p class="small muted" style="margin:4px 0 0">Una percentuale</p>' : opts(p.options)}</div>`).join('')}</section>` : ''}
+    ${me?.reports?.length ? reportsCard() : ''}`;
 }
 
 // ---------- Sessione ----------
@@ -236,7 +227,7 @@ function drawParticipants() {
 function comparisonHtml(c) {
   return `<div class="grid c2">${c.items.map((it) => `<div class="card"><div class="cardhead"><h3>${esc(it.itemId)} · ${esc(it.title)}</h3>${confTag(it.confidence)}</div>
     ${distBars(it.summary)}
-    <dl class="facts"><div><dt>Mediana</dt><dd>${it.summary.median ?? '—'}</dd></div><div><dt>Range</dt><dd>${it.summary.range ?? '—'}</dd></div><div><dt>Valide</dt><dd>${it.summary.valid}</dd></div><div><dt>N.D.</dt><dd>${it.summary.nd}</dd></div><div><dt>Funzioni</dt><dd>${it.summary.perspectives}</dd></div></dl>
+    <dl class="rq-facts"><div><dt>Mediana</dt><dd>${it.summary.median ?? '—'}</dd></div><div><dt>Range</dt><dd>${it.summary.range ?? '—'}</dd></div><div><dt>Valide</dt><dd>${it.summary.valid}</dd></div><div><dt>N.D.</dt><dd>${it.summary.nd}</dd></div><div><dt>Funzioni</dt><dd>${it.summary.perspectives}</dd></div></dl>
     ${it.summary.divergent ? '<div class="banner warn">Divergenza ≥ 2 livelli: discussione obbligatoria prima del consolidamento.</div>' : ''}</div>`).join('')}</div>
     <div class="card"><h3>Confronti a coppie</h3>${c.pairs.map((p) => `<p><b>${esc(p.a)} ${esc(p.aTitle)}</b>: ${p.counts.A} · <b>${esc(p.b)} ${esc(p.bTitle)}</b>: ${p.counts.B} · N.D.: ${p.counts.ND}
 </p>${p.discordant ? `<p class="note risk">${p.discordant} su ${p.evaluable} in contrasto con i livelli scelti dalla stessa persona: punto da chiarire</p>` : ''}`).join('')}</div>`;
@@ -312,7 +303,7 @@ function drawItem(it, editable) {
     <div class="levels" role="group" aria-label="Livello ufficiale ${esc(it.itemId)}" ${dis}>${it.levels.map((l) => `<button type="button" class="level ${f.level === l.level ? 'sel' : ''}" data-l="${l.level}" aria-pressed="${f.level === l.level}" ${editable ? '' : 'disabled'}><span class="n" aria-hidden="true">${l.level}${alt(l.level)}</span><span><span class="sr-only">Livello ${l.level}: </span>${esc(l.descriptor)} ${l.valoriale ? '<span class="tag gold">valoriale</span>' : ''}</span></button>`).join('')}</div>
     ${override ? `<label class="f" for="reason-${it.itemId}">Motivazione dell'override (il livello differisce dalla mediana) *</label><textarea id="reason-${it.itemId}" data-reason maxlength="1000" ${editable ? '' : 'disabled'}>${esc(f.overrideReason || '')}</textarea>` : ''}
     ${subs.length ? `<h4 class="stepnum" style="margin-top:20px"><span>2</span>Sotto-opzione (scelta forzata)</h4>
-      ${lv.suggestion ? (lv.suggestion.value != null && lv.suggestion.value !== '' && !(Array.isArray(lv.suggestion.value) && !lv.suggestion.value.length) ? `<div class="fact">Dalla scheda pre-sessione: «${esc(Array.isArray(lv.suggestion.value) ? lv.suggestion.value.join(', ') : lv.suggestion.value)}» → indica <b>${f.level}${esc(lv.suggestion.maps || '')}</b></div>` : '<div class="fact">Il dato per questa sotto-opzione non è nella scheda pre-sessione.</div>') : ''}
+      ${lv.suggestion ? (lv.suggestion.value != null && lv.suggestion.value !== '' && !(Array.isArray(lv.suggestion.value) && !lv.suggestion.value.length) ? `<div class="rq-fact">Dalla scheda pre-sessione: «${esc(Array.isArray(lv.suggestion.value) ? lv.suggestion.value.join(', ') : lv.suggestion.value)}» → indica <b>${f.level}${esc(lv.suggestion.maps || '')}</b></div>` : '<div class="rq-fact">Il dato per questa sotto-opzione non è nella scheda pre-sessione.</div>') : ''}
       <div class="subchoice" role="group" aria-label="Sotto-opzione ${esc(it.itemId)}" ${dis}>${subs.map((x) => `<button type="button" class="level ${f.sub === x.key ? 'sel' : ''}" data-s="${x.key}" aria-pressed="${f.sub === x.key}" ${editable ? '' : 'disabled'}><span class="n" aria-hidden="true">${f.level}${x.key}</span><span><span class="sr-only">Opzione ${f.level}${x.key}: </span>${esc(x.text)}</span></button>`).join('')}</div>
       <p class="small muted">Se non ci sono evidenze sufficienti per un'opzione superiore, vale la prima opzione del livello.</p>` : f.level ? '<p class="small muted">Il livello scelto non ha sotto-opzioni.</p>' : ''}`}`;
   if (!editable) return;
