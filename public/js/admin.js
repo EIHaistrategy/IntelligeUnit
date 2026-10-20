@@ -1,4 +1,4 @@
-import { api, esc, $, $$, toast, poll, phaseChips, PHASES, qrImg, qrLabeled, downloadQrPng, fmtDate, fmtScore, levelLabel } from './ui.js';
+import { api, esc, $, $$, toast, poll, phaseChips, PHASES, qrImg, qrLabeled, downloadQrPng, icon, fmtDate, fmtScore, levelLabel } from './ui.js';
 
 const app = $('#app');
 let INST, SC, NET;
@@ -34,9 +34,11 @@ async function boot() {
 function login() {
   $('#nav').classList.add('hidden'); $('#logout').classList.add('hidden');
   $('.layout').classList.add('solo');
-  app.innerHTML = `<div class="card lift login"><h1>Console ELIS</h1><p class="ink2">Sessioni, aziende, benchmark e report del pilot AITO 3.</p>
+  app.innerHTML = `<div class="login-brand" aria-hidden="true"><svg viewBox="0 0 26 22"><rect x="0" y="16" width="4" height="6" rx="1" fill="#C9A84C" fill-opacity=".45"/><rect x="5.5" y="12" width="4" height="10" rx="1" fill="#C9A84C" fill-opacity=".6"/><rect x="11" y="8" width="4" height="14" rx="1" fill="#C9A84C" fill-opacity=".75"/><rect x="16.5" y="4" width="4" height="18" rx="1" fill="#C9A84C" fill-opacity=".9"/><rect x="22" y="0" width="4" height="22" rx="1" fill="#C9A84C"/></svg>
+      <span>AI Transformation &amp; Adoption Map · ELIS</span></div>
+    <div class="card lift login"><h1>Console ELIS</h1><p class="ink2">Sessioni, aziende, benchmark e report del pilot AITO 3.</p>
     <label class="f" for="pw">Password</label><input type="password" id="pw" autocomplete="current-password" autofocus>
-    <p class="small muted" style="margin-top:8px">La password iniziale è stampata nella finestra del terminale al primo avvio.</p>
+    <p class="small muted" style="margin-top:8px">La password la custodisce il team AI Strategy ELIS.</p>
     <button id="go" class="big">Entra</button></div>`;
   const go = async () => { try { await api('/api/admin/login', { method: 'POST', body: { password: $('#pw').value } }); location.reload(); } catch (e) { toast(e.message, true); } };
   $('#go').onclick = go; $('#pw').onkeydown = (e) => e.key === 'Enter' && go();
@@ -53,7 +55,7 @@ async function buildNav(view, arg) {
   $('#nav').innerHTML = `
     ${link('#/programma', 'Programma', view === 'programma')}
     <div class="navgroup">Sessioni</div>
-    ${calendar().map((s, i) => link(`#/sessione/${s.id}`, `<span class="navnum ph-${s.phase}" aria-hidden="true">${s.phase === 'chiusa' ? '✓' : i + 1}</span><span class="navtxt">${esc(INST.sessions.find((x) => x.id === s.base).name)}<small>${esc(shortDate(s.date))}${['individuale', 'confronto', 'consolidamento'].includes(s.phase) ? ' · in corso' : ''}</small></span>`, sid === s.id, 'navsess')).join('')}
+    ${calendar().map((s, i) => link(`#/sessione/${s.id}`, `<span class="navnum ph-${s.phase}" aria-hidden="true">${s.phase === 'chiusa' ? icon('check') : i + 1}</span><span class="navtxt">${esc(INST.sessions.find((x) => x.id === s.base).name)}<small>${esc(shortDate(s.date))}${['individuale', 'confronto', 'consolidamento'].includes(s.phase) ? ' · in corso' : ''}</small></span>`, sid === s.id, 'navsess')).join('')}
     ${link('#/adhoc', `Sessioni ad hoc${adhoc().length ? ` <span class="navcount">${adhoc().length}</span>` : ''}`, view === 'adhoc' || (cur && cur.mode === 'adhoc'))}
     <div class="navgroup">Dopo le sessioni</div>
     ${link('#/report', 'Report e call con i leader', view === 'report')}
@@ -118,7 +120,7 @@ async function viewProgram() {
     <div class="tl-track"><i style="width:${pos(today)}%"></i></div>
     ${points.map((p, i) => p.final
       ? `<div class="tl-node final" style="left:${pos(p.date)}%"><span class="tl-dot"></span><div class="tl-lbl"><b>Allineamento finale</b><small>settembre 2027</small></div></div>`
-      : `<a class="tl-node ph-${p.s.phase} ${next && p.s.id === next.id ? 'next' : ''}" style="left:${pos(p.date)}%" href="#/sessione/${p.s.id}"><span class="tl-dot">${p.s.phase === 'chiusa' ? '✓' : i + 1}</span>
+      : `<a class="tl-node ph-${p.s.phase} ${next && p.s.id === next.id ? 'next' : ''}" style="left:${pos(p.date)}%" href="#/sessione/${p.s.id}"><span class="tl-dot">${p.s.phase === 'chiusa' ? icon('check') : i + 1}</span>
           <div class="tl-lbl"><b>${esc(INST.sessions.find((x) => x.id === p.s.base).name)}</b><small>${esc(longDate(p.s.date))}</small><small class="tl-st">${esc(PHASE_LABEL[p.s.phase])}</small></div></a>`).join('')}
     <div class="tl-today" style="left:${pos(today)}%"><span>oggi</span></div></div>`;
 
@@ -151,7 +153,7 @@ async function viewProgram() {
     ${cal.length ? `<div class="card">${timeline}</div>` : ''}
     ${PROVA ? '<div class="card" id="demo"><p class="muted small">…</p></div>' : ''}
     <div class="card"><h2>Da fare</h2>
-      ${todo.length ? `<ul class="todolist">${todo.map((t) => `<li class="${t.kind}"><span class="tk" aria-hidden="true">${t.kind === 'now' ? '●' : t.kind === 'warn' ? '!' : 'i'}</span><div>${t.html}</div><a class="btn sm ${t.kind === 'info' ? 'ghost' : ''}" href="${t.href}">${esc(t.label)}</a></li>`).join('')}</ul>`
+      ${todo.length ? `<ul class="todolist">${todo.map((t) => `<li class="${t.kind}"><span class="tk" aria-hidden="true">${icon(t.kind === 'now' ? 'dot' : t.kind === 'warn' ? 'alert' : 'info')}</span><div>${t.html}</div><a class="btn sm ${t.kind === 'info' ? 'ghost' : ''}" href="${t.href}">${esc(t.label)}</a></li>`).join('')}</ul>`
         : `<p class="muted" style="margin:0">Nessuna attività in sospeso.${next ? ` Prossima sessione: ${esc(next.title)}.` : ''}</p>`}</div>`;
   if (PROVA) {
     const D = await api('/api/admin/demo');
@@ -265,7 +267,7 @@ async function viewControl(arg) {
   const mailed = new Set(); // aziende per cui si è appena aperta la bozza dell'email: si chiede se è stata inviata
   const names = (list, max = 4) => list.slice(0, max).map((c) => esc(c.name)).join(', ') + (list.length > max ? ` e altre ${list.length - max}` : '');
   const meter = (a, b, label) => `<div class="meter"><div class="meter-top"><b>${a}</b><span> di ${b} ${label}</span></div><div class="meter-bar"><i style="width:${b ? Math.round((a / b) * 100) : 0}%"></i></div></div>`;
-  const ck = (kind, html) => `<li class="ck ${kind}"><span aria-hidden="true">${kind === 'ok' ? '✓' : kind === 'warn' ? '!' : 'i'}</span><div>${html}</div></li>`;
+  const ck = (kind, html) => `<li class="ck ${kind}"><span aria-hidden="true">${icon(kind === 'ok' ? 'check' : kind === 'warn' ? 'alert' : 'info')}</span><div>${html}</div></li>`;
 
   // Preparazione: una riga per azienda con i passi 2–5 (referente, email, QR, scheda)
   // Una bozza per ogni referente: ognuno riceve solo il proprio link personale.
@@ -461,14 +463,14 @@ async function viewControl(arg) {
         : C.benchmark.length ? `<table><thead><tr><th>Versione</th><th class="num">Aziende</th><th>Creata</th></tr></thead><tbody>${C.benchmark.map((v) => `<tr><td>${esc(v.label)}</td><td class="num">${v.n_companies}</td><td>${fmtDate(v.created_at)}</td></tr>`).join('')}</tbody></table>`
         : '<p class="muted" style="margin:0">Nessuna versione congelata: si congela nella scheda Dopo.</p>'}</div>`;
     const T2 = TABS.find((t) => t.id === tab);
-    app.innerHTML = `<a class="back" href="#/programma">← Programma</a>
+    app.innerHTML = `<a class="back" href="#/programma">${icon('back')} Programma</a>
       <div class="pagehead"><div><h1>${esc(s.title)}</h1><p class="small">Domande della sessione: ${esc(C.def.items.map((i) => `${i} ${INST.items[i].title}`).join(' · '))}</p></div>
         <div class="row"><a class="btn sm ghost" href="#/tavoli/${s.id}">QR delle aziende</a><a class="btn sm ghost" href="/live/${s.id}" target="_blank">Dashboard live</a></div></div>
       <div class="tabs" role="tablist" aria-label="Momenti della sessione">${TABS.map((t) => `<button type="button" role="tab" class="tab ${tabState(t)} ${t.id === tab ? 'on' : ''}" aria-selected="${t.id === tab}" data-tab="${t.id}">
-        <span class="tdot" aria-hidden="true">${tabState(t) === 'done' ? '✓' : ''}</span>${esc(t.label)}${tabState(t) === 'now' ? '<span class="sr-only"> (in corso)</span>' : ''}</button>`).join('')}</div>
+        <span class="tdot" aria-hidden="true">${tabState(t) === 'done' ? icon('check') : ''}</span>${esc(t.label)}${tabState(t) === 'now' ? '<span class="sr-only"> (in corso)</span>' : ''}</button>`).join('')}</div>
       ${tab === 'risultati' ? results : `
       ${T2.steps.length > 1 ? `<div class="substeps">${T2.steps.map((x) => { const fx = FLOW.find((f2) => f2.id === x); const stx = state(fx); return `<button type="button" class="fstep ${stx} ${x === sel ? 'sel' : ''}" data-step="${x}" ${x === sel ? 'aria-current="step"' : ''}>
-          <span class="fnum" aria-hidden="true">${stx === 'done' ? '✓' : FLOW.indexOf(fx) + 1}</span><span class="ftxt"><b>${esc(fx.title)}</b><small>${summary[x]}</small></span></button>`; }).join('')}</div>` : ''}
+          <span class="fnum" aria-hidden="true">${stx === 'done' ? icon('check') : FLOW.indexOf(fx) + 1}</span><span class="ftxt"><b>${esc(fx.title)}</b><small>${summary[x]}</small></span></button>`; }).join('')}</div>` : ''}
       <section class="card flowpanel" aria-live="polite">
         <div class="fp-head"><div><div class="small muted">${esc(f.group)}</div><h2>${esc(f.title)}</h2></div>${chip}</div>
         <p class="lede">${what}</p>
@@ -477,8 +479,8 @@ async function viewControl(arg) {
         ${action}${back}
       </section>`}
       ${tab === 'risultati' ? '' : s.phase === 'preparazione' ? prepTable() : `<div class="card"><h2>Aziende in questa sessione</h2><div class="tablewrap"><table>
-        <thead><tr><th>Azienda</th><th>Scheda</th><th class="num">Partecipanti</th><th>Risposte</th><th>Funzioni</th><th>Consolidato</th><th>Commitment</th><th>Report</th><th>Tavolo</th></tr></thead>
-        <tbody>${cos.filter((c) => c.participants || c.consolidated_at || c.presession).map(row).join('') || `<tr><td colspan="9" class="muted">${cos.length ? 'Nessuna azienda ancora attiva in questa sessione.' : 'Nessuna azienda: aggiungile da <a href="#/aziende">Aziende e referenti</a>.'}</td></tr>`}</tbody></table></div>
+        <thead><tr><th>Azienda</th><th>Scheda</th><th class="num">Partecipanti</th><th>Risposte</th><th>Funzioni</th><th>Consolidato</th><th>Dopo</th><th><span class="sr-only">Azioni</span></th></tr></thead>
+        <tbody>${cos.filter((c) => c.participants || c.consolidated_at || c.presession).map(row).join('') || `<tr><td colspan="8" class="muted">${cos.length ? 'Nessuna azienda ancora attiva in questa sessione.' : 'Nessuna azienda: aggiungile da <a href="#/aziende">Aziende e referenti</a>.'}</td></tr>`}</tbody></table></div>
         ${cos.some((c) => !(c.participants || c.consolidated_at || c.presession)) ? `<details style="margin-top:10px"><summary class="small">Altre aziende censite (${cos.filter((c) => !(c.participants || c.consolidated_at || c.presession)).length})</summary><table><tbody>${cos.filter((c) => !(c.participants || c.consolidated_at || c.presession)).map(row).join('')}</tbody></table></details>` : ''}</div>`}`;
 
     const reload = async () => { C = await api(`/api/admin/sessions/${id}/control`); draw(); };
@@ -527,16 +529,17 @@ async function viewControl(arg) {
     $$('[data-release]').forEach((b) => b.onclick = async () => { b.disabled = true; await releaseReport(s.id, Number(b.dataset.release)); await reload(); });
     $$('[data-note]').forEach((b) => b.onclick = async () => { if (await noteCall(s.id, C.companies.find((x) => x.id === Number(b.dataset.note)))) await reload(); });
   };
+  // una riga per azienda: segni compatti (data nel titolo), azioni raggruppate a fine riga
+  const yes = (when) => `<span class="tag ok" title="${when ? `Fatto il ${esc(fmtDate(when))}` : 'Fatto'}">${icon('check')}<span class="sr-only">sì</span></span>`;
   const row = (c) => `<tr>
-    <td><b>${esc(c.name)}</b> ${c.kind !== 'REALE' ? `<span class="tag warn">${esc(c.kind)}</span>` : ''} <span class="small mono muted" title="Codice azienda">${esc(c.joinCode)}</span><div class="small">${c.referents.map((r) => `<a href="/r/${r.token}" target="_blank">referente: ${esc(r.name)}</a>`).join('<br>') || '<span class="muted">nessun referente</span>'}</div></td>
-    <td>${c.presession ? '<span class="tag ok">✓</span>' : '<span class="tag">—</span>'}</td>
-    <td class="num">${c.participants}<span class="muted small"> (${c.submitted} inviati)</span></td>
-    <td class="small">${c.expected ? `${c.answered}/${c.expected}` : '—'}</td>
-    <td class="small">${c.functions.length}${c.participants && c.functions.length < 2 ? ' <span class="tag warn">1 sola</span>' : ''}</td>
-    <td>${c.consolidated_at ? `<span class="tag ok">✓</span> <span class="small muted">${fmtDate(c.consolidated_at)}</span>` : '—'}</td>
-    <td>${c.commitment ? '<span class="tag ok">✓</span>' : '—'}</td>
-    <td class="small">${c.consolidated_at ? `<a href="/report/${c.id}" target="_blank">apri</a> · <a href="/api/admin/pdf/${c.id}">PDF</a>${c.report_released_at ? '<br><span class="tag ok">rilasciato</span>' : ''}` : ''}</td>
-    <td class="small"><a href="#/tavolo/${C.session.id}:${c.id}">QR azienda</a>${c.leader_call_note ? '<br><span class="tag ok">call ✓</span>' : ''}</td></tr>`;
+    <td><b>${esc(c.name)}</b> ${c.kind !== 'REALE' ? `<span class="tag outline warn">${esc(c.kind)}</span>` : ''}<div class="small">${c.referents.map((r) => `<a href="/r/${r.token}" target="_blank">referente: ${esc(r.name)}</a>`).join('<br>') || '<span class="muted">nessun referente</span>'}</div></td>
+    <td>${c.presession ? yes(c.presession) : '<span class="muted">—</span>'}</td>
+    <td class="num">${c.participants}${c.participants ? `<span class="muted small"> · ${c.submitted} ${c.submitted === 1 ? 'inviato' : 'inviati'}</span>` : ''}</td>
+    <td class="small">${c.expected ? `${c.answered}/${c.expected}` : '<span class="muted">—</span>'}</td>
+    <td class="small">${c.functions.length || '<span class="muted">—</span>'}${c.participants && c.functions.length < 2 ? ' <span class="tag warn">1 sola</span>' : ''}</td>
+    <td>${c.consolidated_at ? yes(c.consolidated_at) : '<span class="muted">—</span>'}</td>
+    <td>${c.commitment ? yes() : '<span class="muted">—</span>'}${c.report_released_at ? ` <span class="tag ok">report</span>` : ''}${c.leader_call_note ? ' <span class="tag ok">call</span>' : ''}</td>
+    <td class="actions">${c.consolidated_at ? `<a class="btn sm ghost" href="/report/${c.id}" target="_blank">Report</a><a class="btn sm ghost" href="/api/admin/pdf/${c.id}">PDF</a>` : ''}<a class="btn sm ghost" href="#/tavolo/${C.session.id}:${c.id}">QR</a></td></tr>`;
   draw();
   stopPoll = poll(async () => {
     const n = await api(`/api/admin/sessions/${id}/control`);
@@ -570,7 +573,7 @@ async function viewTables(sid) {
   const C = await api(`/api/admin/sessions/${sid}/control`);
   const all = C.companies.filter((c) => c.kind !== 'DEMO' || C.session.seeded);
   const cs = all.filter((c) => c.qr_generated_at), missing = all.filter((c) => !c.qr_generated_at);
-  app.innerHTML = `<p class="noprint"><a class="back" href="#/sessione/${sid}">← Control room</a></p>
+  app.innerHTML = `<p class="noprint"><a class="back" href="#/sessione/${sid}">${icon('back')} Control room</a></p>
     <div class="pagehead noprint"><div><h1>QR delle aziende</h1><p>Un QR per azienda, con il nome scritto sotto: chi lo inquadra è già abbinato alla sua azienda e non deve scegliere né digitare nulla. Mettilo sul tavolo o mandalo al referente come immagine.</p></div></div>
     ${missing.length ? `<div class="banner warn noprint">QR non ancora generati per: ${missing.map((c) => esc(c.name)).join(', ')}. Si generano dalla <a href="#/sessione/${sid}/prima">control room</a> (passo 4), dopo aver indicato il referente.</div>` : ''}
     ${cs.length ? `<div class="row noprint" style="margin-bottom:16px"><button onclick="print()">Stampa ${cs.length} ${cs.length === 1 ? 'cartoncino' : 'cartoncini'}</button></div>
@@ -590,8 +593,8 @@ async function viewTableCard(arg) {
   const [sid, cid] = arg.split(':').map(Number);
   const C = await api(`/api/admin/sessions/${sid}/control`);
   const c = C.companies.find((x) => x.id === cid);
-  if (!c || !c.qr_generated_at) { app.innerHTML = `<p><a href="#/tavoli/${sid}">← QR delle aziende</a></p><div class="card"><p>${c ? 'Il QR di questa azienda non è ancora stato generato: si genera dalla control room (passo 4).' : 'Azienda non trovata in questa sessione.'}</p></div>`; return; }
-  app.innerHTML = `<p class="noprint"><a href="#/tavoli/${sid}">← QR delle aziende</a> · <button class="sm" onclick="print()">Stampa</button></p>
+  if (!c || !c.qr_generated_at) { app.innerHTML = `<p><a href="#/tavoli/${sid}">${icon('back')} QR delle aziende</a></p><div class="card"><p>${c ? 'Il QR di questa azienda non è ancora stato generato: si genera dalla control room (passo 4).' : 'Azienda non trovata in questa sessione.'}</p></div>`; return; }
+  app.innerHTML = `<p class="noprint"><a href="#/tavoli/${sid}">${icon('back')} QR delle aziende</a> · <button class="sm" onclick="print()">Stampa</button></p>
     <div class="single">${tableCard(C, c, 280)}</div>`;
   bindPng(C, [c]);
 }
@@ -621,10 +624,10 @@ async function viewCompanies() {
       ${pick('n_sec', 'Settore', SECTORS)}
       <div><label class="f">Tipo</label><select id="n_kind" ${PROVA ? 'disabled' : ''}>${PROVA ? '<option value="TEST">TEST (ambiente di prova)</option>' : '<option value="REALE">REALE</option><option value="TEST">TEST (prova del flusso, fuori benchmark)</option>'}</select></div></div>
       <div style="margin-top:12px"><button id="n_go">Aggiungi</button></div></div>
-    <div class="card"><div class="tablewrap"><table><thead><tr><th>Azienda</th><th>Tipo</th><th>Perimetro</th><th>Consensi</th><th>Referenti</th><th></th></tr></thead><tbody>
-      ${cs.map((c) => `<tr><td><a href="#/azienda/${c.id}"><b>${esc(c.name)}</b></a></td><td><span class="tag ${c.kind === 'REALE' ? 'ok' : 'warn'}">${esc(c.kind)}</span></td><td class="small">${esc(c.perimeter)}</td>
-        <td class="small"><div class="consents">${['benchmark', 'peer', 'testimonianza', 'followup'].map((k) => `<span class="${c.consents[k]?.granted ? 'yes' : ''}">${c.consents[k]?.granted ? '✓' : '–'} ${k}</span>`).join('')}</div></td>
-        <td class="small">${c.referents.map((r) => esc(r.name)).join('<br>') || '—'}</td><td><a class="btn sm" href="#/azienda/${c.id}">Apri</a></td></tr>`).join('')}
+    <div class="card"><div class="tablewrap"><table><thead><tr><th>Azienda</th><th>Tipo</th><th>Perimetro</th><th>Consensi</th><th>Referenti</th></tr></thead><tbody>
+      ${cs.map((c) => `<tr><td><a href="#/azienda/${c.id}"><b>${esc(c.name)}</b></a></td><td><span class="tag outline ${c.kind === 'REALE' ? 'ok' : 'warn'}">${esc(c.kind)}</span></td><td class="small">${esc(c.perimeter || '—')}</td>
+        <td><div class="consents">${[['benchmark', 'Benchmark'], ['peer', 'Peer matching'], ['testimonianza', 'Testimonianza'], ['followup', 'Follow-up']].map(([k, l]) => `<span class="cdot ${c.consents[k]?.granted ? 'yes' : ''}" title="${l}: ${c.consents[k]?.granted ? 'sì' : 'no'}">${l.charAt(0)}<span class="sr-only">${l}: ${c.consents[k]?.granted ? 'sì' : 'no'}</span></span>`).join('')}</div></td>
+        <td class="small">${c.referents.map((r) => esc(r.name)).join('<br>') || '<span class="muted">nessun referente</span>'}</td></tr>`).join('')}
     </tbody></table></div></div>`;
   bindPick();
   $('#n_go').onclick = async () => {
@@ -639,11 +642,11 @@ async function viewCompany(id) {
   const R = await api(`/api/admin/report/${id}`);
   const J = await api(`/api/admin/companies/${id}/journey`);
   const lock = J.find((x) => x.qr_generated_at && x.phase !== 'chiusa'); // referente bloccato dai QR della sessione
-  const stp = (ok, label, title = '') => `<li class="${ok ? 'ok' : ''}" title="${esc(title)}"><span aria-hidden="true">${ok ? '✓' : '·'}</span>${label}</li>`;
+  const stp = (ok, label, title = '') => `<li class="${ok ? 'ok' : ''}" title="${esc(title)}"><span aria-hidden="true">${ok ? icon('check') : ''}</span>${label}</li>`;
   const journey = `<div class="card"><h2>Percorso nelle sessioni</h2><div class="journey">${J.filter((x) => x.mode === 'workshop' || x.consolidated_at || x.participants).map((x) => `<div class="jcol ph-${x.phase}">
       <a href="#/sessione/${x.id}"><b>${esc(INST.sessions.find((k) => k.id === x.base).name)}</b></a><small>${esc(x.mode === 'adhoc' ? 'ad hoc · ' : '')}${esc(shortDate(x.date))}</small>
       <ul>${stp(x.presession, 'Scheda pre-sessione')}${stp(x.participants, `Partecipanti${x.participants ? `: ${x.participants}` : ''}`)}${stp(x.consolidated_at, 'Consolidamento')}${stp(x.commitment, `Commitment${x.commitment ? `: ${esc(x.commitment.priority_item)} · ${esc(x.commitment.status)}` : ''}`)}${stp(x.report_released_at, 'Report rilasciato')}${stp(x.leader_call_note, 'Call con il leader', x.leader_call_note)}</ul></div>`).join('')}</div></div>`;
-  app.innerHTML = `<a class="back" href="#/aziende">← Aziende e referenti</a>
+  app.innerHTML = `<a class="back" href="#/aziende">${icon('back')} Aziende e referenti</a>
     <div class="pagehead"><div><h1>${esc(c.name)}</h1><p>${esc(c.perimeter || 'Perimetro non indicato')} · ${esc(c.sector || 'settore non indicato')} · <span class="tag ${c.kind === 'REALE' ? 'ok' : 'warn'}">${esc(c.kind)}</span> · codice <span class="mono">${esc(c.join_code)}</span></p></div>
       <a class="btn sm ghost" href="/report/${c.id}" target="_blank">Report</a></div>
     ${journey}

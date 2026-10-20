@@ -1,4 +1,4 @@
-import { api, esc, $, $$, toast, poll, distBars, confTag, phaseChips, qrImg, fmtScore, fmtDate, bandTag, levelLabel, alt } from './ui.js';
+import { api, esc, $, $$, toast, poll, distBars, confTag, phaseChips, qrImg, fmtScore, fmtDate, bandTag, levelLabel, alt, icon } from './ui.js';
 
 const T = location.pathname.split('/').pop();
 const app = $('#app');
@@ -44,7 +44,7 @@ async function renderHome() {
   // al telefono la sessione attiva viene subito dopo l'intestazione; report e sessioni concluse sotto
   app.innerHTML = `
     <div class="pagehead"><div><h1>${esc(me.referent.company)}</h1>
-      <p>Perimetro valutato: <b>${esc(me.referent.perimeter || 'non indicato')}</b>${me.referent.kind !== 'REALE' ? ` <span class="tag warn">${esc(me.referent.kind)}</span>` : ''}</p></div></div>
+      <p>Perimetro valutato: <b>${esc(me.referent.perimeter || 'non indicato')}</b></p></div></div>
     ${sessionsCard(activeTitle, active, activeNote, true)}
     ${me.reports.length ? `<div class="card"><h2>Report riservati</h2><div class="sesslist">${me.reports.map((v) => `<div class="sessrow">
       <div class="sr-main"><h3 class="sr-title">${esc(v.session_title)}</h3>${v.version > 1 ? ` <span class="tag">versione ${v.version}</span>` : ''}</div>
@@ -97,7 +97,7 @@ function steps(s) {
   const li = (x) => {
     const state = x.done ? 'fatto' : x.todo ? 'tocca a voi' : 'non ancora';
     const body = `${x.label}<span class="sr-only">: ${state}${x.detail ? ',' : ''}</span>${x.detail ? `<small>${esc(x.detail)}</small>` : ''}${!x.done && x.todo ? '<small class="todo-t" aria-hidden="true">tocca a voi</small>' : ''}`;
-    return `<li class="${x.done ? 'ok' : x.todo ? 'todo' : ''}"><span class="si" aria-hidden="true">${x.done ? '✓' : x.todo ? '●' : ''}</span>
+    return `<li class="${x.done ? 'ok' : x.todo ? 'todo' : ''}"><span class="si" aria-hidden="true">${x.done ? icon('check') : x.todo ? icon('dot') : ''}</span>
       <span>${x.href ? `<a href="${x.href}" target="_blank">${body}<span class="sr-only"> (apri il report in una nuova scheda)</span></a>` : body}</span></li>`;
   };
   return `<div class="steps6"><div class="sg"><span class="sgl" id="sga-${s.id}">La vostra azienda</span><ol role="list" aria-labelledby="sga-${s.id}">${az.map(li).join('')}</ol></div>
@@ -145,7 +145,7 @@ async function renderScheda(base) {
     if (f.type === 'count') return `<input type="number" min="0" step="1" name="${f.id}" aria-label="${esc(f.q)}" value="${esc(v ?? '')}" style="max-width:140px">`;
     return '';
   };
-  app.innerHTML = `<a class="back" href="#/">← Sessioni</a>
+  app.innerHTML = `<a class="back" href="#/">${icon('back')} Sessioni</a>
     <div class="pagehead"><div><h1>Scheda pre-sessione: ${esc(r.session.name)}</h1></div></div>
     <div class="card flat">
       <p class="ink2" style="margin:0">Da compilare una settimana prima della sessione. Sono dati fattuali: servono in sala per scegliere le sotto-opzioni senza doverli cercare durante il consolidamento. Se un dato non è disponibile, lascia vuoto.</p>
@@ -206,7 +206,7 @@ function draw() {
     consolidamento: 'Consolidamento (10 minuti): registrate la posizione ufficiale dell\'azienda, poi priorità e commitment.',
     chiusa: 'Sessione chiusa.',
   }[s.phase];
-  app.innerHTML = `<a class="back" href="#/">← Sessioni</a>
+  app.innerHTML = `<a class="back" href="#/">${icon('back')} Sessioni</a>
     <div class="sesshead"><div class="pagehead"><h1>${esc(s.title)}</h1>${phaseChips(s.phase)}</div><p class="phaseintro">${intro}</p></div>
     <div id="parts"></div><div id="body"></div>`;
   drawParticipants();

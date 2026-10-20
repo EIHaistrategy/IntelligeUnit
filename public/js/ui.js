@@ -43,7 +43,7 @@ export const PHASES = [
 ];
 export function phaseChips(current, { dark = false } = {}) {
   const idx = PHASES.findIndex((p) => p.id === current);
-  return `<ol class="phases${dark ? ' on-dark' : ''}" aria-label="Fasi della sessione">${PHASES.map((p, i) => `<li class="phase ${i === idx ? 'on' : i < idx ? 'done' : ''}" ${i === idx ? 'aria-current="step"' : ''}><span class="dot" aria-hidden="true">${i < idx ? '✓' : ''}</span><span class="lbl">${p.label}</span></li>`).join('')}</ol>`;
+  return `<ol class="phases${dark ? ' on-dark' : ''}" aria-label="Fasi della sessione">${PHASES.map((p, i) => `<li class="phase ${i === idx ? 'on' : i < idx ? 'done' : ''}" ${i === idx ? 'aria-current="step"' : ''}><span class="dot" aria-hidden="true">${i < idx ? icon('check') : ''}</span><span class="lbl">${p.label}</span></li>`).join('')}</ol>`;
 }
 
 // I cinque gradini del livello: il segno grafico ricorrente della Map.
@@ -72,6 +72,16 @@ export function confTag(conf) {
   const cls = { ALTA: 'ok', MEDIA: 'navy', BASSA: 'warn', DA_VALIDARE: 'risk', ND: '' }[conf.code] ?? '';
   return `<span class="tag ${cls}" title="${esc(conf.reason || '')}">Confidence: ${esc(conf.label)}</span>`;
 }
+
+// Icone disegnate (SVG nel codice, nessuna risorsa esterna): stesso tratto e allineamento ovunque, al posto di ✓ ! ← scritti come caratteri.
+const ICONS = {
+  check: '<path d="M5 12.5l4.2 4.2L19 7"/>',
+  alert: '<path d="M12 7.5v6"/><path d="M12 16.8v.2"/>',
+  info: '<path d="M12 10.8v6"/><path d="M12 7.2v.2"/>',
+  back: '<path d="M19 12H5"/><path d="M11 6l-6 6 6 6"/>',
+  dot: '<circle cx="12" cy="12" r="3.2" fill="currentColor" stroke="none"/>',
+};
+export const icon = (name, cls = '') => `<svg class="ico ${cls}" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] || ''}</svg>`;
 
 export function qrImg(text, size = 220) {
   return `<div class="qrbox" style="width:${size}px"><img alt="QR" src="/api/qr.svg?text=${encodeURIComponent(text)}"></div>`;

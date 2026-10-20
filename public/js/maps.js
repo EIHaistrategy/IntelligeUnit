@@ -17,7 +17,7 @@ export function gapMapHtml(M) {
     <div><table><thead><tr><th>Dimensione</th><th class="num">Fondativa</th><th class="num">IQR</th><th>Quadrante</th></tr></thead><tbody>
       ${allDims.map((d) => `<tr class="${d.main ? '' : 'muted'}"><td><span class="dim-letter" style="${d.main ? '' : 'background:#B5BFCB'}">${d.dimension}</span>${esc(d.name)}</td>
         ${d.gap.available ? `<td class="num">${pct(d.gap.fondShare)}</td><td class="num">${fmtScore(d.gap.iqr)}</td><td><b>${esc(d.gap.quadrant)}</b></td>` : `<td colspan="3" class="small muted">N = ${d.gap.n}: non disponibile</td>`}</tr>`).join('')}</tbody></table>
-      <p class="small muted" style="margin-top:10px">In blu le dimensioni di questa sessione, in grigio quelle già misurate nelle altre sessioni. ${esc(cq.note || '')}.</p></div></div></div>`;
+      <p class="small muted" style="margin-top:10px">In blu le dimensioni di questa sessione, in grigio quelle già misurate nelle altre sessioni.</p></div></div></div>`;
 
   return gapHtml;
 }
@@ -34,7 +34,7 @@ export function peerMapHtml(M, { showNames = false } = {}) {
       ${allDims.map((d) => `<tr class="${d.main ? '' : 'muted'}"><td><span class="dim-letter" style="${d.main ? '' : 'background:#B5BFCB'}">${d.dimension}</span>${esc(d.name)}
         ${showNames && d.main ? `<div class="small" style="margin-top:4px">Priorità: ${d.peer.needNames.map(esc).join(', ') || '—'}<br>Contributor: ${d.peer.contribNames.map(esc).join(', ') || '—'}</div>` : ''}</td>
         <td class="num">${d.peer.need}${d.peer.interest ? `<div class="small muted">${d.peer.interest} chiedono un confronto</div>` : ''}</td><td class="num">${d.peer.contrib}</td><td><b>${esc(d.peer.quadrant)}</b></td></tr>`).join('')}</tbody></table>
-      <p class="small muted" style="margin-top:10px">Priorità = commitment registrati su una capacità della dimensione. Contributor potenziale = azienda in fascia Consolidata sulla dimensione che ha dato il consenso al peer matching. ${esc(pq.note || '')}.</p></div></div></div>`;
+      <p class="small muted" style="margin-top:10px">Priorità = commitment registrati su una capacità della dimensione. Contributor potenziale = azienda in fascia Consolidata sulla dimensione che ha dato il consenso al peer matching.</p></div></div></div>`;
 
   return peerHtml;
 }

@@ -18,8 +18,10 @@ async function boot() {
   const fnLabel = (id) => I.functions.find((f) => f.id === id)?.label || id;
   const benchTxt = (b) => (!b ? '<span class="muted">benchmark non ancora congelato</span>'
     : !b.available ? `<span class="muted">non disponibile (N=${b.n}, servono almeno ${SC.benchmark.minN} aziende)</span>`
-    : `mediana <b>${fmtScore(b.median)}</b> · 1°–3° quartile ${fmtScore(b.q1)}–${fmtScore(b.q3)} · N=${b.n} <span class="tag ${b.code === 'STAB' ? 'ok' : 'warn'}">${b.label}</span>${b.looApplied ? '' : ' <span class="small muted">(azienda inclusa: campione residuo &lt; 5)</span>'}`);
+    : `mediana <b>${fmtScore(b.median)}</b> · 1°–3° quartile ${fmtScore(b.q1)}–${fmtScore(b.q3)} · N=${b.n}${b.looApplied ? '' : ' <span class="small muted">(azienda inclusa: campione residuo &lt; 5)</span>'}`);
 
+  // l'affidabilità del benchmark (indicativo/stabile) si dice una volta nell'intestazione della colonna, non a ogni riga
+  const stab = (list) => { const b = list.find((x) => x?.available); return b ? ` · ${esc(b.label.toLowerCase())}, N=${b.n}` : ''; };
   const radarDims = R.dims.map((d) => ({ id: d.id, score: d.score, peer: d.bench?.available ? d.bench.median : null }));
   const wherePts = R.dims.filter((d) => d.quadrant).map((d) => ({ id: d.id, score: d.score, delta: d.quadrant.delta }));
   const flagged = R.coherence.filter((c) => c.flagged);
@@ -29,8 +31,7 @@ async function boot() {
   const dDate = (s) => (s ? `<span class="nowrap">${new Date(s).toLocaleDateString('it-IT')}</span>` : '—');
 
   app.innerHTML = `
-  ${R.preview ? '<div class="banner preview">Ambiente di prova: confronto calcolato sui dati dimostrativi. Non è un report ufficiale.</div>' : ''}
-  ${R.draft ? '<div class="banner warn noprint"><b>Bozza</b>: versione calcolata ora, non ancora rilasciata. L\'azienda vede solo le versioni rilasciate, che non cambiano più.</div>' : ''}
+  ${R.preview || R.draft ? `<div class="banner ${R.preview ? 'preview' : 'warn'} noprint">${[R.preview ? 'Ambiente di prova: confronto calcolato sui dati dimostrativi, non è un report ufficiale.' : '', R.draft ? '<b>Bozza</b>: versione calcolata ora, non ancora rilasciata; l\'azienda vede solo le versioni rilasciate, che non cambiano più.' : ''].filter(Boolean).join(' ')}</div>` : ''}
   ${R.snapshot ? `<div class="banner ok">Versione rilasciata v${R.snapshot.version} · ${esc(R.snapshot.sessionTitle)} · ${fmtDate(R.snapshot.releasedAt)}</div>` : ''}
   <div id="versions" class="noprint"></div>
   <div class="cover"><div class="eyebrow">AI Transformation &amp; Adoption Map · report riservato</div>
@@ -55,7 +56,7 @@ async function boot() {
   <div class="card"><h2><span class="secnum">2</span>Lettura di coerenza</h2>
     <div class="explain">Ogni regola confronta una capacità abilitante con una capacità che ne dipende. Se l'abilitante è più avanti è prudenza; se la dipendente è più avanti di almeno ${SC.coherenceThreshold} punti (due livelli pieni) è un rischio da esaminare nella call con il leader. La soglia è un'ipotesi del pilot.</div>
     ${R.coherence.length ? R.coherence.map((c) => `<div style="margin-bottom:10px"><b>${c.id} · ${esc(c.label)}</b> ${c.flagged ? '<span class="tag risk">da esaminare</span>' : c.comparisons.some((x) => x.status === 'prudenza') ? '<span class="tag teal">prudenza</span>' : '<span class="tag ok">coerente</span>'}
-      ${c.crossSession ? '<div class="small muted">Confronta sessioni diverse: da validare nella call con il leader.</div>' : ''}
+      ${c.crossSession ? '<div class="small muted">Confronta dimensioni misurate in sessioni diverse.</div>' : ''}
       <div class="small ink2">${c.comparisons.map((x) => x.available ? `${esc(x.enabler)} ${fmtScore(x.enablerScore)} → ${esc(c.dependent)} ${fmtScore(x.dependentScore)} (scarto ${x.diff > 0 ? '+' : ''}${fmtNum(x.diff)})${x.status === 'da_esaminare' ? ' <b>· da esaminare</b>' : ''}` : `${esc(x.enabler)} → ${esc(c.dependent)}: non ancora disponibile (abilitante N.D.)`).join('<br>')}</div>
       ${c.flagged ? `<div class="small">Segnale: ${esc(c.signal)}</div>` : ''}</div>`).join('') : '<p class="muted">Nessuna regola ancora leggibile.</p>'}
     ${R.coherencePending.length ? `<p class="small muted">Regole che si attiveranno nelle prossime sessioni: ${R.coherencePending.join(', ')}.</p>` : ''}
@@ -64,7 +65,7 @@ async function boot() {
 
   <div class="card pb"><h2><span class="secnum">3</span>Capacità per item</h2>
     <div class="explain">Il livello è la scelta consolidata in sala; la lettera è la sotto-opzione scelta con una scelta forzata tra fatti osservabili. Lo stesso "2B" non vale lo stesso in tutti gli item (dipende da quante sotto-opzioni ha il livello), per questo è indicato anche il valore numerico.</div>
-    <div class="tablewrap"><table><thead><tr><th>Item</th><th>Posizione</th><th class="num">Score</th><th>Qualità del dato</th>${anyItemBench ? '<th>Benchmark AITO</th>' : ''}</tr></thead><tbody>
+    <div class="tablewrap"><table><thead><tr><th>Item</th><th>Posizione</th><th class="num">Score</th><th>Qualità del dato</th>${anyItemBench ? `<th>Benchmark AITO${stab(R.items.map((i) => i.bench))}</th>` : ''}</tr></thead><tbody>
     ${R.items.map((it) => `<tr><td><b>${esc(it.itemId)}</b> ${esc(it.title)}<div class="small muted">Dim. ${it.dimension}</div></td>
       <td><b>${levelLabel(it.level, it.sub)}</b> ${it.valoriale ? '<span class="tag gold">valoriale</span>' : ''}<div class="small">${esc(it.descriptor || '')}${it.subText ? `<br><i>${esc(it.subText)}</i>` : ''}</div>
         ${it.override ? `<div class="small"><span class="tag warn">override</span> ${esc(it.overrideReason || '')}</div>` : ''}</td>
@@ -77,13 +78,13 @@ async function boot() {
 
   <div class="card"><h2><span class="secnum">4</span>Dove intervenire</h2>
     <div class="explain">Ogni punto è una dimensione completa. Orizzontale: lo score dell'azienda. Verticale: quanto è sopra (+) o sotto (−) la mediana delle altre aziende. Essere sopra la mediana non significa essere consolidati: la linea verticale a 70 separa le capacità consolidate.</div>
-    ${wherePts.length ? `<div class="grid c2"><div class="chart">${whereMap(wherePts, { names })}</div><div><table><tbody>${R.dims.filter((d) => d.quadrant).map((d) => `<tr><td><span class="dim-letter">${d.id}</span>${esc(d.name)}</td><td><b>${esc(d.quadrant.name)}</b><div class="small muted">nome alternativo proposto: ${esc(d.quadrant.altName)}</div></td><td class="num">${d.quadrant.delta > 0 ? '+' : ''}${fmtNum(d.quadrant.delta)}</td></tr>`).join('')}</tbody></table></div></div>`
+    ${wherePts.length ? `<div class="grid c2"><div class="chart">${whereMap(wherePts, { names })}</div><div><table><tbody>${R.dims.filter((d) => d.quadrant).map((d) => `<tr><td><span class="dim-letter">${d.id}</span>${esc(d.name)}</td><td><b>${esc(d.quadrant.name)}</b></td><td class="num">${d.quadrant.delta > 0 ? '+' : ''}${fmtNum(d.quadrant.delta)}</td></tr>`).join('')}</tbody></table></div></div>`
       : ''}
-    ${anyDimBench ? `<table style="margin-top:10px"><thead><tr><th>Dimensione</th><th>Benchmark</th></tr></thead><tbody>${R.dims.filter((d) => d.score != null).map((d) => `<tr><td>${d.id} ${esc(d.name)}</td><td class="small">${d.bench?.available ? `${benchStrip(d.bench, d.score)}<br>` : ''}${benchTxt(d.bench)}</td></tr>`).join('')}</tbody></table>` : noBench('Mappa e confronto per dimensione')}
+    ${anyDimBench ? `<table style="margin-top:10px"><thead><tr><th>Dimensione</th><th>Benchmark AITO${stab(R.dims.map((d) => d.bench))}</th></tr></thead><tbody>${R.dims.filter((d) => d.score != null).map((d) => `<tr><td>${d.id} ${esc(d.name)}</td><td class="small">${d.bench?.available ? `${benchStrip(d.bench, d.score)}<br>` : ''}${benchTxt(d.bench)}</td></tr>`).join('')}</tbody></table>` : noBench('Mappa e confronto per dimensione')}
   </div>
 
   ${R.dims.some((d) => d.community) ? `<div class="card"><h3>La dimensione nella community</h3>
-    <div class="explain">Dove si colloca ogni dimensione nelle mappe di community della sessione: se il bisogno è condiviso da molte aziende e se ci sono aziende da cui imparare. Sono dati aggregati, senza nomi di altre aziende; le soglie sono ipotesi del pilot.</div>
+    <div class="explain">Dove si colloca ogni dimensione nelle mappe di community della sessione: se il bisogno è condiviso da molte aziende e se ci sono aziende da cui imparare. Sono dati aggregati, senza nomi di altre aziende.</div>
     <div class="tablewrap"><table><thead><tr><th>Dimensione</th><th>Il bisogno è individuale o condiviso?</th><th>Con chi accelerare?</th></tr></thead><tbody>
     ${R.dims.filter((d) => d.community).map((d) => `<tr><td><span class="dim-letter">${d.id}</span>${esc(d.name)}</td>
       <td><b>${esc(d.community.gapQuadrant)}</b><div class="small muted">${Math.round(d.community.fondShare * 100)}% delle aziende in fascia Fondativa · eterogeneità ${fmtScore(d.community.iqr)} punti · N=${d.community.n}</div></td>
@@ -97,7 +98,7 @@ async function boot() {
   </div>
 
   <div class="card"><h2><span class="secnum">6</span>Priorità</h2>
-    <div class="explain">L'ordine proposto segue la nota: prima riportare a coerenza, poi i prerequisiti fondativi, poi le dimensioni sotto 70 e sotto la mediana peer. È una proposta trasparente, non sostituisce il giudizio dell'azienda.</div>
+    <div class="explain">L'ordine segue la nota: prima riportare a coerenza, poi i prerequisiti fondativi, poi le dimensioni sotto 70 e sotto la mediana peer. È una proposta trasparente, non sostituisce il giudizio dell'azienda.</div>
     ${R.mapComplete ? `<h3>Tre priorità provvisorie</h3><p class="small muted">Provvisorie dopo Scalare; si confermano dopo l'allineamento finale di settembre 2027, quando tutte le dimensioni hanno la stessa data (§11.1, §14.1).</p>
       <ol>${R.priorities.slice(0, 3).map((p) => `<li><b>${p.dimension} · ${esc(p.name)}</b> (${fmtScore(p.score)}) — <span class="small">${esc(p.reasons.join('; ') || 'nessun segnale specifico')}</span></li>`).join('')}</ol>`
       : `<p class="small">Le tre priorità complessive si calcolano a Map completa (${R.dimsComplete}/8 dimensioni misurate finora). In ogni sessione l'azienda sceglie la propria priorità e il commitment, riportati qui sotto.</p>`}
@@ -112,7 +113,7 @@ async function boot() {
   </div>
 
   <div class="card"><h2>Note metodologiche e limiti</h2>
-    <p class="small ink2">Autovalutazione strutturata e consolidamento aziendale, non audit né certificazione. Il benchmark è "indicativo" sotto le ${SC.benchmark.stableN} aziende e non è mostrato sotto le ${SC.benchmark.minN}; nel report l'azienda è esclusa dal proprio benchmark quando il campione residuo resta di almeno ${SC.benchmark.looMinResidual} aziende. Le soglie (fasce 44/70, coerenza ${SC.coherenceThreshold} punti, quadranti) sono ipotesi del pilot da ratificare. Le dimensioni misurate in sessioni diverse possono riflettere partecipanti diversi; a settembre 2027 l'allineamento finale le riporta a una data unica.</p>
+    <p class="small ink2">Autovalutazione strutturata e consolidamento aziendale, non audit né certificazione. Il benchmark è "indicativo" sotto le ${SC.benchmark.stableN} aziende e non è mostrato sotto le ${SC.benchmark.minN}; nel report l'azienda è esclusa dal proprio benchmark quando il campione residuo resta di almeno ${SC.benchmark.looMinResidual} aziende. Le soglie (fasce 44/70, coerenza ${SC.coherenceThreshold} punti, quadranti) e i nomi dei quadranti sono quelli in uso nel pilot. Le regole di coerenza che confrontano sessioni diverse si discutono nella call con il leader. Le dimensioni misurate in sessioni diverse possono riflettere partecipanti diversi; a settembre 2027 l'allineamento finale le riporta a una data unica.</p>
   </div>`;
   try {
     const list = t ? (await api(`/api/r/${encodeURIComponent(t)}`)).reports : await api(`/api/admin/companies/${cid}/reports`);

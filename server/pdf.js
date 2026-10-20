@@ -153,7 +153,7 @@ export function buildCompanyPdf(R) {
     doc.y = y0 + 13;
     for (const x of c.comparisons) para(x.available ? `${x.enabler} ${n1(x.enablerScore)}  →  ${c.dependent} ${n1(x.dependentScore)}   (scarto ${x.diff > 0 ? '+' : ''}${n1(x.diff)})${x.status === 'da_esaminare' ? '  · da esaminare' : ''}` : `${x.enabler} → ${c.dependent}: non ancora disponibile (abilitante N.D.)`, { size: 8, color: C.ink2 });
     if (c.flagged) para(`Segnale: ${c.signal}`, { size: 8 });
-    if (c.crossSession) para('Confronta sessioni diverse, con partecipanti diversi: da validare nella call con il leader.', { size: 7.5, color: C.ink3 });
+    if (c.crossSession) para('Confronta dimensioni misurate in sessioni diverse.', { size: 7.5, color: C.ink3 });
     doc.moveDown(0.4);
   }
   if (R.coherencePending.length) para(`Regole che si attiveranno nelle prossime sessioni: ${R.coherencePending.join(', ')}.`, { size: 7.5, color: C.ink3 });
@@ -201,7 +201,7 @@ export function buildCompanyPdf(R) {
     let yy = y0 + 4;
     for (const d of R.dims.filter((x) => x.quadrant)) {
       doc.font('Bold').fontSize(9).fillColor(C.ink).text(`${d.id} · ${d.name}`, X0 + 285, yy, { width: W - 285 });
-      doc.font('Body').fontSize(8.5).fillColor(C.ink2).text(`${d.quadrant.name} (alternativo: ${d.quadrant.altName}) · scarto dalla mediana ${d.quadrant.delta > 0 ? '+' : ''}${n1(d.quadrant.delta)}`, X0 + 285, doc.y + 1, { width: W - 285 });
+      doc.font('Body').fontSize(8.5).fillColor(C.ink2).text(`${d.quadrant.name} · scarto dalla mediana ${d.quadrant.delta > 0 ? '+' : ''}${n1(d.quadrant.delta)}`, X0 + 285, doc.y + 1, { width: W - 285 });
       doc.text(benchTxt(d.bench), X0 + 285, doc.y + 1, { width: W - 285 });
       yy = doc.y + 8;
     }
@@ -217,7 +217,7 @@ export function buildCompanyPdf(R) {
     doc.moveDown(0.6);
     doc.font('Bold').fontSize(10).fillColor(C.deep).text('La dimensione nella community', X0, doc.y, { width: W });
     doc.moveDown(0.2);
-    para('Se il bisogno è condiviso da molte aziende e se ci sono aziende da cui imparare. Dati aggregati, senza nomi di altre aziende; soglie ipotesi del pilot.', { size: 7.8, color: C.ink3 });
+    para('Se il bisogno è condiviso da molte aziende e se ci sono aziende da cui imparare. Dati aggregati, senza nomi di altre aziende.', { size: 7.8, color: C.ink3 });
     doc.moveDown(0.2);
     kv(comm.map((d) => [`${d.id} · ${d.name}`,
       `Bisogno: ${d.community.gapQuadrant} (${Math.round(d.community.fondShare * 100)}% in Fondativa, eterogeneità ${n1(d.community.iqr)} punti).  Con chi accelerare: ${d.community.peerQuadrant} (${d.community.need} con questa priorità, ${d.community.contrib} contributor potenziali).`]), 150);
@@ -261,7 +261,7 @@ export function buildCompanyPdf(R) {
 
   // ---------- Note ----------
   h2('Note metodologiche e limiti');
-  para(`Autovalutazione strutturata e consolidamento aziendale: non è un audit né una certificazione. Il benchmark è "indicativo" sotto le ${SC.benchmark.stableN} aziende e non è mostrato sotto le ${SC.benchmark.minN}; i sotto-livelli si mostrano solo con almeno ${SC.benchmark.subLevelMinN} aziende per categoria. Le soglie (fasce 44/70, coerenza ${SC.coherenceThreshold} punti, quadranti) sono ipotesi del pilot da ratificare. Le dimensioni misurate in sessioni diverse possono riflettere partecipanti diversi; a settembre 2027 l'allineamento finale le riporta a una data unica. Il benchmark usato è una versione congelata: i report consegnati non cambiano.`, { size: 8, color: C.ink2 });
+  para(`Autovalutazione strutturata e consolidamento aziendale: non è un audit né una certificazione. Il benchmark è "indicativo" sotto le ${SC.benchmark.stableN} aziende e non è mostrato sotto le ${SC.benchmark.minN}; i sotto-livelli si mostrano solo con almeno ${SC.benchmark.subLevelMinN} aziende per categoria. Le soglie (fasce 44/70, coerenza ${SC.coherenceThreshold} punti, quadranti) e i nomi dei quadranti sono quelli in uso nel pilot. Le regole di coerenza che confrontano sessioni diverse si discutono nella call con il leader. Le dimensioni misurate in sessioni diverse possono riflettere partecipanti diversi; a settembre 2027 l'allineamento finale le riporta a una data unica. Il benchmark usato è una versione congelata: i report consegnati non cambiano.`, { size: 8, color: C.ink2 });
 
   // ---------- Piè di pagina ----------
   const range = doc.bufferedPageRange();
