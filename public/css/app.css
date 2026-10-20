@@ -386,6 +386,7 @@ fieldset.q .small.muted { margin-bottom: 6px; }
 .meter-bar i { display: block; height: 100%; background: var(--navy); border-radius: 5px; transition: width .4s; }
 .fp-qr { display: grid; grid-template-columns: auto 1fr; gap: 18px; align-items: center; padding: 14px; border: 1px solid var(--line-2); border-radius: 10px; }
 .fp-qr h4 { margin: 0 0 4px; color: var(--navy-deep); }
+.fp-qr.nofig { grid-template-columns: 1fr; }
 .fp-action { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--line); }
 .fp-action h4 { color: var(--navy-deep); margin-bottom: 6px; }
 .fp-action .big { width: auto; min-width: 320px; }
@@ -397,6 +398,10 @@ fieldset.q .small.muted { margin-bottom: 6px; }
 .todo { list-style: none; margin: 0; padding: 0; }
 .todo li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line-2); }
 .todo li:last-child { border-bottom: 0; }
+.tablecard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; text-align: center; }
+.single .tablecard { max-width: 380px; margin: 0 auto; }
+.qrlabel { margin: 12px auto; }
+.qrlabel figcaption { font-family: var(--display); font-weight: 600; color: var(--navy-deep); font-size: 1.35rem; line-height: 1.2; padding: 10px 4px 2px; border-top: 1px solid var(--line); margin-top: 10px; overflow-wrap: anywhere; }
 .tablecards { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 16px; }
 .tablecards .tablecard { margin: 0; width: auto; }
 @media print { .tablecard { break-inside: avoid; } .tablecards { display: block; } .tablecards .tablecard { margin: 0 auto 24px; width: 360px; } }
