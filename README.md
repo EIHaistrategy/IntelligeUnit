@@ -3,7 +3,7 @@
 Piattaforma per gestire l'assessment descritto nella **Nota metodologica V1 — Pilot AITO 3 Session-Based**.
 Può girare in due modi:
 - **in locale** su un portatile ELIS: i telefoni si collegano con un QR sulla stessa rete Wi‑Fi, nessun dato esce dal computer;
-- **online** su Render (`Dockerfile` e `render.yaml` inclusi): i telefoni si collegano da qualsiasi rete. In questo caso i dati stanno sul server di Render (Francoforte). Sul piano gratuito **non c'è disco permanente** e i dati si perdono a ogni riavvio: per l'uso reale serve un piano con disco e la verifica privacy/IT (accordo sul trattamento dati con Render).
+- **online** su Render (`Dockerfile` e `render.yaml` inclusi): i telefoni si collegano da qualsiasi rete. In questo caso i dati stanno sul server di Render (Francoforte). Sul piano gratuito **non c'è disco permanente** e i dati si perdono a ogni riavvio, a ogni pubblicazione e quando Render spegne il servizio dopo circa 15 minuti senza visite: per l'uso reale serve un piano con disco e la verifica privacy/IT (accordo sul trattamento dati con Render).
 
 ## 1. Avvio
 

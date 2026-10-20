@@ -4,7 +4,7 @@ Questo file serve a chi riprende il lavoro, persona o sessione di Claude Code. L
 
 ## Dove siamo
 
-La piattaforma copre il ciclo completo di una sessione e il lavoro dopo la sessione. È online in prova su https://aito-map.onrender.com (piano gratuito: i dati si cancellano a ogni pubblicazione).
+La piattaforma copre il ciclo completo di una sessione e il lavoro dopo la sessione. È online in prova su https://aito-map.onrender.com (piano gratuito: i dati si cancellano a ogni pubblicazione, a ogni riavvio e quando Render spegne il servizio dopo circa 15 minuti senza visite).
 
 | Area | Stato |
 |---|---|
@@ -22,7 +22,13 @@ Revisioni già fatte con agenti indipendenti: conformità alla nota, codice, pri
 
 ## Prossime scadenze
 
-1. **Test con l'azienda amica** (in produzione, azienda di tipo TEST). Si può fare anche sul piano gratuito: in una sola volta, senza pubblicare modifiche durante il test, scaricando subito i PDF.
+1. **Test con l'azienda amica** (in produzione, azienda di tipo TEST). Si può fare anche sul piano gratuito, ma tutto in un'unica finestra di tempo: Render gratuito spegne il servizio dopo circa 15 minuti senza visite e alla riaccensione i dati sono vuoti. Lista di controllo:
+   - nessun push su `main` il giorno prima e il giorno del test, detto a tutto il team;
+   - 30 minuti prima aprire `/healthz` per svegliare il servizio e tenere una scheda che lo ricarica ogni 5 minuti; console aperta in *Produzione* su due computer;
+   - azienda di tipo TEST, referente con email, email inviata dalla bozza; scheda pre-sessione compilata lo stesso giorno, subito prima (non giorni prima);
+   - QR generato, stampato e provato con un telefono fuori dal Wi-Fi ELIS; QR di sala e codice azienda come riserva;
+   - cronometrare individuale, confronto e consolidamento; annotare ogni errore con schermata e ora;
+   - alla fine rilasciare il report e scaricare subito PDF, zip ed export; controllare che l'azienda TEST non sia nel benchmark.
 2. **Dry run**: settimana del 26/10. Serve soprattutto a cronometrare il consolidamento su telefono, che deve stare nei 10 minuti.
 3. **Governare, 19 novembre 2026.** Prima servono:
    - piano Render **Starter con disco** (`render.yaml` è pronto). Senza disco, la scheda pre-sessione compilata una settimana prima andrebbe persa;

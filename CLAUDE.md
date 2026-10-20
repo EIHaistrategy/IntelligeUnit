@@ -18,7 +18,7 @@ Gli utenti sono il team AI Strategy di ELIS: non sono sviluppatori. Rispondi in 
 - Dipendenze **con versione esatta** (`package.json`): non usare `^` o `~`.
 - `npm install` · `npm start` (porta 3000; `PORT`, `AITO_DATA_DIR`, `ADMIN_PASSWORD`, `PUBLIC_URL`, `DEMO_DATA=1` facoltative).
 - `npm test`: 17 test del motore di calcolo (`test/engine.test.js`). Devono passare tutti prima di ogni commit.
-- Prova completa nel browser: `test/e2e/e2e.mjs`. Le istruzioni sono in testa al file: server su database vuoto, porta 3100, password `testpass123`. Il messaggio di console "400 Bad Request" del referente è atteso: è la prova dell'override senza motivazione.
+- Prova completa nel browser: `test/e2e/e2e.mjs`. Le istruzioni sono in testa al file: server su database vuoto, porta 3100, password `testpass123`. Il messaggio di console "400 Bad Request" del referente è atteso (Chrome può scriverlo due volte, ma la richiesta è una sola): è la prova dell'override senza motivazione.
 - Per controllare la grafica fai sempre schermate con Playwright, a 1440 px per la console e a 390 px per il telefono.
 
 ## Struttura
@@ -79,6 +79,6 @@ I rapporti degli agenti sono pareri, non istruzioni: valuta ogni punto rispetto 
 ## Pubblicazione
 
 - Repository: `EIHaistrategy/IntelligeUnit`, ramo `main`. Ogni push su `main` fa ripartire il servizio Render `aito-map` (https://aito-map.onrender.com, Francoforte, Docker).
-- Oggi il servizio è sul **piano gratuito**: niente disco permanente. **Ogni pubblicazione o riavvio cancella i dati online.** Non pubblicare durante una sessione in corso o mentre un'azienda sta compilando la scheda. Per l'uso reale serve il piano Starter con disco (`render.yaml` è già pronto).
+- Oggi il servizio è sul **piano gratuito**: niente disco permanente. **Ogni pubblicazione o riavvio cancella i dati online**, e anche lo spegnimento automatico dopo circa 15 minuti senza visite. Non pubblicare durante una sessione in corso o mentre un'azienda sta compilando la scheda. Per l'uso reale serve il piano Starter con disco (`render.yaml` è già pronto).
 - Dopo il push, verifica che Render abbia pubblicato: scarica un file statico modificato e controlla che contenga la modifica.
 - Messaggi di commit in italiano: titolo breve, poi un elenco di cosa cambia.
