@@ -195,7 +195,7 @@ function renderIndividual() {
       ${state.pairs.map(([a, b], i) => {
         const A = state.items.find((x) => x.id === a), B = state.items.find((x) => x.id === b);
         const cur = state.pairAnswers.find((x) => x.item_a === a && x.item_b === b)?.answer;
-        const qtext = state.pairQuestion.replace('{a}', `<b>${esc(A.title.toLowerCase())}</b>`).replace('{b}', `<b>${esc(B.title.toLowerCase())}</b>`);
+        const qtext = state.pairQuestion.replace('{a}', `<b>${esc(A.pairLabel || A.title.toLowerCase())}</b>`).replace('{b}', `<b>${esc(B.pairLabel || B.title.toLowerCase())}</b>`);
         return `<div class="card flat"><p id="pq${i}">${qtext}</p><div class="levels" role="group" aria-labelledby="pq${i}" data-pair="${a}|${b}">
           <button type="button" class="level ${cur === 'A' ? 'sel' : ''}" data-v="A" aria-pressed="${cur === 'A'}"><span class="n" aria-hidden="true">${esc(a)}</span><span>${esc(A.title)}</span></button>
           <button type="button" class="level ${cur === 'B' ? 'sel' : ''}" data-v="B" aria-pressed="${cur === 'B'}"><span class="n" aria-hidden="true">${esc(b)}</span><span>${esc(B.title)}</span></button>

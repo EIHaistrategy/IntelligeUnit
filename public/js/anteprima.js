@@ -10,7 +10,7 @@ async function start() {
   if (!s) { app.innerHTML = '<div class="card" role="alert"><h1>Anteprima non trovata</h1><p>Controlla il link ricevuto da ELIS.</p></div>'; return; }
   const date = s.date ? new Date(`${s.date}T12:00:00`).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
   $('#sesstitle').textContent = `${s.name}${date ? ` · ${date}` : ''}`;
-  const pairs = (s.pairs || []).map(([a, b]) => I.pairQuestion.replace('{a}', `<b>${esc(I.items[a].title.toLowerCase())}</b>`).replace('{b}', `<b>${esc(I.items[b].title.toLowerCase())}</b>`));
+  const pairs = (s.pairs || []).map(([a, b]) => I.pairQuestion.replace('{a}', `<b>${esc(I.items[a].pairLabel || I.items[a].title.toLowerCase())}</b>`).replace('{b}', `<b>${esc(I.items[b].pairLabel || I.items[b].title.toLowerCase())}</b>`));
   app.innerHTML = `
     <div class="card"><h1>Le domande di ${esc(s.name)}</h1>
       <p class="banner info" style="margin:0 0 12px">Da questa pagina non si risponde: è solo un'anteprima per presa visione.</p>

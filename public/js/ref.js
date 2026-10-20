@@ -161,7 +161,7 @@ async function renderQuestions(base) {
       <ol class="preview-levels">${it.levels.map((l) => `<li><span class="n" aria-hidden="true">${l.level}${alt(l.level)}</span><span><span class="sr-only">Livello ${l.level}: </span>${esc(l.descriptor)}</span></li>`).join('')}</ol>
       ${byItem[id] ? `<div class="rq-facts"><h4>In sala vi chiederemo anche</h4>${byItem[id].map((f) => `<div class="rq-fact"><p>${esc(f.q)}</p>${factAnswer(f)}</div>`).join('')}</div>` : ''}</section>`; }).join('')}
     ${(S.pairs || []).length ? `<section class="card"><h3 class="qtitle">Confronti a coppie</h3><p class="small ink2">Dopo le domande: tra due temi della sessione, quale è più avanti nella vostra azienda?</p>
-      <ul>${S.pairs.map(([a, b]) => `<li>${esc(INST.items[a].title)} o ${esc(INST.items[b].title)}?</li>`).join('')}</ul></section>` : ''}
+      <ul>${S.pairs.map(([a, b]) => `<li>${INST.pairQuestion.replace('{a}', `<b>${esc(INST.items[a].pairLabel || INST.items[a].title)}</b>`).replace('{b}', `<b>${esc(INST.items[b].pairLabel || INST.items[b].title)}</b>`)}</li>`).join('')}</ul></section>` : ''}
     ${r.fields.profile.length ? `<section class="card"><h3 class="qtitle">Profilo di approccio</h3><p class="small muted">Domande fuori punteggio: descrivono come l'azienda si trasforma, non quanto è avanti.</p>
       ${r.fields.profile.map((p) => `<div class="rq-fact"><p>${esc(p.q)}</p>${p.type === 'percent' ? '<p class="small muted" style="margin:4px 0 0">Una percentuale</p>' : opts(p.options)}</div>`).join('')}</section>` : ''}
     ${me?.reports?.length ? reportsCard() : ''}`;

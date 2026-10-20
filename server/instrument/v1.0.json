@@ -63,7 +63,7 @@
   "pairAllowsTie": false,
   "items": {
     "Q1": {
-      "title": "Direzione strategica", "dimension": "A",
+      "title": "Direzione strategica", "pairLabel": "la direzione strategica", "dimension": "A",
       "statement": "L'azienda ha definito una direzione sull'AI collegata alle priorità di business.",
       "levels": [
         { "level": 1, "descriptor": "Non esiste una direzione comune; le iniziative sono locali." },
@@ -90,7 +90,7 @@
       ]
     },
     "Q2": {
-      "title": "Mandato esecutivo", "dimension": "A",
+      "title": "Mandato esecutivo", "pairLabel": "il mandato esecutivo", "dimension": "A",
       "statement": "Uno sponsor executive ha mandato, responsabilità e risorse per guidare l'adozione AI.",
       "levels": [
         { "level": 1, "descriptor": "Non esistono sponsor né risorse riconosciute." },
@@ -104,7 +104,7 @@
             { "key": "A", "text": "Non esiste un comitato AI." },
             { "key": "B", "text": "Esiste un comitato AI." },
             { "key": "C", "text": "Il comitato AI comprende stabilmente anche legale/compliance e HR." }
-          ], "note": "C ammessa · valoriale",
+          ], "note": "C ammessa (ampiezza) · valoriale",
           "fact": { "id": "Q2_L3", "q": "Esiste un comitato AI? Con quale composizione?", "type": "choice",
             "options": [
               { "label": "Non esiste un comitato AI", "maps": "A" },
@@ -124,7 +124,7 @@
       ]
     },
     "Q3": {
-      "title": "Selezione delle opportunità", "dimension": "B",
+      "title": "Selezione delle opportunità", "pairLabel": "la selezione delle opportunità", "dimension": "B",
       "statement": "Gli use case vengono selezionati con criteri comuni di valore, fattibilità e rischio.",
       "levels": [
         { "level": 1, "descriptor": "Le opportunità nascono in modo casuale o dai fornitori." },
@@ -150,7 +150,7 @@
       ]
     },
     "Q4": {
-      "title": "Governo del portafoglio", "dimension": "B",
+      "title": "Governo del portafoglio", "pairLabel": "il governo del portafoglio", "dimension": "B",
       "statement": "Il portafoglio AI ha owner, momenti di riesame e decisioni di go, stop o scale.",
       "levels": [
         { "level": 1, "descriptor": "Non esiste una vista unica delle iniziative." },
@@ -184,7 +184,7 @@
       ]
     },
     "Q5": {
-      "title": "Readiness dei dati", "dimension": "C",
+      "title": "Readiness dei dati", "pairLabel": "la readiness dei dati", "dimension": "C",
       "statement": "I dati necessari agli use case prioritari sono conosciuti, accessibili e di qualità nota.",
       "levels": [
         { "level": 1, "descriptor": "Dati necessari e responsabilità non sono identificati." },
@@ -211,7 +211,7 @@
       ]
     },
     "Q6": {
-      "title": "Conoscenza pronta per l'AI", "dimension": "C",
+      "title": "Conoscenza pronta per l'AI", "pairLabel": "la conoscenza pronta per l'AI", "dimension": "C",
       "statement": "La conoscenza aziendale necessaria ai casi d'uso AI è formalizzata, aggiornata e accessibile agli strumenti AI.",
       "help": "Le quattro conoscenze: (1) regole e procedure; (2) conoscenza di prodotto, servizio e tecnica; (3) esperienza registrata nei sistemi (casi risolti, ticket, FAQ); (4) sapere degli esperti, raccolto e trascritto. Formalizzata = scritta, con versione corrente riconoscibile, in un archivio digitale leggibile da uno strumento AI. I livelli sono cumulativi.",
       "levels": [
@@ -238,7 +238,7 @@
       ]
     },
     "Q7": {
-      "title": "Architettura di riferimento", "dimension": "D",
+      "title": "Architettura di riferimento", "pairLabel": "l'architettura di riferimento", "dimension": "D",
       "statement": "L'azienda dispone di piattaforme e criteri architetturali per integrare le soluzioni AI.",
       "levels": [
         { "level": 1, "descriptor": "Strumenti isolati e scelte tecnologiche non coordinate." },
@@ -263,7 +263,7 @@
       ]
     },
     "Q8": {
-      "title": "Controllo in esercizio", "dimension": "D",
+      "title": "Controllo in esercizio", "pairLabel": "il controllo in esercizio", "dimension": "D",
       "statement": "Le soluzioni in produzione sono monitorate per qualità, prestazioni, sicurezza e costo.",
       "levels": [
         { "level": 1, "descriptor": "Non esiste monitoraggio strutturato." },
@@ -290,7 +290,7 @@
       ]
     },
     "Q9": {
-      "title": "Governance e classificazione del rischio", "dimension": "E",
+      "title": "Governance e classificazione del rischio", "pairLabel": "la governance e classificazione del rischio", "dimension": "E",
       "statement": "Ruoli e processi di governance classificano le iniziative AI in base al rischio.",
       "factOwner": "Da compilare con la funzione legale o compliance",
       "levels": [
@@ -323,7 +323,7 @@
       ]
     },
     "Q10": {
-      "title": "Controlli sul ciclo di vita", "dimension": "E",
+      "title": "Controlli sul ciclo di vita", "pairLabel": "i controlli sul ciclo di vita", "dimension": "E",
       "statement": "Gli use case rilevanti prevedono approvazione, supervisione umana e gestione post-rilascio.",
       "factOwner": "Da compilare con la funzione legale o compliance",
       "levels": [
@@ -353,7 +353,7 @@
       ]
     },
     "Q11": {
-      "title": "Operating model", "dimension": "F",
+      "title": "Operating model", "pairLabel": "l'operating model", "dimension": "F",
       "statement": "Business, tecnologia e funzioni di controllo collaborano attraverso responsabilità definite.",
       "levels": [
         { "level": 1, "descriptor": "Le funzioni lavorano separatamente." },
@@ -376,7 +376,7 @@
       ]
     },
     "Q12": {
-      "title": "Processo di industrializzazione", "dimension": "F",
+      "title": "Processo di industrializzazione", "pairLabel": "il processo di industrializzazione", "dimension": "F",
       "statement": "Esiste un processo ripetibile per passare dal pilot alla produzione e alla diffusione.",
       "levels": [
         { "level": 1, "descriptor": "Le sperimentazioni si fermano senza una decisione formale." },
@@ -403,7 +403,7 @@
       ]
     },
     "Q13": {
-      "title": "Competenze role-based", "dimension": "G",
+      "title": "Competenze role-based", "pairLabel": "le competenze role-based", "dimension": "G",
       "statement": "Le persone ricevono formazione e supporto coerenti con ruolo e responsabilità.",
       "levels": [
         { "level": 1, "descriptor": "Non esistono percorsi strutturati." },
@@ -412,7 +412,7 @@
             { "key": "A", "text": "A fine 2026 meno dell'1% delle persone ha ricevuto formazione sull'AI." },
             { "key": "B", "text": "A fine 2026 tra l'1% e il 10% delle persone ha ricevuto formazione sull'AI." },
             { "key": "C", "text": "A fine 2026 oltre il 10% delle persone ha ricevuto formazione sull'AI." }
-          ], "note": "C ammessa (dato HR) · data di riferimento fissa · fasce da calibrare",
+          ], "note": "C ammessa (dato HR) · data di riferimento fissa, per rendere confrontabili risposte date in momenti diversi · fasce da calibrare",
           "fact": { "id": "Q13_L2", "q": "Quale percentuale delle persone avrà ricevuto formazione sull'AI a fine 2026 (dato HR)?", "type": "percent",
             "thresholds": [ { "lt": 1, "maps": "A" }, { "lte": 10, "maps": "B" }, { "maps": "C" } ] } },
         { "level": 3, "descriptor": "Esistono percorsi differenziati per le popolazioni prioritarie.", "valoriale": true,
@@ -429,7 +429,7 @@
       ]
     },
     "Q14": {
-      "title": "Gestione dell'adozione", "dimension": "G",
+      "title": "Gestione dell'adozione", "pairLabel": "la gestione dell'adozione", "dimension": "G",
       "statement": "L'adozione è misurata e accompagnata dal ridisegno delle attività e del lavoro.",
       "levels": [
         { "level": 1, "descriptor": "Non si conosce l'utilizzo effettivo." },
@@ -454,7 +454,7 @@
       ]
     },
     "Q15": {
-      "title": "Misurazione del valore", "dimension": "H",
+      "title": "Misurazione del valore", "pairLabel": "la misurazione del valore", "dimension": "H",
       "statement": "Le iniziative prioritarie hanno baseline, KPI, benefici attesi e costi complessivi.",
       "levels": [
         { "level": 1, "descriptor": "Non esistono baseline né indicatori." },
@@ -483,7 +483,7 @@
       ]
     },
     "Q16": {
-      "title": "Replica e scaling", "dimension": "H",
+      "title": "Replica e scaling", "pairLabel": "la replica e lo scaling", "dimension": "H",
       "statement": "Le soluzioni efficaci vengono industrializzate e replicate in più aree.",
       "levels": [
         { "level": 1, "descriptor": "Nessuna soluzione è stata replicata." },
