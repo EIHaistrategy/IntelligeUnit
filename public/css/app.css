@@ -401,7 +401,19 @@ fieldset.q .small.muted { margin-bottom: 6px; }
 .sesslist .sessrow { display: grid; grid-template-columns: 1fr auto; gap: 8px 16px; padding: 14px 0; border-bottom: 1px solid var(--line-2); align-items: center; }
 .sesslist .sessrow:last-child { border-bottom: 0; }
 .sesslist .sr-main { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.sesslist .sr-meta { grid-column: 1; display: flex; flex-wrap: wrap; gap: 6px 22px; color: var(--ink-2); }
+.steps6 { grid-column: 1; display: grid; grid-template-columns: 4fr 2fr; gap: 12px; }
+.steps6 .sgl { display: block; font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); margin-bottom: 6px; }
+.steps6 ol { list-style: none; margin: 0; padding: 0; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; }
+.steps6 li { display: grid; grid-template-columns: 18px 1fr; gap: 4px; align-items: start; padding: 8px; border: 1px solid var(--line-2); border-radius: var(--radius-sm); background: var(--sunken); font-size: .86rem; color: var(--ink-3); line-height: 1.25; }
+.steps6 li small { display: block; color: var(--ink-3); font-size: .78rem; margin-top: 2px; }
+.steps6 .si { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--line); display: grid; place-items: center; font-size: .7rem; font-weight: 700; margin-top: 1px; }
+.steps6 li.ok { color: var(--ink); background: var(--surface); }
+.steps6 li.ok .si { background: var(--ok); border-color: var(--ok); color: #fff; }
+.steps6 li.todo { color: var(--ink); background: var(--surface); border-color: var(--gold); box-shadow: inset 3px 0 0 var(--gold); }
+.steps6 li.todo .si { border-color: var(--gold); color: var(--gold); font-size: .55rem; }
+.steps6 li .todo-t { color: var(--gold-ink); font-weight: 700; }
+.steps6 .elis li { border-style: dashed; }
+@media (max-width: 900px) { .steps6 { grid-template-columns: 1fr; } .steps6 ol { grid-auto-flow: row; grid-template-columns: 1fr 1fr; } }
 .sesslist .sr-act { grid-column: 2; grid-row: 1 / span 2; }
 @media (max-width: 600px) { .sesslist .sessrow { grid-template-columns: 1fr; } .sesslist .sr-act { grid-column: 1; grid-row: auto; } }
 .tablecard { background: var(--surface); border: 1px solid var(--line); border-top: 6px solid var(--navy-deep); border-radius: var(--radius); padding: 22px; text-align: center; }

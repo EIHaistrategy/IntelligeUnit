@@ -45,7 +45,7 @@ async function renderHome() {
       ${me.reports.length ? `<h2>Report riservati</h2><table><tbody>${me.reports.map((v) => `<tr><td><b>${esc(v.session_title)}</b>${v.version > 1 ? ` <span class="tag">versione ${v.version}</span>` : ''}</td><td class="small muted">rilasciato il ${fmtDate(v.created_at)}</td>
         <td><a href="/report/${me.referent.companyId}?t=${T}&snap=${v.id}" target="_blank">Apri</a> · <a href="/api/report/${me.referent.companyId}/pdf?t=${T}&snap=${v.id}">PDF</a></td></tr>`).join('')}</tbody></table>` : ''}
     </div>
-    ${sessionsCard(active.length && active.every((s) => s.phase === 'preparazione') ? 'Prossima sessione' : 'Sessione in corso', active, active.length ? (later ? 'Le sessioni successive del programma compariranno qui quando saranno le prossime.' : '') : 'Nessuna sessione in programma in questo momento.')}
+    ${sessionsCard(!active.length || active.every((s) => s.phase === 'preparazione') ? 'Prossima sessione' : 'Sessione in corso', active, active.length ? (later ? 'Le sessioni successive del programma compariranno qui quando saranno le prossime.' : '') : 'Nessuna sessione in programma in questo momento.')}
     ${done.length ? sessionsCard('Sessioni concluse', done, '') : ''}`;
 }
 
@@ -63,15 +63,32 @@ function splitSessions(list) {
   return { active, done, later };
 }
 
+// Le sei fasi che si ripetono in ogni sessione: le prime quattro sono dell'azienda, le ultime due di ELIS.
+// "Tocca a voi" segna il passo che il referente può fare adesso.
+function steps(s) {
+  const room = ['consolidamento', 'chiusa'].includes(s.phase);
+  const az = [
+    { label: 'Scheda pre-sessione', done: !!s.presession_updated_at, todo: ['preparazione', 'individuale'].includes(s.phase), detail: s.presession_updated_at ? `compilata il ${fmtDate(s.presession_updated_at)}` : 'da compilare' },
+    { label: 'Partecipanti', done: s.participants > 0, detail: s.participants ? String(s.participants) : '' },
+    { label: 'Consolidamento', done: !!s.consolidated_at, todo: s.phase === 'consolidamento', detail: s.consolidated_at ? fmtDate(s.consolidated_at) : '' },
+    { label: 'Commitment', done: !!s.commitment, todo: room && !!s.consolidated_at },
+  ];
+  const elis = [
+    { label: 'Report rilasciato', done: !!s.report_released_at, detail: s.report_released_at ? fmtDate(s.report_released_at) : '' },
+    { label: 'Call con il leader', done: !!s.leader_call },
+  ];
+  const li = (x) => `<li class="${x.done ? 'ok' : x.todo ? 'todo' : ''}"><span class="si" aria-hidden="true">${x.done ? '✓' : x.todo ? '●' : ''}</span>
+    <span>${x.label}<span class="sr-only">: ${x.done ? 'fatto' : x.todo ? 'tocca a voi' : 'non ancora'}</span>${x.detail ? `<small>${esc(x.detail)}</small>` : ''}${!x.done && x.todo ? '<small class="todo-t" aria-hidden="true">tocca a voi</small>' : ''}</span></li>`;
+  return `<div class="steps6"><div class="sg"><span class="sgl">La vostra azienda</span><ol>${az.map(li).join('')}</ol></div>
+    <div class="sg elis"><span class="sgl">ELIS</span><ol>${elis.map(li).join('')}</ol></div></div>`;
+}
+
 function sessionsCard(title, list, note) {
   // righe a blocchi invece di una tabella: sul telefono del referente tutto resta visibile senza scorrere di lato
   return `<div class="card"><h2>${title}</h2>${list.length ? `<div class="sesslist">${list.map((s) => `<div class="sessrow">
       <div class="sr-main"><b>${esc(s.title)}</b>${s.mode === 'adhoc' ? ' <span class="tag gold">ad hoc</span>' : ''}
         <span class="tag ${['chiusa', 'preparazione'].includes(s.phase) ? '' : 'navy'}">${esc(s.phase.charAt(0).toUpperCase() + s.phase.slice(1))}</span></div>
-      <div class="sr-meta small">
-        <span>Scheda pre-sessione: ${s.presession_updated_at ? `<span class="tag ok">compilata</span> <span class="muted">${fmtDate(s.presession_updated_at)}</span>` : '<span class="tag warn">da compilare</span>'}</span>
-        <span>Partecipanti: <b>${s.participants}</b></span>
-        <span>Consolidato: ${s.consolidated_at ? `<span class="tag ok">sì</span> <span class="muted">${fmtDate(s.consolidated_at)}</span>` : '—'}</span></div>
+      ${steps(s)}
       <div class="sr-act row"><a class="btn sm ghost" href="#/scheda/${s.base}" aria-label="Apri scheda pre-sessione di ${esc(s.title)}">Apri scheda</a><a class="btn sm" href="#/sessione/${s.id}" aria-label="Apri ${esc(s.title)}">Apri</a></div></div>`).join('')}</div>` : ''}
       ${note ? `<p class="small muted" style="margin:${list.length ? '12px' : '0'} 0 0">${note}</p>` : ''}</div>`;
 }

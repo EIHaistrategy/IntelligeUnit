@@ -227,8 +227,10 @@ app.get('/api/r/:t', wrap((req, res) => {
   const sessions = q.all('SELECT * FROM sessions WHERE seeded = ? ORDER BY date, id', r.company_seeded ? 1 : 0).map((s) => {
     const sc = q.get('SELECT * FROM session_company WHERE session_id = ? AND company_id = ?', s.id, r.company_id);
     const pre = L.getPresession(r.company_id, s.base);
+    // della call con il leader il referente vede solo se è stata fatta, non la nota interna di ELIS
     return { ...s, consolidated_at: sc?.consolidated_at || null, report_released_at: sc?.report_released_at || null,
-      presession_updated_at: pre.updated_at, participants: L.activeParticipants(s.id, r.company_id).length };
+      presession_updated_at: pre.updated_at, participants: L.activeParticipants(s.id, r.company_id).length,
+      commitment: !!q.get('SELECT 1 FROM commitments WHERE session_id = ? AND company_id = ?', s.id, r.company_id), leader_call: !!sc?.leader_call_note };
   }).filter((s) => s.mode === 'workshop' || s.participants > 0 || s.consolidated_at || q.get('SELECT 1 FROM session_company WHERE session_id = ? AND company_id = ?', s.id, r.company_id));
   return { referent: { name: r.name, companyId: r.company_id, company: r.company_name, perimeter: r.perimeter, kind: r.company_kind }, sessions,
     reports: L.listSnapshots(r.company_id) };
