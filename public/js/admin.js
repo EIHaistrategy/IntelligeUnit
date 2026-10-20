@@ -315,7 +315,7 @@ async function viewControl(arg) {
       checks.push(noRef.length ? ck('warn', `${noRef.length} ${noRef.length === 1 ? 'azienda' : 'aziende'} senza referente: ${names(noRef)}. <a href="#/aziende">Aggiungi i referenti</a>`) : ck('ok', `Tutte le ${cos.length} aziende hanno un referente`));
       checks.push(noPre.length ? ck('warn', `Schede pre-sessione compilate: ${withRef.length - noPre.length} di ${withRef.length}. Mancano: ${names(noPre)}`) : ck('ok', 'Tutte le schede pre-sessione sono compilate'));
       checks.push(ck('info', `Partecipanti già registrati: <b>${totP}</b>`));
-      extra = `<div class="fp-qr nofig"><div><h4>QR delle aziende</h4><p class="small">Un QR per azienda con il nome scritto sotto: chi lo inquadra entra già nella sua azienda. Il QR di sala resta come riserva, con il codice azienda.</p>
+      extra = `<div class="fp-qr nofig"><div><h4>QR delle aziende</h4><p class="small">Un QR per azienda con il nome scritto sotto: chi lo inquadra entra già nella sua azienda. Il QR di sala resta come riserva, con il codice azienda: <span class="mono" style="word-break:break-all">${esc(C.joinUrl)}</span></p>
         <div class="row"><a class="btn sm" href="#/tavoli/${s.id}">QR delle aziende</a><a class="btn sm ghost" href="#/qr/${s.id}">QR di sala a schermo intero</a></div></div></div>`;
     } else if (f.id === 'individuale') {
       what = 'Ognuno risponde da solo, senza vedere le risposte dei colleghi. Chi non ha visibilità su un punto sceglie N.D.';
@@ -390,7 +390,7 @@ async function viewControl(arg) {
     const T2 = TABS.find((t) => t.id === tab);
     app.innerHTML = `<a class="back" href="#/programma">← Programma</a>
       <div class="pagehead"><div><h1>${esc(s.title)}</h1><p class="small">${esc(C.def.items.map((i) => `${i} ${INST.items[i].title}`).join(' · '))} · codice <span class="mono">${esc(s.code)}</span></p></div>
-        <div class="row"><a class="btn sm ghost" href="#/qr/${s.id}">QR di sala</a><a class="btn sm ghost" href="/live/${s.id}" target="_blank">Dashboard live</a></div></div>
+        <div class="row"><a class="btn sm ghost" href="#/tavoli/${s.id}">QR delle aziende</a><a class="btn sm ghost" href="/live/${s.id}" target="_blank">Dashboard live</a></div></div>
       <div class="tabs" role="tablist" aria-label="Momenti della sessione">${TABS.map((t) => `<button type="button" role="tab" class="tab ${tabState(t)} ${t.id === tab ? 'on' : ''}" aria-selected="${t.id === tab}" data-tab="${t.id}">
         <span class="tdot" aria-hidden="true">${tabState(t) === 'done' ? '✓' : ''}</span>${esc(t.label)}${tabState(t) === 'now' ? '<span class="sr-only"> (in corso)</span>' : ''}</button>`).join('')}</div>
       ${tab === 'risultati' ? results : `
@@ -457,24 +457,30 @@ async function viewControl(arg) {
 }
 
 // Un QR per azienda: chi lo inquadra è già abbinato alla sua azienda. Il nome è scritto sotto il QR.
-const qrFile = (C, c) => `QR_${C.session.base}_${c.name}`.normalize('NFD').replace(/[^\w-]+/g, '_').replace(/_+/g, '_') + '.png';
+const qrFile = (C, c) => {
+  const n = c.name.normalize('NFD').replace(/[^\w-]+/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+  return `QR_${C.session.base}_${n || c.joinCode}.png`;
+};
 const tableCard = (C, c, size) => {
   const url = `${C.joinUrl}?c=${c.joinCode}`;
   return `<div class="tablecard"><div class="small muted">AITO Map · ${esc(C.session.title)}</div>${qrLabeled(url, c.name, size)}
-    <p>Codice azienda: <b class="mono" style="font-size:1.5rem;letter-spacing:.2em">${esc(c.joinCode)}</b></p>
-    <p class="small">Inquadra il QR con la fotocamera: entri già nella tua azienda.</p>
+    <p>Inquadra il QR con la fotocamera: entri già nella tua azienda.</p>
+    <p class="small tcode">Codice azienda: <b class="mono">${esc(c.joinCode)}</b></p>
+    <p class="small tfallback">Se il QR non si apre: vai su <span class="mono">${esc(C.joinUrl.replace(/^https?:\/\//, ''))}</span> e inserisci il codice.</p>
     <p class="noprint"><button class="sm ghost" data-png="${c.id}">Scarica il QR (immagine PNG)</button></p></div>`;
 };
 const bindPng = (C, cs) => $$('[data-png]').forEach((b) => b.onclick = async () => {
   const c = cs.find((x) => x.id === Number(b.dataset.png));
+  b.disabled = true;
   try { await downloadQrPng(`${C.joinUrl}?c=${c.joinCode}`, c.name, `AITO Map · ${C.session.title} · codice ${c.joinCode}`, qrFile(C, c)); }
   catch { toast('Immagine non generata: riprova', true); }
+  finally { b.disabled = false; }
 });
 
 // Tutti i QR delle aziende di una sessione, da stampare in una volta o scaricare uno per uno
 async function viewTables(sid) {
   const C = await api(`/api/admin/sessions/${sid}/control`);
-  const cs = C.companies.filter((c) => c.kind !== 'DEMO' || PROVA);
+  const cs = C.companies.filter((c) => c.kind !== 'DEMO' || C.session.seeded);
   app.innerHTML = `<p class="noprint"><a class="back" href="#/sessione/${sid}">← Control room</a></p>
     <div class="pagehead noprint"><div><h1>QR delle aziende</h1><p>Un QR per azienda, con il nome scritto sotto: chi lo inquadra è già abbinato alla sua azienda e non deve scegliere né digitare nulla. Mettilo sul tavolo o mandalo al referente come immagine.</p></div></div>
     <div class="row noprint" style="margin-bottom:16px"><button onclick="print()">Stampa ${cs.length} ${cs.length === 1 ? 'cartoncino' : 'cartoncini'}</button></div>

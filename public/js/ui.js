@@ -79,17 +79,22 @@ export function qrImg(text, size = 220) {
 
 // QR con il nome dell'azienda scritto sotto, nello stesso riquadro: chi inquadra vede subito di quale azienda è.
 export function qrLabeled(text, label, size = 220) {
-  return `<figure class="qrbox qrlabel" style="width:${size}px"><img alt="QR di registrazione per ${esc(label)}" src="/api/qr.svg?text=${encodeURIComponent(text)}"><figcaption>${esc(label)}</figcaption></figure>`;
+  // nomi lunghi: in stampa un corpo più piccolo, per restare entro 3 righe
+  return `<figure class="qrbox qrlabel ${label.length > 40 ? 'long' : ''}" style="width:${size}px"><img alt="QR di registrazione" src="/api/qr.svg?text=${encodeURIComponent(text)}"><figcaption>${esc(label)}</figcaption></figure>`;
 }
 
 // Immagine PNG del QR con il nome dell'azienda in basso (per email o slide). Si disegna nel browser:
 // nessun servizio esterno, caratteri dell'applicazione.
 export async function downloadQrPng(text, label, sub, filename) {
-  const svg = await (await fetch(`/api/qr.svg?text=${encodeURIComponent(text)}`)).text();
-  const W = 1000, PAD = 60, Q = W - 2 * PAD;
+  const res = await fetch(`/api/qr.svg?text=${encodeURIComponent(text)}`);
+  if (!res.ok) throw new Error('qr');
+  const svg = await res.text();
+  const W = 1000, PAD = 90, Q = W - 2 * PAD; // 90 px di bianco attorno: zona di rispetto anche su slide colorate
   const img = new Image();
-  img.src = URL.createObjectURL(new Blob([svg.replace('<svg ', `<svg width="${Q}" height="${Q}" `)], { type: 'image/svg+xml' }));
-  await img.decode();
+  const u = URL.createObjectURL(new Blob([svg.replace('<svg ', `<svg width="${Q}" height="${Q}" `)], { type: 'image/svg+xml' }));
+  // onload invece di decode(): più affidabile con gli SVG su Safari/iOS
+  try { await new Promise((ok, ko) => { img.onload = ok; img.onerror = ko; img.src = u; }); }
+  finally { setTimeout(() => URL.revokeObjectURL(u), 0); }
   await Promise.all([document.fonts.load('600 64px "AITO Display"'), document.fonts.load('400 30px "AITO Sans"')]).catch(() => {});
   const cv = document.createElement('canvas'), g = cv.getContext('2d');
   // il nome va a capo su più righe e si rimpicciolisce se è molto lungo
@@ -105,14 +110,17 @@ export async function downloadQrPng(text, label, sub, filename) {
   cv.width = W; cv.height = PAD + Q + 40 + L.length * fs * 1.15 + (sub ? 50 : 0) + PAD;
   g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height);
   g.drawImage(img, PAD, PAD, Q, Q);
-  URL.revokeObjectURL(img.src);
   g.fillStyle = '#1F3864'; g.textAlign = 'center'; g.textBaseline = 'top';
   g.font = `600 ${fs}px "AITO Display", Georgia, serif`;
   let y = PAD + Q + 40;
-  for (const l of L) { g.fillText(l, W / 2, y); y += fs * 1.15; }
-  if (sub) { g.fillStyle = '#4A5568'; g.font = '400 30px "AITO Sans", Arial, sans-serif'; g.fillText(sub, W / 2, y + 12); }
+  // la larghezza massima stringe il testo invece di tagliarlo (es. un nome di una sola parola lunghissima)
+  for (const l of L) { g.fillText(l, W / 2, y, Q); y += fs * 1.15; }
+  if (sub) { g.fillStyle = '#4A5568'; g.font = '400 30px "AITO Sans", Arial, sans-serif'; g.fillText(sub, W / 2, y + 12, Q); }
+  const blob = await new Promise((ok) => cv.toBlob(ok, 'image/png'));
+  const href = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = cv.toDataURL('image/png'); a.download = filename; a.click();
+  a.href = href; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(href), 1000);
 }
 
 // Aggiornamento periodico; dopo 3 errori di fila mostra un avviso "connessione persa" finché non torna.

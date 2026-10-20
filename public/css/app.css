@@ -398,13 +398,25 @@ fieldset.q .small.muted { margin-bottom: 6px; }
 .todo { list-style: none; margin: 0; padding: 0; }
 .todo li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line-2); }
 .todo li:last-child { border-bottom: 0; }
-.tablecard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; text-align: center; }
+.tablecard { background: var(--surface); border: 1px solid var(--line); border-top: 6px solid var(--navy-deep); border-radius: var(--radius); padding: 22px; text-align: center; }
 .single .tablecard { max-width: 380px; margin: 0 auto; }
 .qrlabel { margin: 12px auto; }
 .qrlabel figcaption { font-family: var(--display); font-weight: 600; color: var(--navy-deep); font-size: 1.35rem; line-height: 1.2; padding: 10px 4px 2px; border-top: 1px solid var(--line); margin-top: 10px; overflow-wrap: anywhere; }
 .tablecards { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 16px; }
 .tablecards .tablecard { margin: 0; width: auto; }
-@media print { .tablecard { break-inside: avoid; } .tablecards { display: block; } .tablecards .tablecard { margin: 0 auto 24px; width: 360px; } }
+.tablecard .tcode { color: var(--ink-2); margin-bottom: 4px; }
+.tablecard .tcode b { font-size: 1.1rem; letter-spacing: .2em; color: var(--ink-2); }
+.tablecard .tfallback { color: var(--ink-3); word-break: break-all; }
+/* In stampa: un cartoncino per foglio A4, QR di circa 11 cm e nome grande, leggibili da 50–80 cm */
+@page card { size: A4; margin: 12mm; }
+@media print {
+  .tablecards { display: block; }
+  .tablecard, .tablecards .tablecard, .single .tablecard { page: card; break-inside: avoid; break-after: page; width: 170mm; max-width: none; margin: 0 auto; border: 0; padding: 0; }
+  .tablecard .qrlabel { width: 110mm !important; }
+  .tablecard .qrlabel figcaption { font-size: 30pt; }
+  .tablecard .qrlabel.long figcaption { font-size: 20pt; }
+  .tablecard .tcode b { font-size: 14pt; }
+}
 @media (max-width: 980px) {
   .flow { grid-template-columns: 1fr; }
   .flowsteps { position: static; grid-template-columns: repeat(7, minmax(120px, 1fr)); overflow-x: auto; padding-bottom: 6px; }
