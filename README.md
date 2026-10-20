@@ -20,7 +20,7 @@ La console ELIS è su `http://localhost:3000/admin`. La finestra mostra anche l'
 
 ## 2. Prima del test
 
-1. **Aziende** → aggiungi l'azienda (tipo `TEST` per l'azienda amica: così non entra mai nel benchmark ufficiale) e il suo **referente**. Copia il link personale del referente e mandaglielo.
+1. **Aziende e referenti** (ambiente *Produzione*) → aggiungi l'azienda (tipo `TEST` per l'azienda amica: così non entra mai nel benchmark ufficiale) e il suo **referente**. Copia il link personale del referente e mandaglielo.
 2. Il referente apre il link e compila la **scheda pre-sessione** (dati fattuali per le sotto-opzioni + profilo di approccio).
 3. **Impostazioni → Rete**: verifica che l'indirizzo dei QR sia quello della rete Wi-Fi della sala. Prova ad aprirlo da un telefono.
    Le reti per ospiti spesso isolano i dispositivi: in quel caso usa un router dedicato o l'hotspot di un telefono.
@@ -66,14 +66,15 @@ Dove compaiono: voce *Mappe* nel menu della console; pulsante nella control room
 - Motore di calcolo (`server/engine/index.js`) con 17 test automatici (`npm test`): score 0–100 con sotto-opzioni, dimensioni e fasce 44/70, confidence §7, mediana e override, confronti a coppie, benchmark con soglie 5/15 e leave-one-out, regola dei 5 sui sotto-livelli, quadranti, coerenza C1–C6, ordine delle priorità. Un test verifica anche che nessun punteggio di dimensione ottenibile cada su 44 o 70 (§8.2).
 - Ruoli: admin ELIS (password), referente aziendale (link personale), partecipante (QR, senza account).
 - Storico mai sovrascritto: ogni ri-consolidamento o correzione crea una nuova riga; registro modifiche con autore, prima/dopo e motivo.
-- Benchmark congelati per versione; solo aziende `REALE` con consenso al benchmark. Le aziende `TEST` e `DEMO` compaiono solo nelle **anteprime** (con banner).
+- Benchmark congelati per versione; solo aziende `REALE` con consenso al benchmark. Le aziende `TEST` (es. l'azienda amica) seguono il flusso vero ma restano fuori dal benchmark; le aziende `DEMO` vivono solo nell'ambiente di **Prova**.
 - Plenaria anonima, report riservato stampabile in PDF, export Excel di tutti i dati.
 - Sessioni ad hoc per aziende assenti (stesso flusso, modalità registrata).
-- Dati dimostrativi: da *Impostazioni → Dati dimostrativi* (o `npm run demo`, o con la variabile d'ambiente `DEMO_DATA=1` all'avvio) si creano 14 aziende DEMO con valori su tutte le sessioni e un'azienda vetrina (TEST) con scheda, partecipanti, consolidamento e commitment. Si vedono solo nelle anteprime e si rimuovono con un clic. Prima della rilevazione reale togliere `DEMO_DATA`.
+- Dati dimostrativi: nell'ambiente **Prova** della console (o con `npm run demo`, o con la variabile d'ambiente `DEMO_DATA=1` all'avvio) si creano 4 sessioni di prova, 14 aziende DEMO e un'azienda vetrina (TEST) con scheda, partecipanti, consolidamento e commitment. Restano separati dai dati reali e si cancellano con un clic.
+- Mappe a quadranti per sessione (§10.2 dove intervenire, §10.3 gap della community, §10.4 peer matching), anche in plenaria e nel report.
 
 ## 6. Non ancora presente (fasi successive)
 
-Item pulse (da Efficientare), ordinamento delle 8 dimensioni e tre priorità provvisorie registrabili (Scalare), classificazione degli use case (Allegato D), mappa "Con chi accelerare" e peer matching con verifica dei contributor (§10.4, §13), allineamento finale e benchmark allineato di settembre 2027 (§14.1), distribuzioni del profilo di approccio in plenaria (Allegato C), indicatori di funzionamento del pilot in una vista dedicata (§19.1, oggi ricavabili dall'export), distinzione dei ruoli ELIS (§21).
+Item pulse (da Efficientare), ordinamento delle 8 dimensioni e tre priorità provvisorie registrabili (Scalare), classificazione degli use case (Allegato D), abbinamento nominativo del peer matching con verifica dei contributor (§13; la mappa §10.4 c'è), allineamento finale e benchmark allineato di settembre 2027 (§14.1), distribuzioni del profilo di approccio in plenaria (Allegato C), indicatori di funzionamento del pilot in una vista dedicata (§19.1, oggi ricavabili dall'export), distinzione dei ruoli ELIS (§21).
 
 ## 7. Scelte che la piattaforma ha dovuto rendere univoche (da confermare)
 
@@ -121,7 +122,9 @@ server/             database, API, export, script
 public/             pagine: admin, referente, partecipante, report, plenaria, dashboard live
 public/fonts/       caratteri Source Sans 3 e Source Serif 4 (licenza SIL OFL), serviti dal server
 server/fonts/       gli stessi caratteri in TTF per i PDF
-test/               test del motore
+test/               test del motore; test/e2e/e2e.mjs prova completa nel browser (Playwright)
+CLAUDE.md           istruzioni per Claude Code (regole da non rompere, comandi, pubblicazione)
+docs/HANDOVER.md    stato del lavoro, scadenze, decisioni aperte
 ```
 
 Grafica: palette ELIS (notte #1F3864, petrolio #005172, oro #C9A84C, turchese #1FB5B8) e un segno ricorrente, i cinque gradini dei livelli, usato nel marchio, nelle scelte dei livelli e nei grafici. I caratteri sono incorporati nell'applicazione: nessuna pagina carica risorse da Google o da altri siti esterni.
