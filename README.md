@@ -123,7 +123,8 @@ public/             pagine: admin, referente, partecipante, report, plenaria, da
 public/fonts/       caratteri Source Sans 3 e Source Serif 4 (licenza SIL OFL), serviti dal server
 server/fonts/       gli stessi caratteri in TTF per i PDF
 test/               test del motore; test/e2e/e2e.mjs prova completa nel browser (Playwright)
-CLAUDE.md           istruzioni per Claude Code (regole da non rompere, comandi, pubblicazione)
+CLAUDE.md           istruzioni per Claude Code (regole da non rompere, comandi, agenti, pubblicazione)
+.claude/agents/     13 agenti revisori per Claude Code (agency-agents, licenza MIT)
 docs/HANDOVER.md    stato del lavoro, scadenze, decisioni aperte
 ```
 

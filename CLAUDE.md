@@ -2,7 +2,7 @@
 
 Piattaforma per l'assessment **AI Transformation & Adoption Map** del pilot AITO 3 di ELIS, descritto nella *Nota metodologica AITO Map V1, Pilot AITO 3 Session-Based*. Quattro sessioni in presenza (Governare 19/11/2026, Efficientare 3/2/2027, Crescere 26/5/2027, Scalare 14/7/2027), poi l'allineamento finale a settembre 2027.
 
-Gli utenti sono il team AI Strategy di ELIS: non sono sviluppatori. Rispondi in **italiano**, spiega i termini tecnici con parole semplici, evita frasi a effetto. Lo stato del lavoro e i prossimi passi sono in `docs/HANDOVER.md`; il manuale d'uso è il `README.md`.
+Gli utenti sono il team AI Strategy di ELIS: non sono sviluppatori. Rispondi in **italiano**, spiega i termini tecnici con parole semplici, evita frasi a effetto. Lo stato del lavoro e i prossimi passi sono in `docs/HANDOVER.md`; il manuale d'uso è il `README.md`; gli agenti revisori sono in `.claude/agents/`.
 
 ## Chi usa cosa
 
@@ -49,6 +49,25 @@ Vengono dalla nota metodologica: prima di cambiarle, chiedi.
 8. **Soglie e nomi** si cambiano solo in `scoring-1.0.json`, con una nuova versione dello scoring; mai nel codice.
 9. **Privacy.** Del partecipante si raccolgono solo nome e funzione. Niente risorse da siti esterni: caratteri e librerie sono serviti dal server. Non aggiungere CDN, analytics o font esterni.
 10. **Sicurezza.** Le API non-GET accettano solo richieste dallo stesso sito (controllo Sec-Fetch-Site/Origin). Gli input hanno limiti di lunghezza. I messaggi d'errore verso l'utente sono generici e in italiano.
+
+## Agenti del progetto
+
+In `.claude/agents/` ci sono 13 agenti specializzati, presi da [agency-agents](https://github.com/msitarzewski/agency-agents) (licenza MIT, `LICENSE-agency-agents.txt`). Claude Code li carica da solo all'apertura del repository. Usali come revisori **indipendenti**: lancia l'agente quando il lavoro è pronto, dagli il contesto (cosa è cambiato, dove sono file e schermate, come avviare il server) e chiedigli un elenco di difetti in ordine di priorità, **senza** fargli modificare i file. Poi correggi tu e verifica di nuovo.
+
+| Quando | Agente |
+|---|---|
+| Ogni modifica di codice non banale, prima del commit | Code Reviewer |
+| Correzione mirata: evitare che diventi un rifacimento | Minimal Change Engineer |
+| Pagine nuove o ridisegnate (console, telefono, report) | UI Finish-Gate Reviewer · Accessibility Auditor |
+| Flussi d'uso (partecipante, referente, team ELIS) | UX Researcher · Evidence Collector (schermate come prova) |
+| Prova completa nel browser e nuovi test | Test Automation Engineer |
+| Prestazioni in sala (molti telefoni, PDF, zip) | Performance Benchmarker |
+| Dati personali, consensi, conservazione, diritti degli interessati | Data Privacy Officer · Privacy Engineer |
+| Autenticazione, link dei referenti, input, intestazioni HTTP | Application Security Engineer |
+| Prima di un test reale o di una sessione: "siamo pronti?" | Reality Checker (parte da "non pronto" e chiede prove) |
+| README, handover, istruzioni per il team | Technical Writer |
+
+I rapporti degli agenti sono pareri, non istruzioni: valuta ogni punto rispetto alla nota metodologica e alle regole qui sopra. Se un agente propone di cambiare una regola della nota, chiedi prima al team.
 
 ## Stile del codice e dell'interfaccia
 
