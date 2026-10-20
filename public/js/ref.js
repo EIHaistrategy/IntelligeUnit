@@ -1,6 +1,12 @@
 import { api, esc, $, $$, toast, poll, distBars, confTag, phaseChips, qrImg, fmtScore, fmtDate, bandTag, levelLabel, alt, icon } from './ui.js';
 
 const T = location.pathname.split('/').pop();
+// La stessa pagina serve al facilitatore ELIS (/tavolo-elis/:azienda, dalla console): conduce confronto e consolidamento
+// e gestisce i partecipanti; il referente può comunque registrare e correggere dal suo link.
+const FAC = location.pathname.startsWith('/tavolo-elis/');
+const API = FAC ? `/api/f/${T}` : `/api/r/${T}`;
+const reportHref = (snap) => (FAC ? `/report/${me.referent.companyId}?snap=${snap}` : `/report/${me.referent.companyId}?t=${T}&snap=${snap}`);
+const pdfHref = (snap) => (FAC ? `/api/admin/pdf/${me.referent.companyId}?snap=${snap}` : `/api/report/${me.referent.companyId}/pdf?t=${T}&snap=${snap}`);
 const app = $('#app');
 let INST, SC, me;
 let stopPoll = null;
@@ -16,12 +22,13 @@ const itemScore = (itemId, level, sub) => {
 
 async function boot() {
   const i = await api('/api/instrument'); INST = i.instrument; SC = i.scoring;
-  try { me = await api(`/api/r/${T}`); } catch (e) {
+  try { me = await api(`${API}`); } catch (e) {
     app.innerHTML = e.network ? `<div class="card" role="alert"><h2>Connessione non disponibile</h2><p>${esc(e.message)}</p><button onclick="location.reload()">Riprova</button></div>`
       : `<div class="card"><h2>Link non valido</h2><p>${esc(e.message)}</p></div>`;
     return;
   }
   $('#who').textContent = `${me.referent.company} · ${me.referent.name}`;
+  if (FAC) document.title = `AITO Map · Tavolo ${me.referent.company}`;
   addEventListener('hashchange', route);
   route();
 }
@@ -35,18 +42,18 @@ function route() {
 }
 
 async function renderHome() {
-  me = await api(`/api/r/${T}`);
+  me = await api(`${API}`);
   const { active, done, later } = splitSessions(me.sessions);
   // Prima della sessione il referente vede solo le domande, in sola lettura, e le inoltra ai colleghi:
   // la compilazione è in presenza, il giorno della sessione.
   const prep = active.find((s) => s.mode === 'workshop' && s.phase === 'preparazione');
-  if (prep && active.every((s) => s.phase === 'preparazione')) return renderQuestions(prep.base);
+  if (!FAC && prep && active.every((s) => s.phase === 'preparazione')) return renderQuestions(prep.base);
   const finished = !active.length && done.length;
   const activeTitle = finished ? 'Programma' : !active.length || active.every((s) => s.phase === 'preparazione') ? 'Prossima sessione' : 'Sessione in corso';
   const activeNote = finished ? 'Le sessioni del programma sono concluse. ELIS vi contatterà per l\'allineamento finale di settembre 2027.'
     : !active.length ? 'Nessuna sessione in programma in questo momento.' : later ? 'Le sessioni successive del programma compariranno qui quando saranno le prossime.' : '';
   // al telefono la sessione attiva viene subito dopo l'intestazione; report e sessioni concluse sotto
-  app.innerHTML = `
+  app.innerHTML = `${FAC ? `<a class="back" href="/admin">${icon('back')} Console ELIS</a>` : ''}
     <div class="pagehead"><div><h1>${esc(me.referent.company)}</h1>
       <p>Perimetro valutato: <b>${esc(me.referent.perimeter || 'non indicato')}</b></p></div></div>
     ${sessionsCard(activeTitle, active, activeNote, true)}
@@ -58,8 +65,8 @@ async function renderHome() {
 const reportsCard = () => (me.reports.length ? `<div class="card"><h2>Report riservati</h2><div class="sesslist">${me.reports.map((v) => `<div class="sessrow">
       <div class="sr-main"><h3 class="sr-title">${esc(v.session_title)}</h3>${v.version > 1 ? ` <span class="tag">versione ${v.version}</span>` : ''}</div>
       <div class="small muted sr-sub">rilasciato il ${dOnly(v.created_at)}</div>
-      <div class="sr-act row"><a class="btn sm ghost" href="/report/${me.referent.companyId}?t=${T}&snap=${v.id}" target="_blank">Apri il report<span class="sr-only"> di ${esc(v.session_title)} (si apre in una nuova scheda)</span></a>
-        <a class="btn sm ghost" href="/api/report/${me.referent.companyId}/pdf?t=${T}&snap=${v.id}">Scarica PDF<span class="sr-only"> di ${esc(v.session_title)}</span></a></div></div>`).join('')}</div></div>` : '');
+      <div class="sr-act row"><a class="btn sm ghost" href="${reportHref(v.id)}" target="_blank">Apri il report<span class="sr-only"> di ${esc(v.session_title)} (si apre in una nuova scheda)</span></a>
+        <a class="btn sm ghost" href="${pdfHref(v.id)}">Scarica PDF<span class="sr-only"> di ${esc(v.session_title)}</span></a></div></div>`).join('')}</div></div>` : '');
 
 const dOnly = (d) => fmtDate(d).split(',')[0]; // al referente basta il giorno
 
@@ -90,7 +97,7 @@ function phases(s) {
   const elisWait = closed ? 'in attesa di ELIS' : 'dopo la sessione';
   const elis = [
     { label: 'Report rilasciato', done: !!s.report_released_at, detail: s.report_released_at ? dOnly(s.report_released_at) : elisWait,
-      href: report ? `/report/${me.referent.companyId}?t=${T}&snap=${report.id}` : null },
+      href: report ? reportHref(report.id) : null },
     { label: 'Call con il leader', done: !!s.leader_call, detail: s.leader_call ? '' : elisWait },
   ];
   return { az, elis, all: [...az, ...elis] };
@@ -139,7 +146,7 @@ function sessionsCard(title, list, note, open) {
 async function renderScheda(base) { return renderQuestions(base); }
 
 async function renderQuestions(base) {
-  const r = await api(`/api/r/${T}/presession/${base}`);
+  const r = await api(`${API}/presession/${base}`);
   const S = INST.sessions.find((x) => x.id === base);
   const date = S.date ? new Date(`${S.date}T12:00:00`).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
   const byItem = {};
@@ -171,20 +178,21 @@ async function renderQuestions(base) {
 let sess = null, phaseShown = null;
 
 async function renderSession(sid) {
-  sess = await api(`/api/r/${T}/session/${sid}`);
+  sess = await api(`${API}/session/${sid}`);
   phaseShown = sess.session.phase;
   draw();
   stopPoll = poll(async () => {
-    const s = await api(`/api/r/${T}/session/${sid}`);
+    const s = await api(`${API}/session/${sid}`);
     const phaseChanged = s.session.phase !== phaseShown;
     const partsChanged = JSON.stringify(s.participants) !== JSON.stringify(sess.participants);
     const cmpChanged = JSON.stringify(s.consolidation?.comparison) !== JSON.stringify(sess.consolidation?.comparison);
     const otherConfirmed = s.consolidation && sess.consolidation && s.consolidation.consolidatedAt !== sess.consolidation.consolidatedAt;
     sess = s;
+    if (editingP && !phaseChanged) return;
     if (phaseChanged) { phaseShown = s.session.phase; draw(); }
     else if (['preparazione', 'individuale'].includes(s.session.phase)) { if (partsChanged) drawParticipants(); }
     else if (s.session.phase === 'confronto') { if (cmpChanged || partsChanged) draw(); }
-    else if (otherConfirmed) { toast('Il consolidamento è stato confermato da un altro referente: valori aggiornati'); drawConsolidation(); }
+    else if (otherConfirmed) { toast(FAC ? 'Il consolidamento è stato confermato dal referente: valori aggiornati' : 'Il consolidamento è stato confermato da un\'altra persona (facilitatore ELIS o un altro referente): valori aggiornati'); drawConsolidation(); }
   }, 4000);
 }
 
@@ -194,7 +202,8 @@ function draw() {
     preparazione: 'I partecipanti possono già registrarsi con il QR. La fase individuale la apre il facilitatore.',
     individuale: 'Fase individuale (10 minuti): ognuno risponde da solo, senza vedere le risposte degli altri.',
     confronto: 'Confronto (10 minuti): guardate insieme dove le risposte divergono e su quali evidenze si basano.',
-    consolidamento: 'Consolidamento (10 minuti): registrate la posizione ufficiale dell\'azienda, poi priorità e commitment.',
+    consolidamento: FAC ? 'Consolidamento (10 minuti): registra con il tavolo la posizione ufficiale dell\'azienda, poi priorità e commitment. Anche il referente può registrare e correggere dal suo link.'
+      : 'Consolidamento (10 minuti): il facilitatore ELIS registra con voi la posizione ufficiale dell\'azienda, poi priorità e commitment. Potete registrarla o correggerla anche da qui.',
     chiusa: 'Sessione chiusa.',
   }[s.phase];
   app.innerHTML = `<a class="back" href="#/">${icon('back')} Sessioni</a>
@@ -205,21 +214,38 @@ function draw() {
   if (['consolidamento', 'chiusa'].includes(s.phase)) drawConsolidation();
 }
 
+let editingP = null; // partecipante che il facilitatore sta correggendo: l'aggiornamento automatico non lo cancella
 function drawParticipants() {
   const el = $('#parts'); if (!el) return;
   const showQr = ['preparazione', 'individuale'].includes(sess.session.phase);
-  el.innerHTML = `<div class="card"><div class="grid ${showQr ? 'c2' : ''}">
-    <div><h2>Partecipanti della vostra azienda <span class="muted" style="font-family:var(--font);font-weight:600">${sess.participants.length}</span></h2>
-      ${sess.participants.length ? `<table><tbody>${sess.participants.map((p) => `<tr><td>${esc(p.name)}</td><td class="small muted">${esc(INST.functions.find((f) => f.id === p.func)?.label || p.func)}</td>
+  // il facilitatore interviene in ogni fase finché la sessione è aperta; il referente rimuove solo durante la registrazione
+  const canRm = FAC ? sess.session.phase !== 'chiusa' : showQr;
+  const fnOpts = (cur) => INST.functions.map((f) => `<option value="${f.id}" ${f.id === cur ? 'selected' : ''}>${esc(f.label)}</option>`).join('');
+  const prow = (p) => (editingP === p.id
+    ? `<tr><td colspan="4"><div class="grid c2"><input type="text" id="pe_name" maxlength="120" value="${esc(p.name)}" aria-label="Nome e cognome"><select id="pe_func" aria-label="Funzione">${fnOpts(p.func)}</select></div>
+        <div class="row" style="margin-top:6px"><button class="sm" id="pe_save">Salva</button><button class="sm ghost" id="pe_cancel">Annulla</button></div></td></tr>`
+    : `<tr><td>${esc(p.name)}</td><td class="small muted">${esc(INST.functions.find((f) => f.id === p.func)?.label || p.func)}</td>
         <td>${p.submitted ? '<span class="tag ok">inviato</span>' : '<span class="tag">in corso</span>'}</td>
-        <td>${showQr ? `<button class="sm danger" data-rm="${p.id}" title="Rimuovi una registrazione errata">Rimuovi</button>` : ''}</td></tr>`).join('')}</tbody></table>`
+        <td class="actions">${FAC && canRm ? `<button class="sm ghost" data-edit="${p.id}" aria-label="Correggi nome o funzione di ${esc(p.name)}">Correggi</button>` : ''}${canRm ? `<button class="sm danger" data-rm="${p.id}" title="Rimuovi una registrazione errata">Rimuovi</button>` : ''}</td></tr>`);
+  el.innerHTML = `<div class="card"><div class="grid ${showQr ? 'c2' : ''}">
+    <div><h2>${FAC ? 'Partecipanti' : 'Partecipanti della vostra azienda'} <span class="muted" style="font-family:var(--font);font-weight:600">${sess.participants.length}</span></h2>
+      ${sess.participants.length ? `<table><tbody>${sess.participants.map(prow).join('')}</tbody></table>`
         : '<p class="muted">Nessuno registrato. Fate inquadrare il QR ai partecipanti.</p>'}
+      ${FAC ? `<p class="small">Manca una persona nell'elenco «Chi sei?»? <a href="/admin#/azienda/${me.referent.companyId}" target="_blank">Aggiungila tra le persone iscritte</a>.</p>` : ''}
       <p class="small muted">Sono attesi 3–4 partecipanti tra le funzioni protagoniste della sessione. La confidence è alta con almeno 3 risposte valide da almeno 2 funzioni diverse.</p></div>
     ${showQr ? `<div style="text-align:center">${qrImg(sess.joinUrl, 200)}<p style="margin-top:10px">Codice azienda: <b class="mono" style="font-size:1.3rem;letter-spacing:.15em">${esc(new URL(sess.joinUrl).searchParams.get('c') || '')}</b></p><p class="small mono" style="word-break:break-all">${esc(sess.joinUrl)}</p></div>` : ''}
   </div></div>`;
+  $$('[data-edit]').forEach((b) => b.onclick = () => { editingP = Number(b.dataset.edit); drawParticipants(); $('#pe_name')?.focus(); });
+  if ($('#pe_cancel')) $('#pe_cancel').onclick = () => { editingP = null; drawParticipants(); };
+  if ($('#pe_save')) $('#pe_save').onclick = async () => {
+    try {
+      await api(`${API}/session/${sess.session.id}/participant/${editingP}`, { method: 'PUT', body: { name: $('#pe_name').value, func: $('#pe_func').value } });
+      editingP = null; toast('Partecipante corretto'); sess = await api(`${API}/session/${sess.session.id}`); draw();
+    } catch (e) { toast(e.message, true); }
+  };
   $$('[data-rm]').forEach((b) => b.onclick = async () => {
     if (!confirm('Rimuovere questa registrazione? Le sue risposte non verranno considerate.')) return;
-    try { await api(`/api/r/${T}/session/${sess.session.id}/participant/${b.dataset.rm}`, { method: 'DELETE', body: { reason: 'Registrazione errata' } }); sess = await api(`/api/r/${T}/session/${sess.session.id}`); drawParticipants(); }
+    try { await api(`${API}/session/${sess.session.id}/participant/${b.dataset.rm}`, { method: 'DELETE', body: { reason: 'Registrazione errata' } }); sess = await api(`${API}/session/${sess.session.id}`); draw(); }
     catch (e) { toast(e.message, true); }
   });
 }
@@ -227,7 +253,7 @@ function drawParticipants() {
 function comparisonHtml(c) {
   return `<div class="grid c2">${c.items.map((it) => `<div class="card"><div class="cardhead"><h3>${esc(it.itemId)} · ${esc(it.title)}</h3>${confTag(it.confidence)}</div>
     ${distBars(it.summary)}
-    <dl class="rq-facts"><div><dt>Mediana</dt><dd>${it.summary.median ?? '—'}</dd></div><div><dt>Range</dt><dd>${it.summary.range ?? '—'}</dd></div><div><dt>Valide</dt><dd>${it.summary.valid}</dd></div><div><dt>N.D.</dt><dd>${it.summary.nd}</dd></div><div><dt>Funzioni</dt><dd>${it.summary.perspectives}</dd></div></dl>
+    <dl class="facts"><div><dt>Mediana</dt><dd>${it.summary.median ?? '—'}</dd></div><div><dt>Range</dt><dd>${it.summary.range ?? '—'}</dd></div><div><dt>Valide</dt><dd>${it.summary.valid}</dd></div><div><dt>N.D.</dt><dd>${it.summary.nd}</dd></div><div><dt>Funzioni</dt><dd>${it.summary.perspectives}</dd></div></dl>
     ${it.summary.divergent ? '<div class="banner warn">Divergenza ≥ 2 livelli: discussione obbligatoria prima del consolidamento.</div>' : ''}</div>`).join('')}</div>
     <div class="card"><h3>Confronti a coppie</h3>${c.pairs.map((p) => `<p><b>${esc(p.a)} ${esc(p.aTitle)}</b>: ${p.counts.A} · <b>${esc(p.b)} ${esc(p.bTitle)}</b>: ${p.counts.B} · N.D.: ${p.counts.ND}
 </p>${p.discordant ? `<p class="note risk">${p.discordant} su ${p.evaluable} in contrasto con i livelli scelti dalla stessa persona: punto da chiarire</p>` : ''}`).join('')}</div>`;
@@ -242,7 +268,7 @@ let form = {};
 let saveTimer;
 function saveDraftSoon() {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => api(`/api/r/${T}/session/${sess.session.id}/draft`, { method: 'PUT', body: { items: form } }).catch(() => {}), 600);
+  saveTimer = setTimeout(() => api(`${API}/session/${sess.session.id}/draft`, { method: 'PUT', body: { items: form } }).catch(() => {}), 600);
 }
 
 function drawConsolidation() {
@@ -268,11 +294,11 @@ function drawConsolidation() {
   if (btn) btn.onclick = async () => {
     btn.disabled = true;
     try {
-      await api(`/api/r/${T}/session/${sess.session.id}/confirm`, { method: 'POST', body: { items: form, changeReason: $('#chg')?.value || '', baseConsolidatedAt: C.consolidatedAt || null } });
+      await api(`${API}/session/${sess.session.id}/confirm`, { method: 'POST', body: { items: form, changeReason: $('#chg')?.value || '', baseConsolidatedAt: C.consolidatedAt || null } });
       toast('Consolidamento confermato');
-      sess = await api(`/api/r/${T}/session/${sess.session.id}`); drawConsolidation(); $('#summary').scrollIntoView({ behavior: 'smooth' });
+      sess = await api(`${API}/session/${sess.session.id}`); drawConsolidation(); $('#summary').scrollIntoView({ behavior: 'smooth' });
     } catch (e) {
-      if (e.status === 409) { toast(e.message, true); sess = await api(`/api/r/${T}/session/${sess.session.id}`); drawConsolidation(); return; }
+      if (e.status === 409) { toast(e.message, true); sess = await api(`${API}/session/${sess.session.id}`); drawConsolidation(); return; }
       $('#errs').innerHTML = `<div class="banner risk">${esc(e.message)}</div>`; btn.disabled = false;
       const first = (e.message.match(/\b(Q\d+)\b/) || [])[1];
       const target = first && document.getElementById(`it-${first}`);
@@ -303,7 +329,7 @@ function drawItem(it, editable) {
     <div class="levels" role="group" aria-label="Livello ufficiale ${esc(it.itemId)}" ${dis}>${it.levels.map((l) => `<button type="button" class="level ${f.level === l.level ? 'sel' : ''}" data-l="${l.level}" aria-pressed="${f.level === l.level}" ${editable ? '' : 'disabled'}><span class="n" aria-hidden="true">${l.level}${alt(l.level)}</span><span><span class="sr-only">Livello ${l.level}: </span>${esc(l.descriptor)} ${l.valoriale ? '<span class="tag gold">valoriale</span>' : ''}</span></button>`).join('')}</div>
     ${override ? `<label class="f" for="reason-${it.itemId}">Motivazione dell'override (il livello differisce dalla mediana) *</label><textarea id="reason-${it.itemId}" data-reason maxlength="1000" ${editable ? '' : 'disabled'}>${esc(f.overrideReason || '')}</textarea>` : ''}
     ${subs.length ? `<h4 class="stepnum" style="margin-top:20px"><span>2</span>Sotto-opzione (scelta forzata)</h4>
-      ${lv.suggestion ? (lv.suggestion.value != null && lv.suggestion.value !== '' && !(Array.isArray(lv.suggestion.value) && !lv.suggestion.value.length) ? `<div class="rq-fact">Dalla scheda pre-sessione: «${esc(Array.isArray(lv.suggestion.value) ? lv.suggestion.value.join(', ') : lv.suggestion.value)}» → indica <b>${f.level}${esc(lv.suggestion.maps || '')}</b></div>` : '<div class="rq-fact">Il dato per questa sotto-opzione non è nella scheda pre-sessione.</div>') : ''}
+      ${lv.suggestion ? (lv.suggestion.value != null && lv.suggestion.value !== '' && !(Array.isArray(lv.suggestion.value) && !lv.suggestion.value.length) ? `<div class="fact">Dalla scheda pre-sessione: «${esc(Array.isArray(lv.suggestion.value) ? lv.suggestion.value.join(', ') : lv.suggestion.value)}» → indica <b>${f.level}${esc(lv.suggestion.maps || '')}</b></div>` : '') : ''}
       <div class="subchoice" role="group" aria-label="Sotto-opzione ${esc(it.itemId)}" ${dis}>${subs.map((x) => `<button type="button" class="level ${f.sub === x.key ? 'sel' : ''}" data-s="${x.key}" aria-pressed="${f.sub === x.key}" ${editable ? '' : 'disabled'}><span class="n" aria-hidden="true">${f.level}${x.key}</span><span><span class="sr-only">Opzione ${f.level}${x.key}: </span>${esc(x.text)}</span></button>`).join('')}</div>
       <p class="small muted">Se non ci sono evidenze sufficienti per un'opzione superiore, vale la prima opzione del livello.</p>` : f.level ? '<p class="small muted">Il livello scelto non ha sotto-opzioni.</p>' : ''}`}`;
   if (!editable) return;
@@ -343,7 +369,7 @@ function drawCommitment(editable) {
   const b = $('#c_save');
   if (b) b.onclick = async () => {
     try {
-      await api(`/api/r/${T}/session/${sess.session.id}/commitment`, { method: 'PUT', body: {
+      await api(`${API}/session/${sess.session.id}/commitment`, { method: 'PUT', body: {
         priority_item: $('#c_item').value, action: $('#c_action').value, owner: $('#c_owner').value, due_date: $('#c_due').value,
         kpi: $('#c_kpi').value, peer_interest: $('#c_peer').checked, peer_note: $('#c_peernote').value } });
       toast('Commitment salvato');

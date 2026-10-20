@@ -272,7 +272,7 @@ async function viewControl(arg) {
   const mailtoFor = (c, r) => {
     const s = C.session;
     const subject = `AITO Map · ${s.title} · le domande della sessione per ${c.name}`;
-    const body = `Gentile ${r.name},\n\nin vista della sessione ${s.title.split(' · ')[0]}${s.date ? ` del ${longDate(s.date)}` : ''}, dal Suo link personale può consultare le domande a cui ${c.name} risponderà in sala e inoltrarle ai colleghi (c'è un pulsante apposito). Non c'è nulla da compilare prima: si risponde in presenza, il giorno della sessione.\n${C.baseUrl}/r/${r.token}\n\nIl link è personale: La preghiamo di non inoltrarlo. Lo stesso link Le servirà in sala per registrare la posizione ufficiale dell'azienda e, dopo la sessione, per leggere il report.\n\nIn sala risponderà anche Lei come gli altri: inquadri il QR sul tavolo e scelga il Suo nome dall'elenco.\n\nGrazie,\nTeam AI Strategy ELIS`;
+    const body = `Gentile ${r.name},\n\nin vista della sessione ${s.title.split(' · ')[0]}${s.date ? ` del ${longDate(s.date)}` : ''}, dal Suo link personale può consultare le domande a cui ${c.name} risponderà in sala e inoltrarle ai colleghi (c'è un pulsante apposito). Non c'è nulla da compilare prima: si risponde in presenza, il giorno della sessione.\n${C.baseUrl}/r/${r.token}\n\nIl link è personale: La preghiamo di non inoltrarlo. In sala il facilitatore ELIS condurrà con voi il confronto e registrerà la posizione ufficiale dell'azienda: dallo stesso link Lei potrà seguirla, correggerla e completare priorità e commitment; dopo la sessione vi leggerà il report.\n\nIn sala risponderà anche Lei come gli altri: inquadri il QR sul tavolo e scelga il Suo nome dall'elenco.\n\nGrazie,\nTeam AI Strategy ELIS`;
     return `mailto:${encodeURIComponent(r.email || '')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   };
   // Email da inoltrare ai colleghi iscritti: senza link personale, con l'anteprima delle domande (presa visione)
@@ -530,7 +530,7 @@ async function viewControl(arg) {
     <td class="small">${c.functions.length || '<span class="muted">—</span>'}${c.participants && c.functions.length < 2 ? ' <span class="tag warn">1 sola</span>' : ''}</td>
     <td>${c.consolidated_at ? yes(c.consolidated_at) : '<span class="muted">—</span>'}</td>
     <td>${c.commitment ? yes() : '<span class="muted">—</span>'}${c.report_released_at ? ` <span class="tag ok">report</span>` : ''}${c.leader_call_note ? ' <span class="tag ok">call</span>' : ''}</td>
-    <td class="actions">${c.consolidated_at ? `<a class="btn sm ghost" href="/report/${c.id}" target="_blank">Report</a><a class="btn sm ghost" href="/api/admin/pdf/${c.id}">PDF</a>` : ''}<a class="btn sm ghost" href="#/tavolo/${C.session.id}:${c.id}">QR</a></td></tr>`;
+    <td class="actions"><a class="btn sm ${C.session.phase === 'consolidamento' && !c.consolidated_at ? '' : 'ghost'}" href="/tavolo-elis/${c.id}#/sessione/${C.session.id}" target="_blank" title="Partecipanti, confronto e consolidamento di ${esc(c.name)}">Tavolo<span class="sr-only"> di ${esc(c.name)} (si apre in una nuova scheda)</span></a>${c.consolidated_at ? `<a class="btn sm ghost" href="/report/${c.id}" target="_blank">Report</a><a class="btn sm ghost" href="/api/admin/pdf/${c.id}">PDF</a>` : ''}<a class="btn sm ghost" href="#/tavolo/${C.session.id}:${c.id}">QR</a></td></tr>`;
   draw();
   stopPoll = poll(async () => {
     const n = await api(`/api/admin/sessions/${id}/control`);

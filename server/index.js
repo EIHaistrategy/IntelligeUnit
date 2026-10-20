@@ -90,6 +90,8 @@ app.get('/', page('index.html'));
 app.get('/admin', page('admin.html'));
 app.get('/j/:code', page('join.html'));
 app.get('/r/:token', page('ref.html'));
+// tavolo del facilitatore ELIS: la vista del referente per un'azienda, aperta dalla console (serve l'accesso admin)
+app.get('/tavolo-elis/:c', (req, res) => (isAdmin(req) ? page('ref.html')(req, res) : res.redirect('/admin')));
 app.get('/report/:companyId', page('report.html'));
 app.get('/plenaria/:base', page('plenaria.html'));
 app.get('/mappe/:base', page('mappe.html'));
@@ -273,6 +275,13 @@ app.post('/api/p/:t/submit', wrap((req, res) => {
 
 // ---------- Referente aziendale ----------
 function referent(req, res) {
+  // Il facilitatore ELIS conduce confronto e consolidamento (nota, ruoli): usa le stesse API del referente, con l'accesso della console.
+  if (req.params.c) {
+    if (!isAdmin(req)) { bad(res, 'Accesso admin richiesto', 401); return null; }
+    const c = q.get('SELECT * FROM companies WHERE id = ? AND seeded = ?', req.params.c, envOf(req));
+    if (!c) { bad(res, 'Azienda non trovata', 404); return null; }
+    return { id: 0, facilitator: true, name: 'Facilitatore ELIS', company_id: c.id, company_name: c.name, company_kind: c.kind, perimeter: c.perimeter, company_seeded: c.seeded };
+  }
   const r = q.get('SELECT r.*, c.name company_name, c.kind company_kind, c.perimeter, c.seeded company_seeded FROM referents r JOIN companies c ON c.id = r.company_id WHERE r.token = ?', req.params.t);
   if (!r) { bad(res, 'Link referente non valido', 404); return null; }
   return r;
@@ -285,9 +294,9 @@ function refSession(r, sid, res) {
     || (s.mode !== 'workshop' && !q.get('SELECT 1 FROM session_company WHERE session_id = ? AND company_id = ?', s.id, r.company_id))) { bad(res, 'Sessione non trovata', 404); return null; }
   return s;
 }
-const refActor = (r) => `referente:${r.id}:${r.name}`;
+const refActor = (r) => (r.facilitator ? `${ADMIN}:facilitatore` : `referente:${r.id}:${r.name}`);
 
-app.get('/api/r/:t', wrap((req, res) => {
+app.get(['/api/r/:t', '/api/f/:c'], wrap((req, res) => {
   const r = referent(req, res); if (!r) return;
   const sessions = q.all('SELECT * FROM sessions WHERE seeded = ? ORDER BY date, id', r.company_seeded ? 1 : 0).map((s) => {
     const sc = q.get('SELECT * FROM session_company WHERE session_id = ? AND company_id = ?', s.id, r.company_id);
@@ -301,7 +310,7 @@ app.get('/api/r/:t', wrap((req, res) => {
     reports: L.listSnapshots(r.company_id) };
 }));
 
-app.get('/api/r/:t/presession/:base', wrap((req, res) => {
+app.get(['/api/r/:t/presession/:base', '/api/f/:c/presession/:base'], wrap((req, res) => {
   const r = referent(req, res); if (!r) return;
   if (!E.sessionDef(req.params.base)) return bad(res, 'Sessione non valida');
   return { fields: L.presessionFields(req.params.base), saved: L.getPresession(r.company_id, req.params.base), session: E.sessionDef(req.params.base) };
@@ -312,7 +321,7 @@ app.put('/api/r/:t/presession/:base', wrap((req, res) => {
   return bad(res, 'La scheda si consulta soltanto: le risposte si danno in sala, il giorno della sessione', 403);
 }));
 
-app.get('/api/r/:t/session/:sid', wrap((req, res) => {
+app.get(['/api/r/:t/session/:sid', '/api/f/:c/session/:sid'], wrap((req, res) => {
   const r = referent(req, res); if (!r) return;
   const s = refSession(r, req.params.sid, res); if (!s) return;
   const parts = L.activeParticipants(s.id, r.company_id).map((p) => ({ id: p.id, name: p.name, func: p.func, submitted: !!p.submitted_at }));
@@ -320,7 +329,7 @@ app.get('/api/r/:t/session/:sid', wrap((req, res) => {
   if (['confronto', 'consolidamento', 'chiusa'].includes(s.phase)) out.consolidation = L.consolidationView(s.id, r.company_id);
   return out;
 }));
-app.delete('/api/r/:t/session/:sid/participant/:pid', wrap((req, res) => {
+app.delete(['/api/r/:t/session/:sid/participant/:pid', '/api/f/:c/session/:sid/participant/:pid'], wrap((req, res) => {
   const r = referent(req, res); if (!r) return;
   const s = refSession(r, req.params.sid, res); if (!s) return;
   if (s.phase === 'chiusa') return bad(res, 'La sessione è chiusa: per correggere i partecipanti contatta ELIS');
@@ -328,10 +337,25 @@ app.delete('/api/r/:t/session/:sid/participant/:pid', wrap((req, res) => {
   if (!p) return bad(res, 'Partecipante non trovato', 404);
   q.run('UPDATE participants SET removed = 1 WHERE id = ?', p.id);
   L.invalidateComparison(p.session_id, p.company_id);
-  audit(refActor(r), 'participant', p.id, 'remove', { name: p.name }, null, req.body?.reason || 'Rimosso dal referente');
+  audit(refActor(r), 'participant', p.id, 'remove', { name: p.name }, null, req.body?.reason || (r.facilitator ? 'Rimosso dal facilitatore ELIS' : 'Rimosso dal referente'));
   return { ok: true };
 }));
-app.put('/api/r/:t/session/:sid/draft', wrap((req, res) => {
+// Il facilitatore corregge nome o funzione di un partecipante (es. funzione sbagliata scelta dal telefono).
+app.put('/api/f/:c/session/:sid/participant/:pid', wrap((req, res) => {
+  const r = referent(req, res); if (!r) return;
+  const s = refSession(r, req.params.sid, res); if (!s) return;
+  if (s.phase === 'chiusa') return bad(res, 'La sessione è chiusa: i partecipanti non si correggono più da qui');
+  const p = q.get('SELECT * FROM participants WHERE id = ? AND company_id = ? AND session_id = ? AND removed = 0', req.params.pid, r.company_id, s.id);
+  if (!p) return bad(res, 'Partecipante non trovato', 404);
+  const name = txt(req.body?.name, 120), func = req.body?.func;
+  if (!name) return bad(res, 'Scrivi nome e cognome');
+  if (!I.functions.some((f) => f.id === func)) return bad(res, 'Scegli la funzione');
+  q.run('UPDATE participants SET name = ?, func = ? WHERE id = ?', name, func, p.id);
+  L.invalidateComparison(p.session_id, p.company_id); // il numero di funzioni presenti entra nella confidence
+  audit(refActor(r), 'participant', p.id, 'update', { name: p.name, func: p.func }, { name, func }, txt(req.body?.reason, 1000) || 'Correzione del facilitatore ELIS');
+  return { ok: true };
+}));
+app.put(['/api/r/:t/session/:sid/draft', '/api/f/:c/session/:sid/draft'], wrap((req, res) => {
   const r = referent(req, res); if (!r) return;
   const s = refSession(r, req.params.sid, res); if (!s) return;
   if (s.phase !== 'consolidamento') return bad(res, 'Il consolidamento non è aperto');
@@ -339,7 +363,7 @@ app.put('/api/r/:t/session/:sid/draft', wrap((req, res) => {
   L.saveDraft(s.id, r.company_id, req.body || {});
   return { ok: true };
 }));
-app.post('/api/r/:t/session/:sid/confirm', wrap((req, res) => {
+app.post(['/api/r/:t/session/:sid/confirm', '/api/f/:c/session/:sid/confirm'], wrap((req, res) => {
   const r = referent(req, res); if (!r) return;
   const s = refSession(r, req.params.sid, res); if (!s) return;
   if (s.phase !== 'consolidamento') return bad(res, 'Il consolidamento è aperto solo nella fase di consolidamento');
@@ -348,7 +372,7 @@ app.post('/api/r/:t/session/:sid/confirm', wrap((req, res) => {
   if (!out.ok) return bad(res, out.errors.join(' · '));
   return out;
 }));
-app.put('/api/r/:t/session/:sid/commitment', wrap((req, res) => {
+app.put(['/api/r/:t/session/:sid/commitment', '/api/f/:c/session/:sid/commitment'], wrap((req, res) => {
   const r = referent(req, res); if (!r) return;
   const s = refSession(r, req.params.sid, res); if (!s) return;
   if (!['consolidamento', 'chiusa'].includes(s.phase)) return bad(res, 'Priorità e commitment si registrano dalla fase di consolidamento');

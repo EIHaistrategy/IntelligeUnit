@@ -43,8 +43,10 @@ La control room segue la sessione in sette passi: **Prima della sessione** (Prep
 | Preparazione | Proietta il *QR a schermo intero* (o stampa i *QR tavolo*, con l'azienda già selezionata). I partecipanti scelgono l'azienda, inseriscono nome e funzione. |
 | Individuale (10') | Ognuno risponde dal telefono ai 4 item (1–5 o N.D.) e ai 2 confronti a coppie. Nessuno vede le risposte altrui. |
 | Confronto (10') | Telefoni e referente vedono la distribuzione anonima delle risposte dell'azienda: divergenze, N.D., confronti a coppie in contrasto. Le risposte individuali sono bloccate. |
-| Consolidamento (10') | Il referente sceglie il livello ufficiale (parte dalla mediana; se cambia, deve motivare), poi la sotto-opzione con scelta forzata (suggerita dalla scheda pre-sessione), conferma; poi priorità e commitment. |
+| Consolidamento (10') | Lo conduce il **facilitatore ELIS** al tavolo: dalla control room, pulsante *Tavolo* dell'azienda, registra con il gruppo il livello ufficiale (parte dalla mediana; se cambia, deve motivare), poi la sotto-opzione con scelta forzata, conferma; poi priorità e commitment. Anche il referente può registrare e correggere dal suo link (se mancano i minuti, completa priorità e commitment nel pomeriggio); se due persone confermano insieme, la seconda riceve un avviso e ricarica i valori. |
 | Chiusa | Si congela il benchmark, si apre la plenaria, si genera il report. |
+
+Il pulsante *Tavolo* apre, in una nuova scheda, la pagina dell'azienda per il facilitatore: chi si è registrato e chi ha inviato, il confronto, il consolidamento. Da lì, in ogni fase della sessione aperta, il facilitatore corregge nome o funzione di un partecipante o rimuove una registrazione sbagliata (resta nel registro).
 
 Dopo la sessione: *Rilascia* il report al referente (lo vede dal suo link), registra l'esito della *call con il leader*.
 

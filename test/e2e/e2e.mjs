@@ -119,6 +119,13 @@ await phones[0].pg.waitForSelector('text=Le risposte della vostra azienda', { ti
 await shot(phones[0].pg, '11-phone-confronto', true);
 await ref.goto(`${BASE}/r/${refToken}#/sessione/1`); await ref.waitForSelector('text=Confronti a coppie');
 await shot(ref, '12-ref-confronto');
+// tavolo del facilitatore ELIS: stessa vista, dalla console; corregge un partecipante (funzione invariata: i risultati non cambiano)
+const noAdmin = await ref.request.get(`${BASE}/api/f/${company.id}/session/1`);
+if (noAdmin.status() !== 401) errors.push('il tavolo del facilitatore è raggiungibile senza accesso admin');
+await admin.goto(`${BASE}/tavolo-elis/${company.id}#/sessione/1`); await admin.waitForSelector('text=Confronti a coppie');
+await admin.click('tr:has-text("Sara Neri") [data-edit]'); await admin.fill('#pe_name', 'Sara  Neri'); await admin.click('#pe_save');
+await admin.waitForSelector('text=Partecipante corretto');
+await shot(admin, '12b-facilitatore-confronto');
 
 await setPhase('consolidamento');
 await ref.waitForSelector('#confirm', { timeout: 10000 });
@@ -140,6 +147,9 @@ await ref.fill('#c_owner', 'Direttore Innovazione'); await ref.fill('#c_due', '2
 await ref.fill('#c_kpi', 'Delibera del CdA sul mandato AI'); await ref.check('#c_peer');
 await ref.click('#c_save'); await ref.waitForSelector('text=Commitment salvato');
 await shot(ref, '14-ref-consolidato');
+await admin.goto(`${BASE}/tavolo-elis/${company.id}#/sessione/1`); await admin.waitForSelector('text=Risultato consolidato');
+if (!(await admin.$('#confirm'))) errors.push('il facilitatore non può correggere il consolidamento');
+await shot(admin, '14b-facilitatore-consolidato');
 
 // regola §2: dopo il confronto non si torna all'individuale
 const back = await admin.request.put(`${BASE}/api/admin/sessions/1/phase`, { data: { phase: 'individuale', reason: 'prova' } });
