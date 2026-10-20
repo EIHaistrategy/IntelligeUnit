@@ -400,31 +400,48 @@ app.put('/api/admin/companies/:id/consent', wrap((req, res) => {
 // Dopo che i QR di una sessione sono stati generati, il referente dell'azienda non si cambia fino alla chiusura della sessione.
 function referentLock(companyId) {
   return q.get(`SELECT s.title FROM session_company sc JOIN sessions s ON s.id = sc.session_id
-    WHERE sc.company_id = ? AND sc.qr_generated_at IS NOT NULL AND s.phase != 'chiusa' ORDER BY s.date LIMIT 1`, companyId);
+    WHERE sc.company_id = ? AND sc.qr_generated_at IS NOT NULL AND s.phase != 'chiusa' ORDER BY s.date IS NULL, s.date LIMIT 1`, companyId);
 }
-const lockMsg = (l) => `Il referente non si può cambiare: i QR di ${l.title} sono già stati generati. Si potrà cambiare dopo la chiusura della sessione.`;
+// Eccezione da ELIS: durante il blocco il referente si cambia (o il link si revoca) solo con un motivo, che resta nel registro.
+function lockReason(req, res, companyId) {
+  const lock = referentLock(companyId); if (!lock) return { ok: true, reason: null };
+  const reason = txt(req.body?.reason, 1000);
+  if (!reason) { bad(res, `Il referente è bloccato: i QR di ${lock.title} sono già stati generati. Per cambiarlo scrivi il motivo (resta nel registro modifiche).`, 409); return { ok: false }; }
+  return { ok: true, reason: `Eccezione al blocco (${lock.title}): ${reason}` };
+}
+const EMAIL = /^[^\s@,;<>"]+@[^\s@,;<>"]+\.[^\s@,;<>"]+$/;
 app.post('/api/admin/companies/:id/referents', wrap((req, res) => {
   const { name, email, role } = req.body || {};
-  const lock = referentLock(req.params.id); if (lock) return bad(res, lockMsg(lock), 409);
   if (!String(name || '').trim()) return bad(res, 'Nome obbligatorio');
+  if (email && !EMAIL.test(txt(email, 200))) return bad(res, 'Email non valida: scrivi un solo indirizzo, ad esempio nome@azienda.it');
+  const lk = lockReason(req, res, req.params.id); if (!lk.ok) return;
   const t = token();
   if (!q.get('SELECT 1 FROM companies WHERE id = ?', req.params.id)) return bad(res, 'Azienda non trovata', 404);
   q.run('INSERT INTO referents (company_id, name, email, role, token) VALUES (?,?,?,?,?)', req.params.id, txt(name, 120), txt(email, 200), txt(role, 120), t);
-  audit(ADMIN, 'referent', req.params.id, 'create', null, { name, email, role });
+  audit(ADMIN, 'referent', req.params.id, 'create', null, { name, email, role }, lk.reason);
   return { token: t };
 }));
 app.post('/api/admin/referents/:id/regenerate', wrap((req, res) => {
   const r = q.get('SELECT * FROM referents WHERE id = ?', req.params.id); if (!r) return bad(res, 'Referente non trovato', 404);
-  const lock = referentLock(r.company_id); if (lock) return bad(res, lockMsg(lock), 409);
+  const lk = lockReason(req, res, r.company_id); if (!lk.ok) return;
   q.run('UPDATE referents SET token = ? WHERE id = ?', token(), r.id);
-  audit(ADMIN, 'referent', r.id, 'regenerate_link', null, null, 'Link precedente disattivato');
+  audit(ADMIN, 'referent', r.id, 'regenerate_link', null, null, lk.reason || 'Link precedente disattivato');
   return { ok: true };
 }));
 app.delete('/api/admin/referents/:id', wrap((req, res) => {
-  const r = q.get('SELECT * FROM referents WHERE id = ?', req.params.id);
-  const lock = r && referentLock(r.company_id); if (lock) return bad(res, lockMsg(lock), 409);
+  const r = q.get('SELECT * FROM referents WHERE id = ?', req.params.id); if (!r) return bad(res, 'Referente non trovato', 404);
+  const lk = lockReason(req, res, r.company_id); if (!lk.ok) return;
   q.run('DELETE FROM referents WHERE id = ?', req.params.id);
-  audit(ADMIN, 'referent', req.params.id, 'delete', r ? { name: r.name } : null, null);
+  audit(ADMIN, 'referent', req.params.id, 'delete', { name: r.name }, null, lk.reason);
+  return { ok: true };
+}));
+// L'email si corregge sempre, anche durante il blocco: non cambia il link personale.
+app.put('/api/admin/referents/:id/email', wrap((req, res) => {
+  const r = q.get('SELECT * FROM referents WHERE id = ?', req.params.id); if (!r) return bad(res, 'Referente non trovato', 404);
+  const email = txt(req.body?.email, 200);
+  if (email && !EMAIL.test(email)) return bad(res, 'Email non valida: scrivi un solo indirizzo, ad esempio nome@azienda.it');
+  q.run('UPDATE referents SET email = ? WHERE id = ?', email || null, r.id);
+  audit(ADMIN, 'referent', r.id, 'email', { email: r.email }, { email: email || null });
   return { ok: true };
 }));
 
@@ -455,9 +472,10 @@ app.put('/api/admin/sessions/:id/phase', wrap((req, res) => {
 app.post('/api/admin/sessions/:sid/companies/:cid/invited', wrap((req, res) => {
   const s = L.getSession(req.params.sid); const c = q.get('SELECT * FROM companies WHERE id = ?', req.params.cid);
   if (!s || !c || (s.seeded ? 1 : 0) !== (c.seeded ? 1 : 0)) return bad(res, 'Non trovata', 404);
-  L.ensureSessionCompany(s.id, c.id);
+  const before = L.ensureSessionCompany(s.id, c.id).invited_at;
   q.run("UPDATE session_company SET invited_at = datetime('now') WHERE session_id = ? AND company_id = ?", s.id, c.id);
-  audit(ADMIN, 'invite', `${s.id}/${c.id}`, 'sent', null, { session: s.title, company: c.name });
+  const after = q.get('SELECT invited_at FROM session_company WHERE session_id = ? AND company_id = ?', s.id, c.id).invited_at;
+  audit(ADMIN, 'invite', `${s.id}/${c.id}`, 'sent', { invited_at: before }, { invited_at: after, session: s.title, company: c.name });
   return { ok: true };
 }));
 // Passo 4: genera i QR della sessione. Solo per aziende con referente; da quel momento il referente è bloccato.
@@ -465,7 +483,8 @@ app.post('/api/admin/sessions/:sid/companies/:cid/invited', wrap((req, res) => {
 app.post('/api/admin/sessions/:sid/qr', wrap((req, res) => {
   const s = L.getSession(req.params.sid); if (!s) return bad(res, 'Non trovata', 404);
   if (s.phase === 'chiusa') return bad(res, 'La sessione è chiusa');
-  const one = req.body?.companyId ? Number(req.body.companyId) : null;
+  const one = req.body?.companyId != null ? Number(req.body.companyId) : null;
+  if (one != null && !Number.isInteger(one)) return bad(res, 'Azienda non valida');
   if (s.mode !== 'workshop' && !one) return bad(res, 'Nelle sessioni ad hoc i QR si generano un\'azienda alla volta');
   const cs = q.all(`SELECT c.* FROM companies c WHERE c.seeded = ? ${one ? 'AND c.id = ?' : ''} AND EXISTS (SELECT 1 FROM referents r WHERE r.company_id = c.id)`,
     ...(one ? [s.seeded ? 1 : 0, one] : [s.seeded ? 1 : 0]));
@@ -479,6 +498,18 @@ app.post('/api/admin/sessions/:sid/qr', wrap((req, res) => {
   }
   if (one && !cs.length) return bad(res, 'Per generare il QR serve prima un referente');
   return { ok: true, generated: n };
+}));
+// Annullare il QR di un'azienda (es. generato sulla sessione sbagliata): solo con motivo e se nessuno si è ancora registrato.
+app.delete('/api/admin/sessions/:sid/companies/:cid/qr', wrap((req, res) => {
+  const s = L.getSession(req.params.sid); const c = q.get('SELECT * FROM companies WHERE id = ?', req.params.cid);
+  if (!s || !c || (s.seeded ? 1 : 0) !== (c.seeded ? 1 : 0)) return bad(res, 'Non trovata', 404);
+  const sc = q.get('SELECT * FROM session_company WHERE session_id = ? AND company_id = ?', s.id, c.id);
+  if (!sc?.qr_generated_at) return bad(res, 'Il QR di questa azienda non è stato generato');
+  const reason = txt(req.body?.reason, 1000); if (!reason) return bad(res, 'Scrivi il motivo: resta nel registro modifiche');
+  if (L.activeParticipants(s.id, c.id).length) return bad(res, 'Non si può annullare: ci sono già partecipanti registrati con questo QR');
+  q.run('UPDATE session_company SET qr_generated_at = NULL WHERE session_id = ? AND company_id = ?', s.id, c.id);
+  audit(ADMIN, 'qr', `${s.id}/${c.id}`, 'undo', { qr_generated_at: sc.qr_generated_at }, { qr_generated_at: null }, reason);
+  return { ok: true };
 }));
 app.get('/api/admin/sessions/:id/control', wrap((req, res) => {
   const s = L.getSession(req.params.id); if (!s) return bad(res, 'Non trovata', 404);

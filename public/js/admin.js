@@ -268,25 +268,27 @@ async function viewControl(arg) {
   const ck = (kind, html) => `<li class="ck ${kind}"><span aria-hidden="true">${kind === 'ok' ? '✓' : kind === 'warn' ? '!' : 'i'}</span><div>${html}</div></li>`;
 
   // Preparazione: una riga per azienda con i passi 2–5 (referente, email, QR, scheda)
-  const mailtoFor = (c) => {
-    const s = C.session, due = s.date ? (() => { const d = new Date(`${s.date}T12:00:00`); d.setDate(d.getDate() - 7); return longDate(isoDay(d)); })() : '';
-    const to = c.referents.map((r) => r.email).filter(Boolean).join(',');
-    const who = c.referents.length === 1 ? `Gentile ${c.referents[0].name},` : 'Gentili referenti,';
-    const links = c.referents.map((r) => `${c.referents.length > 1 ? `${r.name}: ` : ''}${C.baseUrl}/r/${r.token}`).join('\n');
+  // Una bozza per ogni referente: ognuno riceve solo il proprio link personale.
+  const mailtoFor = (c, r) => {
+    const s = C.session;
+    let due = '';
+    if (s.date) { const d = new Date(`${s.date}T12:00:00`); d.setDate(d.getDate() - 7); if (isoDay(d) >= isoDay(new Date())) due = longDate(isoDay(d)); }
     const subject = `AITO Map · ${s.title} · scheda pre-sessione di ${c.name}`;
-    const one = c.referents.length === 1; // Lei a un solo referente, voi a più referenti
-    const body = `${who}\n\nin vista della sessione ${s.title.split(' · ')[0]}${s.date ? ` del ${longDate(s.date)}` : ''}, ${one ? 'Le' : 'vi'} chiediamo di compilare la scheda pre-sessione di ${c.name}${due ? ` entro il ${due}` : ''}. Sono dati fattuali che in sala servono per il consolidamento.\n\nDal link personale si compila la scheda, si seguono in sala i partecipanti e si registra la posizione ufficiale dell'azienda:\n${links}\n\nIl link è personale: ${one ? 'La' : 'vi'} preghiamo di non inoltrarlo.\n\nGrazie,\nTeam AI Strategy ELIS`;
-    return `mailto:${encodeURIComponent(to).replace(/%2C/g, ',')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    const body = `Gentile ${r.name},\n\nin vista della sessione ${s.title.split(' · ')[0]}${s.date ? ` del ${longDate(s.date)}` : ''}, Le chiediamo di compilare la scheda pre-sessione di ${c.name} ${due ? `entro il ${due}` : 'appena possibile'}. Sono dati fattuali che in sala servono per il consolidamento.\n\nDal Suo link personale si compila la scheda, si seguono in sala i partecipanti e si registra la posizione ufficiale dell'azienda:\n${C.baseUrl}/r/${r.token}\n\nIl link è personale: La preghiamo di non inoltrarlo.\n\nGrazie,\nTeam AI Strategy ELIS`;
+    return `mailto:${encodeURIComponent(r.email || '')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   };
+  // un indirizzo locale (portatile ELIS) non si apre da fuori: lo si dice prima di mandare l'email
+  const localBase = /^https?:\/\/(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(C.baseUrl);
   const prepTable = () => {
     const cos = C.companies, s = C.session;
     const prow = (c) => {
       const has = c.referents.length;
-      const noMail = has && !c.referents.some((r) => r.email);
+      const drafts = (again) => c.referents.map((r) => `<div style="margin-top:4px"><a class="${again ? 'small' : 'btn sm'}" href="${mailtoFor(c, r)}" data-mail="${c.id}">${again ? 'prepara di nuovo' : 'Prepara l\'email'}${c.referents.length > 1 ? ` a ${esc(r.name)}` : ''}</a>
+        ${r.email ? '' : `<div class="small" style="color:var(--warn)">manca l'email di ${esc(r.name)}: <a href="#/azienda/${c.id}">aggiungila</a></div>`}</div>`).join('');
       const invite = !has ? '<span class="muted small">serve il referente</span>'
-        : c.invited_at && !mailed.has(c.id) ? `<span class="tag ok">inviata</span> <span class="small muted">${fmtDate(c.invited_at)}</span><div><a class="small" href="${mailtoFor(c)}" data-mail="${c.id}">prepara di nuovo</a></div>`
         : mailed.has(c.id) ? `<div class="small">L'hai inviata?</div><div class="row" style="margin-top:4px"><button class="sm" data-invited="${c.id}">Sì, segna come inviata</button><button class="sm ghost" data-unmail="${c.id}">Non ancora</button></div>`
-        : `<a class="btn sm" href="${mailtoFor(c)}" data-mail="${c.id}">Prepara l'email</a>${noMail ? '<div class="small" style="color:var(--warn)">manca l\'email del referente</div>' : ''}`;
+        : c.invited_at ? `<span class="tag ok">inviata</span> <span class="small muted">${fmtDate(c.invited_at)}</span>${drafts(true)}`
+        : drafts(false);
       const qr = !has ? '<span class="muted small">serve il referente</span>'
         : c.qr_generated_at ? `<span class="tag ok">generato</span> <span class="small muted">${fmtDate(c.qr_generated_at)}</span><div><a class="small" href="#/tavolo/${s.id}:${c.id}">QR azienda</a> · <span class="small muted">referente bloccato</span></div>`
         : `<button class="sm ghost" data-genqr="${c.id}">Genera il QR</button>`;
@@ -295,7 +297,9 @@ async function viewControl(arg) {
         <td>${invite}</td><td>${qr}</td>
         <td>${c.presession ? `<span class="tag ok">compilata</span> <span class="small muted">${fmtDate(c.presession)}</span>` : '<span class="small muted">—</span>'}</td></tr>`;
     };
-    return `<div class="card"><h2>Aziende del programma</h2><div class="tablewrap"><table>
+    return `<div class="card"><h2>Aziende del programma</h2>
+      ${localBase ? `<div class="banner warn">I link nelle email usano un indirizzo della rete locale (${esc(C.baseUrl)}): fuori dalla rete ELIS non si aprono. Usa la piattaforma online o imposta l'indirizzo pubblico in <a href="#/impostazioni">Impostazioni</a>.</div>` : ''}
+      <div class="tablewrap"><table>
       <thead><tr><th>1 · Azienda</th><th>2 · Referente</th><th>3 · Email</th><th>4 · QR</th><th>5 · Scheda</th></tr></thead>
       <tbody>${cos.map(prow).join('') || '<tr><td colspan="5" class="muted">Nessuna azienda: aggiungile da <a href="#/aziende">Aziende e referenti</a>.</td></tr>'}</tbody></table></div></div>`;
   };
@@ -471,8 +475,7 @@ async function viewControl(arg) {
       catch (e) { toast(e.message, true); }
     });
     const genQr = async (companyId) => {
-      const msg = companyId ? 'Generare il QR di questa azienda? Da questo momento il suo referente non si potrà cambiare fino alla chiusura della sessione.'
-        : 'Generare i QR della sessione per tutte le aziende con referente? Da questo momento i referenti non si potranno cambiare fino alla chiusura della sessione.';
+      const msg = `${companyId ? 'Generare il QR di questa azienda?' : `Generare i QR di ${C.session.title} per tutte le aziende con referente?`} Da questo momento il referente non si potrà cambiare né il suo link rigenerare fino alla chiusura della sessione, se non come eccezione con un motivo scritto nel registro modifiche.`;
       if (!confirm(msg)) return;
       try { const r = await api(`/api/admin/sessions/${id}/qr`, { method: 'POST', body: companyId ? { companyId } : {} }); toast(r.generated ? `QR generati: ${r.generated}` : 'Nessun QR nuovo da generare'); await reload(); }
       catch (e) { toast(e.message, true); }
@@ -622,13 +625,14 @@ async function viewCompany(id) {
       <div class="card"><h2>Consensi</h2><p class="small muted">Distinti e revocabili (§16). Senza consenso al benchmark l'azienda riceve comunque il proprio report ma non entra nelle distribuzioni.</p>
         ${['benchmark', 'peer', 'testimonianza', 'followup'].map((k) => `<label class="check"><input type="checkbox" data-consent="${k}" ${c.consents[k]?.granted ? 'checked' : ''}> ${{ benchmark: 'Benchmark anonimo', peer: 'Peer matching', testimonianza: 'Testimonianza', followup: 'Follow-up' }[k]} <span class="small muted">${c.consents[k] ? fmtDate(c.consents[k].at) : ''}</span></label>`).join('')}</div>
       <div class="card"><h2>Referenti</h2>
-        ${lock ? `<div class="banner info">Referente bloccato: i QR di <b>${esc(lock.title)}</b> sono stati generati il ${fmtDate(lock.qr_generated_at)}. Si potrà cambiare dopo la chiusura della sessione.</div>` : ''}
-        ${c.referents.map((r) => `<div class="card flat"><div class="row between"><b>${esc(r.name)}</b>${lock ? '' : `<div class="row"><button class="sm ghost" data-regen="${r.id}" title="Disattiva il link attuale e ne crea uno nuovo">Rigenera link</button><button class="sm danger" data-delref="${r.id}">Elimina</button></div>`}</div>
+        ${lock ? `<div class="banner info">Referente bloccato: i QR di <b>${esc(lock.title)}</b> sono stati generati il ${fmtDate(lock.qr_generated_at)}. Fino alla chiusura della sessione il referente si cambia, o il link si revoca, solo come eccezione con un motivo scritto nel registro modifiche. L'email si può sempre correggere.
+          <div style="margin-top:8px"><button class="sm ghost" id="undoqr">QR generato per errore? Annullalo</button></div></div>` : ''}
+        ${c.referents.map((r) => `<div class="card flat"><div class="row between"><b>${esc(r.name)}</b><div class="row"><button class="sm ghost" data-email="${r.id}" data-cur="${esc(r.email || '')}">${r.email ? 'Correggi email' : 'Aggiungi email'}</button><button class="sm ghost" data-regen="${r.id}" title="Disattiva il link attuale e ne crea uno nuovo">Rigenera link</button><button class="sm danger" data-delref="${r.id}">Elimina</button></div></div>
           <div class="small muted">${esc(r.role || '')} ${esc(r.email || '')}</div>
           <div class="row" style="margin-top:6px"><input type="text" readonly value="${esc(NET.baseUrl)}/r/${esc(r.token)}" class="mono small"><button class="sm ghost" data-copy="${esc(NET.baseUrl)}/r/${esc(r.token)}">Copia link</button></div>
           <details><summary class="small">QR del link referente</summary>${qrImg(`${NET.baseUrl}/r/${r.token}`, 160)}</details></div>`).join('') || '<p class="muted">Nessun referente.</p>'}
-        ${lock ? '' : `<div class="grid c3"><input type="text" id="r_name" placeholder="Nome e cognome" aria-label="Nome e cognome del referente"><input type="text" id="r_role" placeholder="Ruolo" aria-label="Ruolo del referente"><input type="email" id="r_email" placeholder="Email" aria-label="Email del referente"></div>
-        <div style="margin-top:8px"><button class="sm" id="r_add">Aggiungi referente</button></div>`}
+        <div class="grid c3"><input type="text" id="r_name" placeholder="Nome e cognome" aria-label="Nome e cognome del referente"><input type="text" id="r_role" placeholder="Ruolo" aria-label="Ruolo del referente"><input type="email" id="r_email" placeholder="Email" aria-label="Email del referente"></div>
+        <div style="margin-top:8px"><button class="sm" id="r_add">Aggiungi referente</button></div>
         <p class="small muted">Il link è personale: chi lo possiede compila la scheda e consolida per l'azienda.</p></div>
     </div>
     <div class="card"><h2>Commitment e verifica</h2><p class="small muted">Lo stato si aggiorna nella call con il leader e con l'item pulse della sessione successiva (§11, §12).</p><div id="commits"><p class="muted small">Caricamento…</p></div></div>
@@ -657,9 +661,13 @@ async function viewCompany(id) {
     try { await api(`/api/admin/companies/${id}/consent`, { method: 'PUT', body: { type: b.dataset.consent, granted: b.checked, reason } }); toast('Consenso aggiornato'); }
     catch (e) { b.checked = !b.checked; toast(e.message, true); }
   });
-  if ($('#r_add')) $('#r_add').onclick = async () => { try { await api(`/api/admin/companies/${id}/referents`, { method: 'POST', body: { name: $('#r_name').value, role: $('#r_role').value, email: $('#r_email').value } }); viewCompany(id); } catch (e) { toast(e.message, true); } };
-  $$('[data-regen]').forEach((b) => b.onclick = async () => { if (confirm('Il link attuale smetterà di funzionare. Creare un nuovo link per questo referente?')) { try { await api(`/api/admin/referents/${b.dataset.regen}/regenerate`, { method: 'POST', body: {} }); viewCompany(id); } catch (e) { toast(e.message, true); } } });
-  $$('[data-delref]').forEach((b) => b.onclick = async () => { if (confirm('Eliminare il referente? Il suo link smetterà di funzionare.')) { try { await api(`/api/admin/referents/${b.dataset.delref}`, { method: 'DELETE' }); viewCompany(id); } catch (e) { toast(e.message, true); } } });
+  // durante il blocco ogni cambio del referente è un'eccezione: si chiede il motivo, che resta nel registro modifiche
+  const why = () => { if (!lock) return ''; const m = prompt('Il referente è bloccato dai QR della sessione. Motivo dell\'eccezione (resta nel registro modifiche):'); return m && m.trim() ? m.trim() : null; };
+  $('#r_add').onclick = async () => { const reason = why(); if (reason === null) return; try { await api(`/api/admin/companies/${id}/referents`, { method: 'POST', body: { name: $('#r_name').value, role: $('#r_role').value, email: $('#r_email').value, reason } }); viewCompany(id); } catch (e) { toast(e.message, true); } };
+  $$('[data-email]').forEach((b) => b.onclick = async () => { const v = prompt('Email del referente (un solo indirizzo):', b.dataset.cur); if (v === null) return; try { await api(`/api/admin/referents/${b.dataset.email}/email`, { method: 'PUT', body: { email: v.trim() } }); viewCompany(id); } catch (e) { toast(e.message, true); } });
+  if ($('#undoqr')) $('#undoqr').onclick = async () => { const m = prompt(`Annullare il QR di ${lock.title}? Si può solo se nessuno si è ancora registrato. Motivo (resta nel registro modifiche):`); if (!m || !m.trim()) return; try { await api(`/api/admin/sessions/${lock.id}/companies/${id}/qr`, { method: 'DELETE', body: { reason: m.trim() } }); toast('QR annullato: il referente si può di nuovo cambiare'); viewCompany(id); } catch (e) { toast(e.message, true); } };
+  $$('[data-regen]').forEach((b) => b.onclick = async () => { if (!confirm('Il link attuale smetterà di funzionare. Creare un nuovo link per questo referente?')) return; const reason = why(); if (reason === null) return; try { await api(`/api/admin/referents/${b.dataset.regen}/regenerate`, { method: 'POST', body: { reason } }); viewCompany(id); } catch (e) { toast(e.message, true); } });
+  $$('[data-delref]').forEach((b) => b.onclick = async () => { if (!confirm('Eliminare il referente? Il suo link smetterà di funzionare.')) return; const reason = why(); if (reason === null) return; try { await api(`/api/admin/referents/${b.dataset.delref}`, { method: 'DELETE', body: { reason } }); viewCompany(id); } catch (e) { toast(e.message, true); } });
   $$('[data-copy]').forEach((b) => b.onclick = async () => { try { await navigator.clipboard.writeText(b.dataset.copy); toast('Link copiato'); } catch { prompt('Copia il link', b.dataset.copy); } });
   $$('[data-fix]').forEach((b) => b.onclick = async () => {
     const it = b.dataset.fix;
