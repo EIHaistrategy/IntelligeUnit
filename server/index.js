@@ -114,19 +114,45 @@ app.get('/api/qr.svg', async (req, res) => {
 });
 
 // ---------- Partecipanti ----------
+// Confronto dei nomi: maiuscole, spazi doppi, accenti e punteggiatura non contano ("Anna Bianchi." = "anna  bianchi").
+const normName = (x) => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^\p{L}\p{N} ]/gu, ' ').replace(/\s+/g, ' ').trim();
+// Limite ai codici azienda sbagliati: indovinarne uno permetterebbe di leggere l'elenco dei nomi.
+// Largo (60 ogni 15 minuti per indirizzo) perché in sala molti telefoni escono dallo stesso indirizzo della rete Wi-Fi.
+const joinFails = new Map();
+const joinBlocked = (req) => { const now = Date.now(); const f = (joinFails.get(req.ip) || []).filter((t) => now - t < 15 * 60 * 1000); joinFails.set(req.ip, f); return f.length >= 60; };
+const joinFail = (req) => { if (joinFails.size > 5000) joinFails.clear(); if (!joinFails.has(req.ip)) joinFails.set(req.ip, []); joinFails.get(req.ip).push(Date.now()); };
+const TOO_MANY = 'Troppi tentativi con codici azienda sbagliati: riprova tra qualche minuto o chiedi aiuto al facilitatore ELIS';
+// Azienda ammessa alla sessione: stesso ambiente; nelle sessioni ad hoc solo le aziende per cui ELIS l'ha aperta (riga in session_company).
+function joinCompany(s, where, val) {
+  const c = q.get(`SELECT * FROM companies WHERE ${where === 'id' ? 'id' : 'join_code'} = ? AND seeded = ?`, val, s.seeded ? 1 : 0);
+  if (!c) return null;
+  if (s.mode !== 'workshop' && !q.get('SELECT 1 FROM session_company WHERE session_id = ? AND company_id = ?', s.id, c.id)) return null;
+  return c;
+}
+// Elenco delle persone iscritte: solo durante la registrazione e solo se ELIS ha generato il QR dell'azienda per questa sessione.
+// Un nome è "preso" se un partecipante attivo l'ha scelto o si è registrato con lo stesso nome.
+// il nome conta solo per chi si è aggiunto a mano: due omonimi iscritti (funzioni diverse) restano distinti
+const takenFor = (active, r) => active.some((p) => p.roster_id === r.id || (!p.roster_id && normName(p.name) === normName(r.name)));
+function rosterFor(s, c) {
+  const sc = q.get('SELECT qr_generated_at FROM session_company WHERE session_id = ? AND company_id = ?', s.id, c.id);
+  if (!['preparazione', 'individuale'].includes(s.phase) || !sc?.qr_generated_at) return [];
+  const active = L.activeParticipants(s.id, c.id);
+  return q.all('SELECT id, name, func FROM roster WHERE company_id = ? ORDER BY name', c.id)
+    .map((r) => ({ ...r, taken: takenFor(active, r) }));
+}
+
 app.get('/api/join/:code', wrap((req, res) => {
-  const s = q.get('SELECT id, title, base, phase, seeded FROM sessions WHERE code = ?', req.params.code);
+  const s = q.get('SELECT id, title, base, phase, seeded, mode FROM sessions WHERE code = ?', req.params.code);
   if (!s) return bad(res, 'Sessione non trovata', 404);
-  const env = s.seeded ? 1 : 0; // una sessione di prova accetta solo aziende di prova, e viceversa
+  if (req.query.c && joinBlocked(req)) return bad(res, TOO_MANY, 429);
   // Di default l'azienda si sceglie con il suo codice (QR del tavolo o codice comunicato dal referente):
   // chi ha il QR di sessione non vede l'elenco delle aziende partecipanti. In modalità "elenco" si mostra la lista.
   const mode = getSetting('join_mode') || 'codice';
-  const pre = req.query.c ? q.get('SELECT id, name, join_code FROM companies WHERE join_code = ? AND seeded = ?', String(req.query.c).toUpperCase(), env) : null;
-  const companies = mode === 'elenco' ? q.all('SELECT id, name, join_code FROM companies WHERE seeded = ? ORDER BY name', env) : [];
-  // persone iscritte da ELIS: il partecipante sceglie il proprio nome; un nome già scelto in questa sessione non si riprende
-  const roster = pre ? q.all(`SELECT r.id, r.name, r.func, EXISTS (SELECT 1 FROM participants p WHERE p.roster_id = r.id AND p.session_id = ? AND p.removed = 0) taken
-    FROM roster r WHERE r.company_id = ? ORDER BY r.name`, s.id, pre.id).map((r) => ({ ...r, taken: !!r.taken })) : [];
-  return { session: { id: s.id, title: s.title, base: s.base, phase: s.phase }, mode, preselected: pre ? { id: pre.id, name: pre.name, code: pre.join_code } : null, roster,
+  let pre = null;
+  if (req.query.c) { pre = joinCompany(s, 'code', String(req.query.c).toUpperCase().slice(0, 10)); if (!pre) joinFail(req); }
+  const companies = mode === 'elenco' ? q.all('SELECT id, name, join_code FROM companies WHERE seeded = ? ORDER BY name', s.seeded ? 1 : 0).filter((c) => joinCompany(s, 'id', c.id)) : [];
+  return { session: { id: s.id, title: s.title, base: s.base, phase: s.phase }, mode, preselected: pre ? { id: pre.id, name: pre.name, code: pre.join_code } : null,
+    roster: pre ? rosterFor(s, pre) : [],
     companies: companies.map((c) => ({ id: c.id, name: c.name, code: c.join_code })), functions: I.functions,
     privacyUrl: getSetting('privacy_url') || null };
 }));
@@ -135,26 +161,35 @@ app.post('/api/join/:code', wrap((req, res) => {
   const s = q.get('SELECT * FROM sessions WHERE code = ?', req.params.code);
   if (!s) return bad(res, 'Sessione non trovata', 404);
   if (!['preparazione', 'individuale'].includes(s.phase)) return bad(res, 'La fase individuale è chiusa: non è più possibile registrarsi a questa sessione.');
+  if (joinBlocked(req)) return bad(res, TOO_MANY, 429);
   const { companyId, companyCode, privacyAck, rosterId } = req.body || {};
   let { name, func } = req.body || {};
-  const c = companyCode
-    ? q.get('SELECT * FROM companies WHERE join_code = ? AND seeded = ?', txt(companyCode, 10).toUpperCase(), s.seeded ? 1 : 0)
-    : (getSetting('join_mode') === 'elenco' ? q.get('SELECT * FROM companies WHERE id = ? AND seeded = ?', companyId, s.seeded ? 1 : 0) : null);
-  if (!c) return bad(res, companyCode ? 'Codice azienda non riconosciuto: controlla il cartoncino del tavolo o chiedilo al referente' : 'Inserire il codice azienda');
-  const norm = (x) => String(x || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  const c = companyCode ? joinCompany(s, 'code', txt(companyCode, 10).toUpperCase())
+    : (getSetting('join_mode') === 'elenco' ? joinCompany(s, 'id', Number(companyId)) : null);
+  if (!c) { if (companyCode) joinFail(req); return bad(res, companyCode ? 'Codice azienda non riconosciuto: controlla il cartoncino del tavolo o chiedilo al referente' : 'Inserire il codice azienda'); }
+  const roster = q.all('SELECT * FROM roster WHERE company_id = ?', c.id);
+  const active = L.activeParticipants(s.id, c.id);
+  const takenBy = (r) => takenFor(active, r);
+  const BUSY = 'Questo nome è già registrato su un altro telefono. Se sei tu, chiedi al referente di toccare «Rimuovi» accanto al tuo nome, poi ricarica la pagina.';
   let rid = null;
   if (rosterId != null) {
-    const r = q.get('SELECT * FROM roster WHERE id = ? AND company_id = ?', Number(rosterId), c.id);
+    const r = roster.find((x) => x.id === Number(rosterId));
     if (!r) return bad(res, 'Nome non trovato nell\'elenco: scegline un altro o aggiungiti');
-    if (q.get('SELECT 1 FROM participants WHERE roster_id = ? AND session_id = ? AND removed = 0', r.id, s.id)) return bad(res, 'Questo nome è già stato scelto su un altro telefono. Se sei tu, chiedi al referente di liberarlo.', 409);
+    if (takenBy(r)) return bad(res, BUSY, 409);
     ({ name, func } = r); rid = r.id;
   } else if (txt(name, 120)) {
-    // chi si aggiunge non può prendere il posto di una persona iscritta né del referente
-    if (q.all('SELECT name FROM roster WHERE company_id = ?', c.id).some((r) => norm(r.name) === norm(name))) return bad(res, 'Sei già nell\'elenco: scegli il tuo nome invece di aggiungerti');
-    if (q.all('SELECT name FROM referents WHERE company_id = ?', c.id).some((r) => norm(r.name) === norm(name))) return bad(res, 'Il referente non si aggiunge da qui: sceglilo dall\'elenco (se manca, avvisa ELIS)');
+    const n = normName(name);
+    const same = roster.filter((r) => normName(r.name) === n);
+    if (same.length && rosterFor(s, c).length) return bad(res, 'C\'è già una persona iscritta con questo nome: se sei tu, sceglila nell\'elenco; altrimenti aggiungi l\'iniziale del secondo nome.');
+    if (same.length === 1) { // elenco non ancora mostrato (QR non generato): chi scrive il nome di un iscritto viene collegato a lui
+      if (takenBy(same[0])) return bad(res, BUSY, 409);
+      ({ name, func } = same[0]); rid = same[0].id;
+    } else if (same.length > 1) return bad(res, 'Ci sono più persone iscritte con questo nome: chiedi al facilitatore ELIS');
+    else if (q.all('SELECT name FROM referents WHERE company_id = ?', c.id).some((r) => normName(r.name) === n)) return bad(res, 'Il referente si registra scegliendo il suo nome tra le persone iscritte. Se non c\'è, chiedi al facilitatore ELIS di aggiungerlo.');
+    else if (active.some((p) => normName(p.name) === n)) return bad(res, BUSY.replace('Questo nome', 'Una persona con questo nome'), 409);
   }
   if (!txt(name, 120)) return bad(res, 'Scegli il tuo nome dall\'elenco o inserisci nome e cognome');
-  if (!I.functions.some((f) => f.id === func)) return bad(res, 'Selezionare la funzione');
+  if (!I.functions.some((f) => f.id === func)) return bad(res, rid ? 'La funzione di questa persona non è più valida: chiedi al facilitatore ELIS' : 'Selezionare la funzione');
   if (!privacyAck) return bad(res, 'Per proseguire conferma di aver letto come vengono usate le risposte');
   const t = token();
   q.run('INSERT INTO participants (session_id, company_id, name, func, email, token, roster_id) VALUES (?,?,?,?,NULL,?,?)', s.id, c.id, txt(name, 120), func, t, rid);
@@ -183,6 +218,18 @@ app.get('/api/p/:t', wrap((req, res) => {
   return out;
 }));
 
+// Nome scelto per errore: finché non ha dato risposte, il partecipante annulla da solo la registrazione e il nome torna libero.
+app.post('/api/p/:t/leave', wrap((req, res) => {
+  const p = participant(req, res); if (!p) return;
+  const s = L.getSession(p.session_id);
+  if (!['preparazione', 'individuale'].includes(s.phase)) return bad(res, 'La registrazione non si può più cambiare: chiedi al referente');
+  const n = q.get('SELECT (SELECT COUNT(*) FROM answers WHERE participant_id = ?) + (SELECT COUNT(*) FROM pair_answers WHERE participant_id = ?) n', p.id, p.id).n;
+  if (n) return bad(res, 'Hai già dato delle risposte: per cambiare nome chiedi al referente');
+  q.run('UPDATE participants SET removed = 1 WHERE id = ?', p.id);
+  L.invalidateComparison(p.session_id, p.company_id);
+  audit(`partecipante:${p.id}`, 'participant', p.id, 'leave', { name: p.name }, null, 'Nome scelto per errore: registrazione annullata dal partecipante');
+  return { ok: true };
+}));
 app.put('/api/p/:t/answer', wrap((req, res) => {
   const p = participant(req, res); if (!p) return;
   const s = L.getSession(p.session_id);
@@ -388,19 +435,24 @@ app.get('/api/admin/companies', wrap((req) => q.all('SELECT * FROM companies WHE
 }))));
 // Persone iscritte (solo nome e funzione): ELIS le inserisce prima della sessione
 app.post('/api/admin/companies/:id/roster', wrap((req, res) => {
-  const c = q.get('SELECT * FROM companies WHERE id = ?', req.params.id); if (!c) return bad(res, 'Azienda non trovata', 404);
+  const c = q.get('SELECT * FROM companies WHERE id = ? AND seeded = ?', req.params.id, envOf(req)); if (!c) return bad(res, 'Azienda non trovata', 404);
   const name = txt(req.body?.name, 120), func = req.body?.func;
   if (!name) return bad(res, 'Inserire nome e cognome');
   if (!I.functions.some((f) => f.id === func)) return bad(res, 'Selezionare la funzione');
-  if (q.all('SELECT name FROM roster WHERE company_id = ?', c.id).some((r) => r.name.trim().toLowerCase() === name.toLowerCase())) return bad(res, 'Questa persona è già nell\'elenco');
+  // due omonimi si distinguono dalla funzione; stesso nome e stessa funzione è un doppione
+  if (q.all('SELECT name, func FROM roster WHERE company_id = ?', c.id).some((r) => normName(r.name) === normName(name) && r.func === func)) return bad(res, 'Questa persona è già nell\'elenco');
   const r = q.run('INSERT INTO roster (company_id, name, func) VALUES (?,?,?)', c.id, name, func);
   audit(ADMIN, 'roster', r.lastInsertRowid, 'create', null, { company: c.name, name, func });
   return { id: Number(r.lastInsertRowid) };
 }));
 app.delete('/api/admin/roster/:id', wrap((req, res) => {
-  const r = q.get('SELECT * FROM roster WHERE id = ?', req.params.id); if (!r) return bad(res, 'Persona non trovata', 404);
+  const r = q.get('SELECT r.* FROM roster r JOIN companies c ON c.id = r.company_id WHERE r.id = ? AND c.seeded = ?', req.params.id, envOf(req)); if (!r) return bad(res, 'Persona non trovata', 404);
+  const reason = txt(req.body?.reason, 1000); if (!reason) return bad(res, 'Scrivi il motivo: resta nel registro modifiche');
+  const open = q.get(`SELECT s.title FROM participants p JOIN sessions s ON s.id = p.session_id WHERE p.company_id = ? AND p.removed = 0 AND s.phase != 'chiusa'
+    AND p.roster_id = ? LIMIT 1`, r.company_id, r.id);
+  if (open) return bad(res, `${r.name} è registrata in ${open.title}, ancora aperta: il referente la rimuove prima dal suo pannello`, 409);
   q.run('DELETE FROM roster WHERE id = ?', r.id); // le risposte già date restano: il partecipante non viene toccato
-  audit(ADMIN, 'roster', r.id, 'delete', { name: r.name, func: r.func }, null);
+  audit(ADMIN, 'roster', r.id, 'delete', { name: r.name, func: r.func }, null, reason);
   return { ok: true };
 }));
 app.post('/api/admin/companies', wrap((req, res) => {

@@ -31,7 +31,7 @@ async function start() {
 
 // Registrazione dal QR. Con l'azienda nota (QR del tavolo o codice inserito) si sceglie il proprio nome tra le persone
 // iscritte da ELIS; chi non è in elenco si aggiunge con nome e funzione (non come referente: il server lo controlla).
-async function renderJoin(cc = preCompany, codeError = false) {
+async function renderJoin(cc = preCompany, codeError = false, notice = '') {
   let info;
   try { info = await api(`/api/join/${code}${cc ? `?c=${encodeURIComponent(cc)}` : ''}`); }
   catch (e) {
@@ -61,7 +61,12 @@ async function renderJoin(cc = preCompany, codeError = false) {
       <p class="small muted" id="ccode-help">Lo trovi sul cartoncino del tuo tavolo, oppure chiedilo al referente della tua azienda.</p>
       <p id="joinerr" class="banner risk ${codeError ? '' : 'hidden'}" role="alert">${codeError ? 'Codice azienda non riconosciuto: controlla il cartoncino del tavolo o chiedilo al referente' : ''}</p>
       <button class="big" id="next">Continua</button></div>`;
-    const go = async () => { const v = $('#ccode').value.trim().toUpperCase(); if (!v) { $('#joinerr').textContent = 'Inserire il codice azienda'; $('#joinerr').classList.remove('hidden'); return; } const r = await api(`/api/join/${code}?c=${encodeURIComponent(v)}`).catch(() => null); renderJoin(v, !r?.preselected); };
+    const go = async () => {
+      const err = $('#joinerr'); const v = $('#ccode').value.trim().toUpperCase();
+      if (!v) { err.textContent = 'Inserire il codice azienda'; err.classList.remove('hidden'); return; }
+      try { const r = await api(`/api/join/${code}?c=${encodeURIComponent(v)}`); renderJoin(v, !r.preselected); }
+      catch (e) { err.textContent = e.message; err.classList.remove('hidden'); } // rete assente o troppi tentativi: non è un codice sbagliato
+    };
     $('#next').onclick = go; $('#ccode').onkeydown = (e) => { if (e.key === 'Enter') go(); };
     if (codeError) $('#ccode').focus();
     return;
@@ -73,9 +78,12 @@ async function renderJoin(cc = preCompany, codeError = false) {
   const companyField = pre
     ? `<div class="picked"><span class="small muted">Azienda</span><b>${esc(pre.name)}</b>${info.mode !== 'elenco' ? ' <button type="button" class="link small" id="notmine">Non è la tua azienda?</button>' : ''}</div>`
     : `<label class="f" for="company">Azienda</label><select id="company"><option value="">— Seleziona la tua azienda —</option>${info.companies.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select>`;
+  // con molti nomi quelli già registrati vanno in fondo, così i liberi restano in alto
+  const ordered = roster.length > 8 ? [...roster.filter((r) => !r.taken), ...roster.filter((r) => r.taken)] : roster;
   const who = roster.length ? `<h2 class="f" id="who-t" style="margin-top:18px">Chi sei?</h2>
-      <div class="levels" role="group" aria-labelledby="who-t">${roster.map((r) => `<button type="button" class="level person" data-r="${r.id}" aria-pressed="false" ${r.taken ? 'disabled' : ''}>
-        <span><b>${esc(r.name)}</b><span class="small muted"> · ${esc(fn(r.func))}</span>${r.taken ? '<span class="small muted"><br>già registrato su un altro telefono</span>' : ''}</span></button>`).join('')}
+      <p class="small ink2" style="margin:0 0 8px">Tocca il tuo nome. Se non c'è, tocca l'ultima voce.</p>
+      <div class="levels" role="group" aria-labelledby="who-t">${ordered.map((r) => `<button type="button" class="level person" data-r="${r.id}" data-n="${esc(r.name)}" aria-pressed="false" ${r.taken ? 'disabled' : ''}>
+        <span><b>${esc(r.name)}</b><span class="small muted"> · ${esc(fn(r.func))}</span>${r.taken ? '<span class="small muted"><br>già registrato su un altro telefono. Sei tu? Chiedi al referente di toccare «Rimuovi» accanto al tuo nome, poi ricarica la pagina.</span>' : ''}</span></button>`).join('')}
         <button type="button" class="level nd" data-r="new" aria-pressed="false">Non sono nell'elenco</button></div>` : '';
   const newPerson = `<div id="newp" class="${roster.length ? 'hidden' : ''}">
       <label class="f" for="name">Nome e cognome</label><input type="text" id="name" autocomplete="name" maxlength="120">
@@ -88,18 +96,21 @@ async function renderJoin(cc = preCompany, codeError = false) {
       ${newPerson}
       <div class="card flat" style="margin:18px 0 16px">
         <h3 style="margin:0 0 6px">Chi vede le tue risposte</h3>
-        <p class="small ink2" style="margin:0">ELIS vede le tue risposte individuali. Il referente della tua azienda vede il tuo nome, la funzione e se hai inviato, ma non le singole risposte. I colleghi vedono solo la distribuzione anonima delle risposte dell'azienda (con meno di 3 risposte solo mediana e range). Nel benchmark entra solo il valore consolidato dell'azienda. Su questo telefono resta un codice tecnico che ti permette di riprendere la compilazione.
+        <p class="small ink2" style="margin:0">ELIS vede le tue risposte individuali. Il referente della tua azienda vede il tuo nome, la funzione e se hai inviato, ma non le singole risposte. I colleghi vedono solo la distribuzione anonima delle risposte dell'azienda (con meno di 3 risposte solo mediana e range). Nel benchmark entra solo il valore consolidato dell'azienda. Su questo telefono resta un codice tecnico che ti permette di riprendere la compilazione.${roster.length ? ' Il tuo nome e la funzione compaiono nell\'elenco dell\'azienda, visibile a chi inquadra il QR del vostro tavolo.' : ''}
         ${info.privacyUrl ? ` <a href="${esc(info.privacyUrl)}" target="_blank" rel="noopener">Informativa privacy ELIS</a>.` : ''}</p>
         <label class="check" style="margin-top:8px"><input type="checkbox" id="ack"> <span>Ho letto come vengono usate le mie risposte</span></label>
       </div>
-      <p id="joinerr" class="banner risk hidden" role="alert"></p>
+      <p id="joinerr" class="banner risk ${notice ? '' : 'hidden'}" role="alert">${esc(notice)}</p>
       <button class="big" id="go">Entra</button>
     </div>`;
   if ($('#notmine')) $('#notmine').onclick = () => renderJoin('');
+  // modalità "elenco": scelta l'azienda, si ricarica con il suo codice per mostrare le persone iscritte
+  if ($('#company')) $('#company').onchange = () => { const c = info.companies.find((x) => x.id === Number($('#company').value)); if (c) renderJoin(c.code); };
   $$('[data-r]').forEach((b) => b.onclick = () => {
     chosen = b.dataset.r === 'new' ? 'new' : Number(b.dataset.r);
     $$('[data-r]').forEach((x) => { x.classList.toggle('sel', x === b); x.setAttribute('aria-pressed', String(x === b)); });
     $('#newp').classList.toggle('hidden', chosen !== 'new');
+    $('#go').textContent = chosen === 'new' ? 'Entra' : `Entra come ${b.dataset.n}`; // il pulsante dice chi sta entrando
     if (chosen === 'new') $('#name').focus();
   });
   $('#go').onclick = async () => {
@@ -113,13 +124,20 @@ async function renderJoin(cc = preCompany, codeError = false) {
       saveTok(r.token); state = await api(`/api/p/${tok}`); renderPhase();
     } catch (e) {
       err.textContent = e.message; err.classList.remove('hidden'); err.scrollIntoView({ block: 'center' });
-      if (e.status === 409) setTimeout(() => renderJoin(pre?.code || cc), 2500); // nome appena preso da un altro telefono: si aggiorna l'elenco
+      if (e.status === 409) renderJoin(pre?.code || cc, false, e.message); // nome appena preso: elenco aggiornato, messaggio che resta
     }
   };
 }
 
 function header() {
-  return `<div class="who"><b>${esc(state.company)}</b><span>${esc(state.participant.name)}</span></div>${phaseChips(state.session.phase)}<div style="height:18px"></div>`;
+  // finché non ha risposto, chi ha scelto il nome sbagliato (o ha in mano il telefono di un altro) può cambiarlo
+  const canLeave = ['preparazione', 'individuale'].includes(state.session.phase) && !state.answered.length && !(state.pairAnswers || []).length;
+  return `<div class="who"><b>${esc(state.company)}</b><span>${esc(state.participant.name)}${canLeave ? ` · <button type="button" class="link small" id="leave">Non sei ${esc(state.participant.name)}? Cambia nome</button>` : ''}</span></div>${phaseChips(state.session.phase)}<div style="height:18px"></div>`;
+}
+async function leave() {
+  if (!confirm(`Annullare la registrazione come ${state.participant.name}? Il nome torna libero e potrai sceglierne un altro.`)) return;
+  try { await api(`/api/p/${tok}/leave`, { method: 'POST' }); saveTok(null); state = null; step = 0; renderJoin(); }
+  catch (e) { toast(e.message, true); }
 }
 
 function renderPhase() {
@@ -247,4 +265,5 @@ async function refresh() {
   else if (s.session.phase !== 'individuale' && s.session.phase !== 'preparazione') renderComparison();
 }
 
+app.addEventListener('click', (e) => { if (e.target.id === 'leave') leave(); }); // il link è ridisegnato a ogni passo
 start().then(() => poll(async () => { if (tok && state) await refresh(); }, 4000));

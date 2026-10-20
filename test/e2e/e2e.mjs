@@ -85,6 +85,17 @@ for (const pp of people) {
   phones.push({ pg, pp });
 }
 await shot(phones[0].pg, '06-phone-attesa', false);
+// un nome già scelto non si riprende da un altro telefono (409); chi si è registrato per errore può cambiare nome finché non risponde
+{
+  const sc = new URL(ctl.joinUrl).pathname.split('/').pop();
+  const ros = (await (await admin.request.get(`${BASE}/api/join/${sc}?c=${company.joinCode}`)).json()).roster;
+  const again = await admin.request.post(`${BASE}/api/join/${sc}`, { data: { companyCode: company.joinCode, rosterId: ros[0].id, privacyAck: true } });
+  const dup = await admin.request.post(`${BASE}/api/join/${sc}`, { data: { companyCode: company.joinCode, name: 'Anna  Bianchi.', func: 'IT', privacyAck: true } });
+  const tmp = await (await admin.request.post(`${BASE}/api/join/${sc}`, { data: { companyCode: company.joinCode, name: 'Persona Sbagliata', func: 'IT', privacyAck: true } })).json();
+  const leave = await admin.request.post(`${BASE}/api/p/${tmp.token}/leave`, { data: {} });
+  console.log('nome già scelto:', again.status(), '· stesso nome scritto a mano:', dup.status(), '· cambia nome:', leave.status(), '(attesi 409, 400, 200)');
+  if (again.status() !== 409 || dup.status() !== 400 || leave.status() !== 200) errors.push('regole dell\'elenco delle persone iscritte non rispettate');
+}
 
 const setPhase = async (phase) => { const r = await admin.request.put(`${BASE}/api/admin/sessions/1/phase`, { data: { phase } }); if (!r.ok()) throw new Error(await r.text()); };
 await setPhase('individuale');

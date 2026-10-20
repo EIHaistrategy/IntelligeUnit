@@ -13,7 +13,8 @@ async function start() {
   const pairs = (s.pairs || []).map(([a, b]) => I.pairQuestion.replace('{a}', `<b>${esc(I.items[a].title.toLowerCase())}</b>`).replace('{b}', `<b>${esc(I.items[b].title.toLowerCase())}</b>`));
   app.innerHTML = `
     <div class="card"><h1>Le domande di ${esc(s.name)}</h1>
-      <p class="ink2">Questa è un'anteprima per presa visione. ${date ? `Il ${esc(date)}` : 'In sala'} risponderete dal telefono, ognuno per conto suo, inquadrando il QR della vostra azienda.</p>
+      <p class="banner info" style="margin:0 0 12px">Da questa pagina non si risponde: è solo un'anteprima per presa visione.</p>
+      <p class="ink2">${date ? `Il ${esc(date)}` : 'In sala'} risponderete dal telefono, ognuno per conto suo, inquadrando il QR sul tavolo della vostra azienda e scegliendo il vostro nome.</p>
       <p class="small ink2" style="margin:0">Per ogni tema sceglierete il livello che descrive la situazione <b>praticata oggi</b> nella vostra azienda: ciò che è solo pianificato non conta. Se su un tema non avete visibilità, sceglierete <b>N.D.</b> (non disponibile).</p></div>
     ${s.items.map((id, i) => { const it = I.items[id]; return `<section class="card" aria-labelledby="t-${id}">
       <div class="qmeta"><span>Domanda ${i + 1} di ${s.items.length}</span><span class="tag navy">${esc(id)}</span></div>
