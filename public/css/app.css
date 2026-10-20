@@ -398,6 +398,11 @@ fieldset.q .small.muted { margin-bottom: 6px; }
 .todo { list-style: none; margin: 0; padding: 0; }
 .todo li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line-2); }
 .todo li:last-child { border-bottom: 0; }
+.sesslist .sessrow { display: grid; grid-template-columns: 1fr auto; gap: 8px 16px; padding: 14px 0; border-bottom: 1px solid var(--line-2); align-items: center; }
+.sesslist .sessrow:last-child { border-bottom: 0; }
+.sesslist .sr-main { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.sesslist .sr-meta { grid-column: 1; display: flex; flex-wrap: wrap; gap: 6px 22px; color: var(--ink-2); }
+.sesslist .sr-act { grid-column: 2; grid-row: 1 / span 2; }
 .tablecard { background: var(--surface); border: 1px solid var(--line); border-top: 6px solid var(--navy-deep); border-radius: var(--radius); padding: 22px; text-align: center; }
 .single .tablecard { max-width: 380px; margin: 0 auto; }
 .qrlabel { margin: 12px auto; }

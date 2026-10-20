@@ -208,15 +208,21 @@ app.post('/api/p/:t/submit', wrap((req, res) => {
 
 // ---------- Referente aziendale ----------
 function referent(req, res) {
-  const r = q.get('SELECT r.*, c.name company_name, c.kind company_kind, c.perimeter FROM referents r JOIN companies c ON c.id = r.company_id WHERE r.token = ?', req.params.t);
+  const r = q.get('SELECT r.*, c.name company_name, c.kind company_kind, c.perimeter, c.seeded company_seeded FROM referents r JOIN companies c ON c.id = r.company_id WHERE r.token = ?', req.params.t);
   if (!r) { bad(res, 'Link referente non valido', 404); return null; }
   return r;
+}
+// Il referente vede solo le sessioni del suo ambiente: azienda reale → sessioni di produzione, azienda di prova → sessioni di prova.
+function refSession(r, sid, res) {
+  const s = L.getSession(sid);
+  if (!s || (s.seeded ? 1 : 0) !== (r.company_seeded ? 1 : 0)) { bad(res, 'Sessione non trovata', 404); return null; }
+  return s;
 }
 const refActor = (r) => `referente:${r.id}:${r.name}`;
 
 app.get('/api/r/:t', wrap((req, res) => {
   const r = referent(req, res); if (!r) return;
-  const sessions = q.all('SELECT * FROM sessions ORDER BY date, id').map((s) => {
+  const sessions = q.all('SELECT * FROM sessions WHERE seeded = ? ORDER BY date, id', r.company_seeded ? 1 : 0).map((s) => {
     const sc = q.get('SELECT * FROM session_company WHERE session_id = ? AND company_id = ?', s.id, r.company_id);
     const pre = L.getPresession(r.company_id, s.base);
     return { ...s, consolidated_at: sc?.consolidated_at || null, report_released_at: sc?.report_released_at || null,
@@ -242,7 +248,7 @@ app.put('/api/r/:t/presession/:base', wrap((req, res) => {
 
 app.get('/api/r/:t/session/:sid', wrap((req, res) => {
   const r = referent(req, res); if (!r) return;
-  const s = L.getSession(req.params.sid); if (!s) return bad(res, 'Sessione non trovata', 404);
+  const s = refSession(r, req.params.sid, res); if (!s) return;
   const parts = L.activeParticipants(s.id, r.company_id).map((p) => ({ id: p.id, name: p.name, func: p.func, submitted: !!p.submitted_at }));
   const out = { session: s, participants: parts, joinUrl: `${baseUrl()}/j/${s.code}?c=${q.get('SELECT join_code FROM companies WHERE id = ?', r.company_id).join_code}` };
   if (['confronto', 'consolidamento', 'chiusa'].includes(s.phase)) out.consolidation = L.consolidationView(s.id, r.company_id);
@@ -259,7 +265,7 @@ app.delete('/api/r/:t/session/:sid/participant/:pid', wrap((req, res) => {
 }));
 app.put('/api/r/:t/session/:sid/draft', wrap((req, res) => {
   const r = referent(req, res); if (!r) return;
-  const s = L.getSession(req.params.sid); if (!s) return bad(res, 'Sessione non trovata', 404);
+  const s = refSession(r, req.params.sid, res); if (!s) return;
   if (s.phase !== 'consolidamento') return bad(res, 'Il consolidamento non è aperto');
   if (JSON.stringify(req.body || {}).length > 20000) return bad(res, 'Bozza troppo grande');
   L.saveDraft(s.id, r.company_id, req.body || {});
@@ -267,7 +273,7 @@ app.put('/api/r/:t/session/:sid/draft', wrap((req, res) => {
 }));
 app.post('/api/r/:t/session/:sid/confirm', wrap((req, res) => {
   const r = referent(req, res); if (!r) return;
-  const s = L.getSession(req.params.sid); if (!s) return bad(res, 'Sessione non trovata', 404);
+  const s = refSession(r, req.params.sid, res); if (!s) return;
   if (s.phase !== 'consolidamento') return bad(res, 'Il consolidamento è aperto solo nella fase di consolidamento');
   const out = L.confirmConsolidation(s.id, r.company_id, req.body || {}, refActor(r));
   if (out.conflict) return bad(res, out.errors.join(' · '), 409);
@@ -276,7 +282,7 @@ app.post('/api/r/:t/session/:sid/confirm', wrap((req, res) => {
 }));
 app.put('/api/r/:t/session/:sid/commitment', wrap((req, res) => {
   const r = referent(req, res); if (!r) return;
-  const s = L.getSession(req.params.sid); if (!s) return bad(res, 'Sessione non trovata', 404);
+  const s = refSession(r, req.params.sid, res); if (!s) return;
   if (!['consolidamento', 'chiusa'].includes(s.phase)) return bad(res, 'Priorità e commitment si registrano dalla fase di consolidamento');
   const out = L.saveCommitment(Number(req.params.sid), r.company_id, req.body || {}, refActor(r));
   if (!out.ok) return bad(res, out.errors.join(' · '));

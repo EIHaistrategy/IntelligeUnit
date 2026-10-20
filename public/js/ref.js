@@ -36,6 +36,7 @@ function route() {
 
 async function renderHome() {
   me = await api(`/api/r/${T}`);
+  const { active, done, later } = splitSessions(me.sessions);
   app.innerHTML = `
     <div class="pagehead"><div><h1>${esc(me.referent.company)}</h1>
       <p>Perimetro valutato: <b>${esc(me.referent.perimeter || 'non indicato')}</b>${me.referent.kind !== 'REALE' ? ` <span class="tag warn">${esc(me.referent.kind)}</span>` : ''}</p></div></div>
@@ -44,15 +45,32 @@ async function renderHome() {
       ${me.reports.length ? `<h2>Report riservati</h2><table><tbody>${me.reports.map((v) => `<tr><td><b>${esc(v.session_title)}</b>${v.version > 1 ? ` <span class="tag">versione ${v.version}</span>` : ''}</td><td class="small muted">rilasciato il ${fmtDate(v.created_at)}</td>
         <td><a href="/report/${me.referent.companyId}?t=${T}&snap=${v.id}" target="_blank">Apri</a> · <a href="/api/report/${me.referent.companyId}/pdf?t=${T}&snap=${v.id}">PDF</a></td></tr>`).join('')}</tbody></table>` : ''}
     </div>
-    <div class="card"><h2>Sessioni</h2><div class="tablewrap"><table>
-      <thead><tr><th>Sessione</th><th>Fase</th><th>Scheda pre-sessione</th><th>Partecipanti</th><th>Consolidato</th><th></th></tr></thead>
-      <tbody>${me.sessions.map((s) => `<tr>
-        <td><b>${esc(s.title)}</b>${s.mode === 'adhoc' ? ' <span class="tag gold">ad hoc</span>' : ''}</td>
-        <td><span class="tag ${['chiusa', 'preparazione'].includes(s.phase) ? '' : 'navy'}">${esc(s.phase.charAt(0).toUpperCase() + s.phase.slice(1))}</span></td>
-        <td>${s.presession_updated_at ? `<span class="tag ok">compilata</span> <span class="small muted">${fmtDate(s.presession_updated_at)}</span>` : '<span class="tag warn">da compilare</span>'}<br><a href="#/scheda/${s.base}" class="small">Apri scheda</a></td>
-        <td class="num">${s.participants}</td>
-        <td>${s.consolidated_at ? `<span class="tag ok">sì</span> <span class="small muted">${fmtDate(s.consolidated_at)}</span>` : '—'}</td>
-        <td><a class="btn sm" href="#/sessione/${s.id}">Apri</a></td></tr>`).join('')}</tbody></table></div></div>`;
+    ${sessionsCard('Sessione attiva', active, active.length ? (later ? 'Le sessioni successive del programma compariranno qui quando saranno le prossime.' : '') : 'Nessuna sessione in programma in questo momento.')}
+    ${done.length ? sessionsCard('Sessioni concluse', done, '') : ''}`;
+}
+
+// Si mostra solo la sessione in corso o la prossima del calendario (più eventuali sessioni ad hoc aperte):
+// le successive compaiono quando arriva il loro turno; sotto, le sessioni concluse a cui l'azienda ha partecipato.
+function splitSessions(list) {
+  const open = list.filter((s) => s.phase !== 'chiusa');
+  const next = open.find((s) => s.mode === 'workshop');
+  const active = open.filter((s) => s === next || s.mode !== 'workshop');
+  const later = open.some((s) => s.mode === 'workshop' && s !== next);
+  const done = list.filter((s) => s.phase === 'chiusa' && (s.participants > 0 || s.consolidated_at));
+  return { active, done, later };
+}
+
+function sessionsCard(title, list, note) {
+  // righe a blocchi invece di una tabella: sul telefono del referente tutto resta visibile senza scorrere di lato
+  return `<div class="card"><h2>${title}</h2>${list.length ? `<div class="sesslist">${list.map((s) => `<div class="sessrow">
+      <div class="sr-main"><b>${esc(s.title)}</b>${s.mode === 'adhoc' ? ' <span class="tag gold">ad hoc</span>' : ''}
+        <span class="tag ${['chiusa', 'preparazione'].includes(s.phase) ? '' : 'navy'}">${esc(s.phase.charAt(0).toUpperCase() + s.phase.slice(1))}</span></div>
+      <div class="sr-meta small">
+        <span>Scheda pre-sessione: ${s.presession_updated_at ? `<span class="tag ok">compilata</span> <span class="muted">${fmtDate(s.presession_updated_at)}</span>` : '<span class="tag warn">da compilare</span>'} · <a href="#/scheda/${s.base}">Apri scheda</a></span>
+        <span>Partecipanti: <b>${s.participants}</b></span>
+        <span>Consolidato: ${s.consolidated_at ? `<span class="tag ok">sì</span> <span class="muted">${fmtDate(s.consolidated_at)}</span>` : '—'}</span></div>
+      <div class="sr-act"><a class="btn sm" href="#/sessione/${s.id}" aria-label="Apri ${esc(s.title)}">Apri</a></div></div>`).join('')}</div>` : ''}
+      ${note ? `<p class="small muted" style="margin:${list.length ? '12px' : '0'} 0 0">${note}</p>` : ''}</div>`;
 }
 
 // ---------- Scheda pre-sessione ----------
