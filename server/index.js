@@ -347,10 +347,17 @@ app.put('/api/f/:c/session/:sid/participant/:pid', wrap((req, res) => {
   if (s.phase === 'chiusa') return bad(res, 'La sessione è chiusa: i partecipanti non si correggono più da qui');
   const p = q.get('SELECT * FROM participants WHERE id = ? AND company_id = ? AND session_id = ? AND removed = 0', req.params.pid, r.company_id, s.id);
   if (!p) return bad(res, 'Partecipante non trovato', 404);
-  const name = txt(req.body?.name, 120), func = req.body?.func;
+  const name = txt(req.body?.name, 120).replace(/\s+/g, ' '), func = req.body?.func;
   if (!name) return bad(res, 'Scrivi nome e cognome');
   if (!I.functions.some((f) => f.id === func)) return bad(res, 'Scegli la funzione');
-  q.run('UPDATE participants SET name = ?, func = ? WHERE id = ?', name, func, p.id);
+  if (name === p.name && func === p.func) return { ok: true }; // nessun cambiamento: niente da registrare
+  // il nome resta legato all'elenco delle persone iscritte: niente doppioni, e il collegamento segue il nuovo nome
+  const others = L.activeParticipants(s.id, r.company_id).filter((x) => x.id !== p.id);
+  if (others.some((x) => normName(x.name) === normName(name))) return bad(res, 'C\'è già un partecipante con questo nome in questa sessione', 409);
+  const ros = q.all('SELECT * FROM roster WHERE company_id = ?', r.company_id).filter((x) => normName(x.name) === normName(name));
+  if (ros.length && others.some((x) => ros.some((y) => x.roster_id === y.id))) return bad(res, 'Questa persona iscritta è già registrata su un altro telefono', 409);
+  const rid = ros.length === 1 ? ros[0].id : null;
+  q.run('UPDATE participants SET name = ?, func = ?, roster_id = ? WHERE id = ?', name, func, rid, p.id);
   L.invalidateComparison(p.session_id, p.company_id); // il numero di funzioni presenti entra nella confidence
   audit(refActor(r), 'participant', p.id, 'update', { name: p.name, func: p.func }, { name, func }, txt(req.body?.reason, 1000) || 'Correzione del facilitatore ELIS');
   return { ok: true };
@@ -360,8 +367,9 @@ app.put(['/api/r/:t/session/:sid/draft', '/api/f/:c/session/:sid/draft'], wrap((
   const s = refSession(r, req.params.sid, res); if (!s) return;
   if (s.phase !== 'consolidamento') return bad(res, 'Il consolidamento non è aperto');
   if (JSON.stringify(req.body || {}).length > 20000) return bad(res, 'Bozza troppo grande');
-  L.saveDraft(s.id, r.company_id, req.body || {});
-  return { ok: true };
+  // solo gli item della sessione, uno o più per volta
+  const items = Object.fromEntries(Object.entries(req.body?.items || {}).filter(([k, v]) => (E.sessionDef(s.base)?.items || []).includes(k) && v && typeof v === 'object'));
+  return { ok: true, rev: L.saveDraft(s.id, r.company_id, { items }, refActor(r)) };
 }));
 app.post(['/api/r/:t/session/:sid/confirm', '/api/f/:c/session/:sid/confirm'], wrap((req, res) => {
   const r = referent(req, res); if (!r) return;
@@ -688,7 +696,7 @@ async function sendPdf(res, R) {
 }
 app.get('/api/admin/pdf/:cid', async (req, res) => {
   try {
-    if (!q.get('SELECT 1 FROM companies WHERE id = ?', req.params.cid)) return bad(res, 'Azienda non trovata', 404);
+    if (!q.get('SELECT 1 FROM companies WHERE id = ? AND seeded = ?', req.params.cid, envOf(req))) return bad(res, 'Azienda non trovata', 404);
     await sendPdf(res, reportFor(Number(req.params.cid), req, true));
   } catch (e) { console.error(e); res.status(500).json({ error: 'Errore interno: riprova.' }); }
 });

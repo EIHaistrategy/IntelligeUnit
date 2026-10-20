@@ -168,9 +168,15 @@ function suggestedSessionPriorities(def, current) {
   return E.proposePriorities(itemScores, dims).filter((p) => def.dimensions.includes(p.dimension));
 }
 
-export function saveDraft(sessionId, companyId, draft) {
+// La bozza si unisce item per item: facilitatore ELIS e referente possono lavorarci insieme senza cancellarsi le scelte.
+// rev e by dicono alle pagine aperte che la bozza è cambiata e chi l'ha cambiata.
+export function saveDraft(sessionId, companyId, patch, actor) {
   ensureSessionCompany(sessionId, companyId);
-  q.run('UPDATE session_company SET draft_json = ? WHERE session_id = ? AND company_id = ?', JSON.stringify(draft), sessionId, companyId);
+  const cur = parse(q.get('SELECT draft_json FROM session_company WHERE session_id = ? AND company_id = ?', sessionId, companyId)?.draft_json) || {};
+  const rev = (cur.rev || 0) + 1;
+  q.run('UPDATE session_company SET draft_json = ? WHERE session_id = ? AND company_id = ?',
+    JSON.stringify({ ...cur, items: { ...(cur.items || {}), ...(patch.items || {}) }, rev, by: actor }), sessionId, companyId);
+  return rev;
 }
 
 // payload.items: { Q1: { level: 3 | null, sub: 'B', overrideReason: '...' } }
@@ -217,7 +223,7 @@ export function confirmConsolidation(sessionId, companyId, payload, actor) {
         [r.overrideReason, sc0.consolidated_at ? `Modifica: ${String(payload.changeReason).slice(0, 1000)}` : null].filter(Boolean).join(' · ') || null);
     }
     q.run(`UPDATE session_company SET consolidated_at = datetime('now'), consolidated_by = ?, draft_json = ? WHERE session_id = ? AND company_id = ?`,
-      actor, JSON.stringify(payload), sessionId, companyId);
+      actor, JSON.stringify({ ...payload, rev: ((parse(sc0.draft_json) || {}).rev || 0) + 1, by: actor }), sessionId, companyId);
   });
   return { ok: true };
 }

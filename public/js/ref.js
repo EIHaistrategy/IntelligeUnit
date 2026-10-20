@@ -181,19 +181,51 @@ async function renderSession(sid) {
   sess = await api(`${API}/session/${sid}`);
   phaseShown = sess.session.phase;
   draw();
-  stopPoll = poll(async () => {
-    const s = await api(`${API}/session/${sid}`);
-    const phaseChanged = s.session.phase !== phaseShown;
-    const partsChanged = JSON.stringify(s.participants) !== JSON.stringify(sess.participants);
-    const cmpChanged = JSON.stringify(s.consolidation?.comparison) !== JSON.stringify(sess.consolidation?.comparison);
-    const otherConfirmed = s.consolidation && sess.consolidation && s.consolidation.consolidatedAt !== sess.consolidation.consolidatedAt;
-    sess = s;
-    if (editingP && !phaseChanged) return;
-    if (phaseChanged) { phaseShown = s.session.phase; draw(); }
-    else if (['preparazione', 'individuale'].includes(s.session.phase)) { if (partsChanged) drawParticipants(); }
-    else if (s.session.phase === 'confronto') { if (cmpChanged || partsChanged) draw(); }
-    else if (otherConfirmed) { toast(FAC ? 'Il consolidamento è stato confermato dal referente: valori aggiornati' : 'Il consolidamento è stato confermato da un\'altra persona (facilitatore ELIS o un altro referente): valori aggiornati'); drawConsolidation(); }
-  }, 4000);
+  stopPoll = poll(async () => applyUpdate(await api(`${API}/session/${sid}`)), 4000);
+}
+
+const who = (by) => (String(by || '').startsWith('admin') ? 'dal facilitatore ELIS' : 'dal referente');
+// Applica i dati nuovi del server senza cancellare quello che si sta scrivendo (modulo del partecipante, commitment, motivi).
+function applyUpdate(s) {
+  const phaseChanged = s.session.phase !== phaseShown;
+  if (editingP && (phaseChanged || !s.participants.some((p) => p.id === editingP))) editingP = null;
+  if (editingP) return; // si aggiorna dopo Salva o Annulla, confrontando con i dati di prima: nessun evento va perso
+  const partsChanged = JSON.stringify(s.participants) !== JSON.stringify(sess.participants);
+  const cmpChanged = JSON.stringify(s.consolidation?.comparison) !== JSON.stringify(sess.consolidation?.comparison);
+  const otherConfirmed = s.consolidation && sess.consolidation && s.consolidation.consolidatedAt !== sess.consolidation.consolidatedAt;
+  sess = s;
+  if (phaseChanged) { phaseShown = s.session.phase; draw(); return; }
+  if (partsChanged) drawParticipants();
+  if (s.session.phase === 'confronto') { if (cmpChanged) drawComparison(); return; }
+  if (!['consolidamento', 'chiusa'].includes(s.session.phase) || !s.consolidation) return;
+  if (otherConfirmed) { toast(`Il consolidamento è stato confermato ${who(s.consolidation.consolidatedBy || s.consolidation.draft?.by)}: valori aggiornati`); drawConsolidation(); return; }
+  if (cmpChanged) refreshItems();
+  syncDraft();
+}
+
+// partecipanti cambiati durante il consolidamento: mediane e confidence ricalcolate, scelte già fatte invariate
+function refreshItems() {
+  const editable = sess.session.phase === 'consolidamento';
+  sess.consolidation.items.forEach((it) => drawItem(it, editable));
+  if ($('#cmpview')) $('#cmpview').innerHTML = comparisonHtml(sess.consolidation.comparison);
+  if (sess.consolidation.consolidatedAt && editable) toast('I partecipanti sono cambiati dopo la conferma: rivedete i valori e confermate di nuovo il consolidamento', true);
+}
+
+// scelte fatte dall'altra persona (facilitatore o referente) sugli item che qui non si stanno modificando
+function syncDraft() {
+  const d = sess.consolidation.draft || {};
+  if (!d.rev || d.rev === draftRev) return;
+  draftRev = d.rev;
+  const changed = [];
+  for (const it of sess.consolidation.items) {
+    const x = d.items?.[it.itemId]; const f = form[it.itemId];
+    if (!x || !f || dirty.has(it.itemId)) continue;
+    if (x.level !== f.level || (x.sub ?? null) !== (f.sub ?? null) || (x.overrideReason || '') !== (f.overrideReason || '')) {
+      form[it.itemId] = { level: x.level ?? null, sub: x.sub ?? null, overrideReason: x.overrideReason || '' };
+      drawItem(it, sess.session.phase === 'consolidamento'); changed.push(it.itemId);
+    }
+  }
+  if (changed.length) toast(`${changed.join(', ')} ${changed.length === 1 ? 'aggiornato' : 'aggiornati'} ${who(d.by)}`);
 }
 
 function draw() {
@@ -236,16 +268,17 @@ function drawParticipants() {
     ${showQr ? `<div style="text-align:center">${qrImg(sess.joinUrl, 200)}<p style="margin-top:10px">Codice azienda: <b class="mono" style="font-size:1.3rem;letter-spacing:.15em">${esc(new URL(sess.joinUrl).searchParams.get('c') || '')}</b></p><p class="small mono" style="word-break:break-all">${esc(sess.joinUrl)}</p></div>` : ''}
   </div></div>`;
   $$('[data-edit]').forEach((b) => b.onclick = () => { editingP = Number(b.dataset.edit); drawParticipants(); $('#pe_name')?.focus(); });
-  if ($('#pe_cancel')) $('#pe_cancel').onclick = () => { editingP = null; drawParticipants(); };
+  if ($('#pe_cancel')) $('#pe_cancel').onclick = async () => { editingP = null; drawParticipants(); applyUpdate(await api(`${API}/session/${sess.session.id}`)); };
   if ($('#pe_save')) $('#pe_save').onclick = async () => {
     try {
       await api(`${API}/session/${sess.session.id}/participant/${editingP}`, { method: 'PUT', body: { name: $('#pe_name').value, func: $('#pe_func').value } });
-      editingP = null; toast('Partecipante corretto'); sess = await api(`${API}/session/${sess.session.id}`); draw();
+      editingP = null; toast('Partecipante corretto'); applyUpdate(await api(`${API}/session/${sess.session.id}`));
     } catch (e) { toast(e.message, true); }
   };
   $$('[data-rm]').forEach((b) => b.onclick = async () => {
-    if (!confirm('Rimuovere questa registrazione? Le sue risposte non verranno considerate.')) return;
-    try { await api(`${API}/session/${sess.session.id}/participant/${b.dataset.rm}`, { method: 'DELETE', body: { reason: 'Registrazione errata' } }); sess = await api(`${API}/session/${sess.session.id}`); draw(); }
+    const after = sess.consolidation?.consolidatedAt ? ' Il consolidamento è già confermato: dopo la rimozione rivedete i valori e confermatelo di nuovo.' : '';
+    if (!confirm(`Rimuovere questa registrazione? Le sue risposte non verranno considerate.${after}`)) return;
+    try { await api(`${API}/session/${sess.session.id}/participant/${b.dataset.rm}`, { method: 'DELETE', body: { reason: 'Registrazione errata' } }); applyUpdate(await api(`${API}/session/${sess.session.id}`)); }
     catch (e) { toast(e.message, true); }
   });
 }
@@ -265,17 +298,25 @@ function drawComparison() {
 
 // ---------- Consolidamento ----------
 let form = {};
-let saveTimer;
-function saveDraftSoon() {
+let saveTimer, draftRev = 0;
+const dirty = new Set(); // item modificati qui e non ancora salvati: le modifiche dell'altra persona non li toccano
+function saveDraftSoon(itemId) {
+  dirty.add(itemId);
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => api(`${API}/session/${sess.session.id}/draft`, { method: 'PUT', body: { items: form } }).catch(() => {}), 600);
+  saveTimer = setTimeout(async () => {
+    const ids = [...dirty];
+    try {
+      const r = await api(`${API}/session/${sess.session.id}/draft`, { method: 'PUT', body: { items: Object.fromEntries(ids.map((id) => [id, form[id]])) } });
+      ids.forEach((id) => dirty.delete(id)); if (r?.rev) draftRev = Math.max(draftRev, r.rev);
+    } catch { /* riprova alla prossima modifica */ }
+  }, 600);
 }
 
 function drawConsolidation() {
   const C = sess.consolidation;
   const done = !!C.consolidatedAt;
   const editable = sess.session.phase === 'consolidamento';
-  form = {};
+  form = {}; dirty.clear(); draftRev = C.draft?.rev || 0;
   for (const it of C.items) {
     const d = it.draft || {};
     const cur = C.current[it.itemId];
@@ -285,7 +326,7 @@ function drawConsolidation() {
   $('#body').innerHTML = `
     ${done ? `<div class="banner ok">Consolidamento confermato il ${fmtDate(C.consolidatedAt)}. ${editable ? 'Finché la fase è aperta potete correggerlo e confermare di nuovo: la versione precedente resta nello storico.' : ''}</div>` : ''}
     ${!editable && !done ? '<div class="banner warn">Il consolidamento non è stato completato. Contattate il facilitatore ELIS.</div>' : ''}
-    <details class="card"><summary>Rivedi la vista di confronto</summary><div style="margin-top:12px">${comparisonHtml(C.comparison)}</div></details>
+    <details class="card"><summary>Rivedi la vista di confronto</summary><div style="margin-top:12px" id="cmpview">${comparisonHtml(C.comparison)}</div></details>
     <div id="items"></div>
     ${editable ? '<div class="card"><div id="errs" role="alert"></div>' + (done ? '<label class="f" for="chg">Motivo della modifica (il consolidamento era già confermato) *</label><input type="text" id="chg" maxlength="1000" style="margin-bottom:10px">' : '') + '<button class="big" id="confirm">Conferma il consolidamento</button><p class="small muted" style="margin-top:8px">Livello ufficiale e sotto-opzione diventano il dato dell\'azienda per questa sessione.</p></div>' : ''}
     <div id="summary"></div><div id="commit"></div>`;
@@ -334,9 +375,9 @@ function drawItem(it, editable) {
       <p class="small muted">Se non ci sono evidenze sufficienti per un'opzione superiore, vale la prima opzione del livello.</p>` : f.level ? '<p class="small muted">Il livello scelto non ha sotto-opzioni.</p>' : ''}`}`;
   if (!editable) return;
   const refocus = (sel) => { const el = host.querySelector(sel); if (el) el.focus({ preventScroll: true }); };
-  $$('[data-l]', host).forEach((b) => b.onclick = () => { f.level = Number(b.dataset.l); f.sub = null; drawItem(it, editable); saveDraftSoon(); refocus(`[data-l="${f.level}"]`); });
-  $$('[data-s]', host).forEach((b) => b.onclick = () => { f.sub = b.dataset.s; drawItem(it, editable); saveDraftSoon(); refocus(`[data-s="${f.sub}"]`); });
-  const r = $('[data-reason]', host); if (r) r.oninput = () => { f.overrideReason = r.value; saveDraftSoon(); };
+  $$('[data-l]', host).forEach((b) => b.onclick = () => { f.level = Number(b.dataset.l); f.sub = null; drawItem(it, editable); saveDraftSoon(it.itemId); refocus(`[data-l="${f.level}"]`); });
+  $$('[data-s]', host).forEach((b) => b.onclick = () => { f.sub = b.dataset.s; drawItem(it, editable); saveDraftSoon(it.itemId); refocus(`[data-s="${f.sub}"]`); });
+  const r = $('[data-reason]', host); if (r) r.oninput = () => { f.overrideReason = r.value; saveDraftSoon(it.itemId); };
 }
 
 function drawSummary() {

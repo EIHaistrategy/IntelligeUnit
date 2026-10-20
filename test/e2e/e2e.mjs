@@ -125,10 +125,19 @@ if (noAdmin.status() !== 401) errors.push('il tavolo del facilitatore è raggiun
 await admin.goto(`${BASE}/tavolo-elis/${company.id}#/sessione/1`); await admin.waitForSelector('text=Confronti a coppie');
 await admin.click('tr:has-text("Sara Neri") [data-edit]'); await admin.fill('#pe_name', 'Sara  Neri'); await admin.click('#pe_save');
 await admin.waitForSelector('text=Partecipante corretto');
+const saraId = (await (await admin.request.get(`${BASE}/api/f/${company.id}/session/1`)).json()).participants.find((p) => p.name === 'Sara Neri').id;
+const dupName = await admin.request.put(`${BASE}/api/f/${company.id}/session/1/participant/${saraId}`, { data: { name: 'Luca  Verdi', func: 'HR' } });
+const foreign = await admin.request.put(`${BASE}/api/f/${company.id}/session/1/participant/${saraId}`, { data: { name: 'X', func: 'HR' }, headers: { Origin: 'https://altro-sito.example' } });
+if (dupName.status() !== 409 || foreign.status() !== 403) errors.push(`correzione partecipante: doppione ${dupName.status()} (atteso 409), altro sito ${foreign.status()} (atteso 403)`);
 await shot(admin, '12b-facilitatore-confronto');
 
 await setPhase('consolidamento');
 await ref.waitForSelector('#confirm', { timeout: 10000 });
+// bozza a due mani: le scelte del facilitatore e del referente si sommano item per item (valori uguali alla proposta: la prova non cambia)
+await admin.request.put(`${BASE}/api/f/${company.id}/session/1/draft`, { data: { items: { Q9: { level: 3, sub: 'A', overrideReason: '' } } } });
+await ref.request.put(`${BASE}/api/r/${refToken}/session/1/draft`, { data: { items: { Q10: { level: 2, sub: 'A', overrideReason: '' } } } });
+const dr = (await (await admin.request.get(`${BASE}/api/f/${company.id}/session/1`)).json()).consolidation.draft;
+if (!dr.items?.Q9 || !dr.items?.Q10 || !String(dr.by).startsWith('referente')) errors.push('la bozza del consolidamento non unisce le scelte di facilitatore e referente');
 await shot(ref, '13-ref-consolidamento-iniziale');
 // senza dati della scheda (si consulta soltanto) è preselezionata la prima sotto-opzione
 // Q2: mediana 2: confermiamo 2 e scegliamo B
