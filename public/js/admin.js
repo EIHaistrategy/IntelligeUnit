@@ -648,7 +648,7 @@ async function viewCompany(id) {
       <div><label class="f">Tipo</label><select id="e_kind" ${PROVA ? 'disabled' : ''}>${(c.kind === 'DEMO' ? ['DEMO'] : PROVA ? [c.kind] : ['REALE', 'TEST']).map((k) => `<option ${c.kind === k ? 'selected' : ''}>${k}</option>`).join('')}</select></div></div>
       <div style="margin-top:12px"><button id="e_save">Salva</button></div></details>
     <div class="grid c2">
-      <div class="card"><h2>Consensi</h2><p class="small muted">Distinti e revocabili (§16). Senza consenso al benchmark l'azienda riceve comunque il proprio report ma non entra nelle distribuzioni.</p>
+      <div class="card"><h2>Consensi</h2><p class="small muted">Distinti e revocabili (§16). Alla creazione dell'azienda sono tutti concessi: togli la spunta solo se l'azienda ne nega uno. Senza consenso al benchmark l'azienda riceve comunque il proprio report ma non entra nelle distribuzioni.</p>
         ${['benchmark', 'peer', 'testimonianza', 'followup'].map((k) => `<label class="check"><input type="checkbox" data-consent="${k}" ${c.consents[k]?.granted ? 'checked' : ''}> ${{ benchmark: 'Benchmark anonimo', peer: 'Peer matching', testimonianza: 'Testimonianza', followup: 'Follow-up' }[k]} <span class="small muted">${c.consents[k] ? fmtDate(c.consents[k].at) : ''}</span></label>`).join('')}</div>
       <div class="card"><h2>Referenti</h2>
         ${lock ? `<div class="banner info">Referente bloccato: i QR di <b>${esc(lock.title)}</b> sono stati generati il ${fmtDate(lock.qr_generated_at)}. Fino alla chiusura della sessione il referente si cambia, o il link si revoca, solo come eccezione con un motivo scritto nel registro modifiche. L'email si può sempre correggere.

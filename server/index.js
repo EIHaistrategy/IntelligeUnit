@@ -452,6 +452,7 @@ app.delete('/api/admin/roster/:id', wrap((req, res) => {
   audit(ADMIN, 'roster', r.id, 'delete', { name: r.name, func: r.func }, null, reason);
   return { ok: true };
 }));
+const CONSENTS = ['benchmark', 'peer', 'testimonianza', 'followup'];
 app.post('/api/admin/companies', wrap((req, res) => {
   const { name, perimeter, sector, kind } = req.body || {};
   if (!txt(name, 150)) return bad(res, 'Nome obbligatorio');
@@ -459,6 +460,9 @@ app.post('/api/admin/companies', wrap((req, res) => {
   const k = isProva(req) ? 'TEST' : ['REALE', 'TEST'].includes(kind) ? kind : 'REALE';
   const r = q.run('INSERT INTO companies (name, perimeter, sector, kind, join_code, seeded) VALUES (?,?,?,?,?,?)', txt(name, 150), txt(perimeter, 200), txt(sector, 100), k, shortCode(4), envOf(req));
   audit(ADMIN, 'company', r.lastInsertRowid, 'create', null, req.body);
+  // consensi concessi di default (decisione del team): se l'azienda ne nega uno, si toglie la spunta con il motivo
+  for (const t of CONSENTS) q.run('INSERT INTO consents (company_id, type, granted) VALUES (?,?,1)', r.lastInsertRowid, t);
+  audit(ADMIN, 'consent', `${r.lastInsertRowid}/*`, 'grant', null, { granted: CONSENTS }, 'Concessi di default alla creazione dell\'azienda');
   return { id: Number(r.lastInsertRowid) };
 }));
 app.put('/api/admin/companies/:id', wrap((req, res) => {
@@ -473,7 +477,7 @@ app.put('/api/admin/companies/:id', wrap((req, res) => {
 }));
 app.put('/api/admin/companies/:id/consent', wrap((req, res) => {
   const { type, granted } = req.body || {};
-  if (!['benchmark', 'peer', 'testimonianza', 'followup'].includes(type)) return bad(res, 'Tipo di consenso non valido');
+  if (!CONSENTS.includes(type)) return bad(res, 'Tipo di consenso non valido');
   if (!String(req.body?.reason || '').trim()) return bad(res, 'Indicare il motivo o il riferimento del consenso (es. "modulo firmato il 10/11")');
   const before = q.get('SELECT * FROM consents WHERE company_id = ? AND type = ?', req.params.id, type);
   q.run(`INSERT INTO consents (company_id, type, granted, updated_at) VALUES (?,?,?,datetime('now'))

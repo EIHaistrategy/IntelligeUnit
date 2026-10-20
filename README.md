@@ -31,7 +31,7 @@ La console ELIS è su `http://localhost:3000/admin`. La finestra mostra anche l'
 - **Programma** (pagina iniziale): la linea del tempo delle 4 sessioni fino all'allineamento finale di settembre 2027 e l'elenco *Da fare*, calcolato dai dati (referenti mancanti, schede pre-sessione, cartoncini, benchmark da congelare, report da rilasciare, call da annotare, commitment scaduti).
 - **Sessioni**: le 4 sessioni in ordine di calendario, più le sessioni ad hoc. Ogni sessione ha quattro schede: *Prima* (preparazione), *In sala* (risposte individuali, confronto, consolidamento), *Dopo* (benchmark, report, call con i leader), *Risultati* (dashboard live, plenaria, mappe, versioni del benchmark).
 - **Dopo le sessioni**: *Report e call con i leader* (tutte le sessioni in una pagina) e *Commitment e verifica* (stato di ogni commitment, scadenze superate evidenziate).
-- **Aziende e referenti**: per ogni azienda il percorso nelle 4 sessioni, i consensi, i referenti, i report rilasciati.
+- **Aziende e referenti**: per ogni azienda il percorso nelle 4 sessioni, i consensi (concessi di default alla creazione; si toglie la spunta se l'azienda ne nega uno), i referenti, i report rilasciati.
 - In fondo: *Registro modifiche* e *Impostazioni* (divise in *Per la sala* e *Sistema*).
 
 ## 3. In sala (Control room della sessione)
