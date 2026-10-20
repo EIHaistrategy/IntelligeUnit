@@ -310,13 +310,19 @@ async function viewControl(arg) {
     // ---- contenuto del pannello
     let what = '', checks = [], extra = '';
     if (f.id === 'preparazione') {
-      what = 'Una settimana prima i referenti compilano la scheda pre-sessione con i dati fattuali. In sala i partecipanti si registrano con il QR, ma vedono le domande solo quando apri le risposte individuali.';
+      // elenco delle cose da fare prima della sessione, con lo stato reale (niente spunte verdi a programma vuoto)
+      const due = s.date ? (() => { const d = new Date(`${s.date}T12:00:00`); d.setDate(d.getDate() - 7); return longDate(isoDay(d)); })() : '';
+      what = `Cosa preparare prima della sessione${s.date ? ` del ${esc(longDate(s.date))}` : ''}. In sala i partecipanti si registrano con il QR, ma vedono le domande solo quando apri le risposte individuali.`;
       const noRef = cos.filter((c) => !c.referents.length), noPre = withRef.filter((c) => !c.presession);
-      checks.push(noRef.length ? ck('warn', `${noRef.length} ${noRef.length === 1 ? 'azienda' : 'aziende'} senza referente: ${names(noRef)}. <a href="#/aziende">Aggiungi i referenti</a>`) : ck('ok', `Tutte le ${cos.length} aziende hanno un referente`));
-      checks.push(noPre.length ? ck('warn', `Schede pre-sessione compilate: ${withRef.length - noPre.length} di ${withRef.length}. Mancano: ${names(noPre)}`) : ck('ok', 'Tutte le schede pre-sessione sono compilate'));
-      checks.push(ck('info', `Partecipanti già registrati: <b>${totP}</b>`));
-      extra = `<div class="fp-qr nofig"><div><h4>QR delle aziende</h4><p class="small">Un QR per azienda con il nome scritto sotto: chi lo inquadra entra già nella sua azienda. Il QR di sala resta come riserva, con il codice azienda: <span class="mono" style="word-break:break-all">${esc(C.joinUrl)}</span></p>
-        <div class="row"><a class="btn sm" href="#/tavoli/${s.id}">QR delle aziende</a><a class="btn sm ghost" href="#/qr/${s.id}">QR di sala a schermo intero</a></div></div></div>`;
+      checks.push(!cos.length ? ck('warn', `<b>Aziende e referenti:</b> nessuna azienda ${PROVA ? 'di prova' : 'in Produzione'}. <a href="#/aziende">Aggiungi le aziende e i loro referenti</a>, poi manda a ogni referente il suo link.`)
+        : noRef.length ? ck('warn', `<b>Aziende e referenti:</b> ${noRef.length} di ${cos.length} ${cos.length === 1 ? 'azienda' : 'aziende'} senza referente: ${names(noRef)}. <a href="#/aziende">Aggiungi i referenti</a>`)
+        : ck('ok', `<b>Aziende e referenti:</b> ${cos.length === 1 ? 'l\'azienda ha' : `tutte le ${cos.length} aziende hanno`} un referente`));
+      checks.push(!withRef.length ? ck('info', `<b>Schede pre-sessione:</b> le compilano i referenti dal loro link${due ? `, entro il ${esc(due)}` : ''}. Prima servono aziende e referenti.`)
+        : noPre.length ? ck('warn', `<b>Schede pre-sessione:</b> compilate ${withRef.length - noPre.length} di ${withRef.length}${due ? `, da chiudere entro il ${esc(due)}` : ''}. Mancano: ${names(noPre)}`)
+        : ck('ok', `<b>Schede pre-sessione:</b> tutte compilate (${withRef.length})`));
+      checks.push(ck('info', `<b>QR delle aziende:</b> stampa i cartoncini dei tavoli o manda l'immagine ai referenti, e prova un QR dal telefono. <a href="#/tavoli/${s.id}">Apri i QR delle aziende</a>
+        <div class="small muted" style="margin-top:4px">Riserva: il QR di sala (<a href="#/qr/${s.id}">a schermo intero</a>) chiede il codice azienda · <span class="mono" style="word-break:break-all">${esc(C.joinUrl)}</span></div>`));
+      if (totP) checks.push(ck('info', `<b>Partecipanti già registrati:</b> ${totP}`));
     } else if (f.id === 'individuale') {
       what = 'Ognuno risponde da solo, senza vedere le risposte dei colleghi. Chi non ha visibilità su un punto sceglie N.D.';
       extra = st === 'todo' ? '' : `<div class="grid c2">${meter(totS, totP, 'partecipanti hanno inviato')}${meter(answered, expected, 'risposte date')}</div>`;
@@ -361,9 +367,12 @@ async function viewControl(arg) {
     // ---- azione di fase (solo sul passo in corso)
     let action = '';
     const nx = NEXT[s.phase];
-    if (f.phase === s.phase && nx) {
+    if (f.phase === s.phase && nx && s.phase === 'preparazione' && !cos.length) {
+      action = `<div class="fp-action"><h4>Passo successivo</h4><p class="ink2">Per aprire le risposte individuali serve almeno un'azienda: <a href="#/aziende">aggiungila</a>.</p></div>`;
+    } else if (f.phase === s.phase && nx) {
       const warnNow = s.phase === 'individuale' && totP > totS ? `<p class="small" style="color:var(--warn)">${totP - totS === 1 ? 'Un partecipante non ha' : `${totP - totS} partecipanti non hanno`} ancora premuto Invia: le risposte già date verranno considerate così come sono.</p>`
-        : s.phase === 'consolidamento' && inRoom.some((c) => !c.consolidated_at) ? `<p class="small" style="color:var(--warn)">Alcune aziende non hanno consolidato: dopo la chiusura dovrai riaprire il consolidamento o correggere da ELIS.</p>` : '';
+        : s.phase === 'consolidamento' && inRoom.some((c) => !c.consolidated_at) ? `<p class="small" style="color:var(--warn)">Alcune aziende non hanno consolidato: dopo la chiusura dovrai riaprire il consolidamento o correggere da ELIS.</p>`
+        : s.phase === 'preparazione' && s.date && s.date > isoDay(new Date()) ? `<p class="small" style="color:var(--warn)">La sessione è il ${esc(longDate(s.date))}: apri le risposte individuali solo in sala, quando i partecipanti sono pronti.</p>` : '';
       action = `<div class="fp-action"><h4>Passo successivo</h4>
         <p class="ink2">${nx.what}</p>${warnNow}
         ${confirming ? `<div class="confirmbox" role="alertdialog" aria-label="Conferma"><p><b>Confermi?</b> ${nx.to === 'confronto' ? 'Le risposte individuali non si potranno riaprire.' : 'Puoi tornare indietro indicando un motivo.'}</p>
@@ -389,7 +398,7 @@ async function viewControl(arg) {
         : '<p class="muted" style="margin:0">Nessuna versione congelata: si congela nella scheda Dopo.</p>'}</div>`;
     const T2 = TABS.find((t) => t.id === tab);
     app.innerHTML = `<a class="back" href="#/programma">← Programma</a>
-      <div class="pagehead"><div><h1>${esc(s.title)}</h1><p class="small">${esc(C.def.items.map((i) => `${i} ${INST.items[i].title}`).join(' · '))} · codice <span class="mono">${esc(s.code)}</span></p></div>
+      <div class="pagehead"><div><h1>${esc(s.title)}</h1><p class="small">Domande della sessione: ${esc(C.def.items.map((i) => `${i} ${INST.items[i].title}`).join(' · '))}</p></div>
         <div class="row"><a class="btn sm ghost" href="#/tavoli/${s.id}">QR delle aziende</a><a class="btn sm ghost" href="/live/${s.id}" target="_blank">Dashboard live</a></div></div>
       <div class="tabs" role="tablist" aria-label="Momenti della sessione">${TABS.map((t) => `<button type="button" role="tab" class="tab ${tabState(t)} ${t.id === tab ? 'on' : ''}" aria-selected="${t.id === tab}" data-tab="${t.id}">
         <span class="tdot" aria-hidden="true">${tabState(t) === 'done' ? '✓' : ''}</span>${esc(t.label)}${tabState(t) === 'now' ? '<span class="sr-only"> (in corso)</span>' : ''}</button>`).join('')}</div>
@@ -397,16 +406,16 @@ async function viewControl(arg) {
       ${T2.steps.length > 1 ? `<div class="substeps">${T2.steps.map((x) => { const fx = FLOW.find((f2) => f2.id === x); const stx = state(fx); return `<button type="button" class="fstep ${stx} ${x === sel ? 'sel' : ''}" data-step="${x}" ${x === sel ? 'aria-current="step"' : ''}>
           <span class="fnum" aria-hidden="true">${stx === 'done' ? '✓' : FLOW.indexOf(fx) + 1}</span><span class="ftxt"><b>${esc(fx.title)}</b><small>${summary[x]}</small></span></button>`; }).join('')}</div>` : ''}
       <section class="card flowpanel" aria-live="polite">
-        <div class="fp-head"><div><div class="small muted">${esc(f.group)} · passo ${FLOW.indexOf(f) + 1} di ${FLOW.length}</div><h2>${esc(f.title)}</h2></div>${chip}</div>
+        <div class="fp-head"><div><div class="small muted">${esc(f.group)}</div><h2>${esc(f.title)}</h2></div>${chip}</div>
         <p class="lede">${what}</p>
         ${checks.length ? `<ul class="checks">${checks.join('')}</ul>` : ''}
         ${extra}
         ${action}${back}
       </section>`}
-      ${tab === 'risultati' ? '' : `<div class="card"><h2>Aziende in questa sessione</h2><div class="tablewrap"><table>
+      ${tab === 'risultati' ? '' : `<div class="card"><h2>${s.phase === 'preparazione' ? 'Aziende del programma' : 'Aziende in questa sessione'}</h2><div class="tablewrap"><table>
         <thead><tr><th>Azienda</th><th>Scheda</th><th class="num">Partecipanti</th><th>Risposte</th><th>Funzioni</th><th>Consolidato</th><th>Commitment</th><th>Report</th><th>Tavolo</th></tr></thead>
-        <tbody>${cos.filter((c) => c.participants || c.consolidated_at || c.presession).map(row).join('') || '<tr><td colspan="9" class="muted">Nessuna azienda ancora attiva in questa sessione.</td></tr>'}</tbody></table></div>
-        ${cos.some((c) => !(c.participants || c.consolidated_at || c.presession)) ? `<details style="margin-top:10px"><summary class="small">Altre aziende censite (${cos.filter((c) => !(c.participants || c.consolidated_at || c.presession)).length})</summary><table><tbody>${cos.filter((c) => !(c.participants || c.consolidated_at || c.presession)).map(row).join('')}</tbody></table></details>` : ''}</div>`}`;
+        <tbody>${cos.filter((c) => s.phase === 'preparazione' || c.participants || c.consolidated_at || c.presession).map(row).join('') || `<tr><td colspan="9" class="muted">${cos.length ? 'Nessuna azienda ancora attiva in questa sessione.' : 'Nessuna azienda: aggiungile da <a href="#/aziende">Aziende e referenti</a>.'}</td></tr>`}</tbody></table></div>
+        ${s.phase !== 'preparazione' && cos.some((c) => !(c.participants || c.consolidated_at || c.presession)) ? `<details style="margin-top:10px"><summary class="small">Altre aziende censite (${cos.filter((c) => !(c.participants || c.consolidated_at || c.presession)).length})</summary><table><tbody>${cos.filter((c) => !(c.participants || c.consolidated_at || c.presession)).map(row).join('')}</tbody></table></details>` : ''}</div>`}`;
 
     const reload = async () => { C = await api(`/api/admin/sessions/${id}/control`); draw(); };
     $$('[data-step]').forEach((b) => b.onclick = () => { sel = b.dataset.step; confirming = false; draw(); });
