@@ -1,0 +1,157 @@
+{
+  "_istruzioni": [
+    "Dati del PERCORSO GUIDATO dell'ambiente DEMO. Sono inventati: nessuna persona o azienda reale.",
+    "Si possono modificare a mano: dopo una modifica, nella console (DEMO) usa 'Reset demo' per ricaricarli.",
+    "Livelli: numeri da 1 a 5, oppure \"ND\" (non ho sufficiente visibilità). Sotto-opzioni: \"A\", \"B\" o \"C\" se il livello le prevede.",
+    "Funzioni: CEO, STRAT, IT, FIN, HR, LEGAL, RISK, PROC, MKT, OPS, OTHER.",
+    "Date nel formato AAAA-MM-GG. Stati dei commitment: aperto, avviato, completato, non avviato, sospeso.",
+    "Ai nomi delle aziende la piattaforma aggiunge da sola '(demo)'."
+  ],
+  "azienda": {
+    "nome": "Altavia Servizi S.p.A.",
+    "settore": "Servizi",
+    "perimetro": "Gruppo"
+  },
+  "referenti": [
+    { "nome": "Chiara Martini", "ruolo": "Head of Digital Transformation", "funzione": "STRAT", "email": "chiara.martini@altavia.example" },
+    { "nome": "Davide Esposito", "ruolo": "Chief Information Officer", "funzione": "IT", "email": "davide.esposito@altavia.example" }
+  ],
+  "persone": [
+    { "nome": "Sara Villa", "funzione": "HR" },
+    { "nome": "Luca Ferraro", "funzione": "FIN" },
+    { "nome": "Marta Galli", "funzione": "OPS" }
+  ],
+  "persona_dal_telefono": "Luca Ferraro",
+  "sessioni": {
+    "GOV": {
+      "risposte": {
+        "Chiara Martini": { "Q1": 3, "Q2": 2, "Q9": 3, "Q10": 2 },
+        "Davide Esposito": { "Q1": 3, "Q2": 2, "Q9": 2, "Q10": "ND" },
+        "Luca Ferraro": { "Q1": 4, "Q2": 3, "Q9": 3, "Q10": 1 },
+        "Marta Galli": { "Q1": 3, "Q2": "ND", "Q9": 3, "Q10": 2 }
+      },
+      "consolidamento": {
+        "Q1": { "livello": 3, "sotto": "B" },
+        "Q2": { "livello": 2, "sotto": "B" },
+        "Q9": { "livello": 3, "sotto": "B" },
+        "Q10": { "livello": 2, "sotto": "A" }
+      },
+      "commitment": {
+        "priorita": "Q2",
+        "azione": "Nominare uno sponsor executive per l'AI con budget dedicato e obiettivi annuali",
+        "owner": "Chiara Martini, Direzione Strategia",
+        "scadenza": "2027-01-31",
+        "kpi": "Delibera del CdA sul mandato AI",
+        "confronto_community": true
+      },
+      "call": {
+        "data": "2026-12-03",
+        "esito": "Il leader conferma la priorità sul mandato esecutivo; da chiarire il ruolo di HR nella policy.",
+        "trascrizione": "Chiara Martini 0:01\nBuongiorno, partiamo dal report di Governare.\nAmministratore delegato 0:20\nIl punto debole è il mandato: oggi lo sponsor è informale. Va formalizzato entro gennaio.\nDavide Esposito 1:05\nSulla governance abbiamo una policy, ma HR non è coinvolta nella redazione.\nAmministratore delegato 1:40\nCoinvolgiamola nella prossima revisione. Confermo la priorità."
+      }
+    },
+    "EFF": {
+      "risposte": {
+        "Chiara Martini": { "Q5": 2, "Q6": 2, "Q13": 3, "Q14": 3 },
+        "Sara Villa": { "Q5": 3, "Q6": 2, "Q13": 3, "Q14": 2 },
+        "Davide Esposito": { "Q5": 2, "Q6": 1, "Q13": 4, "Q14": 3 },
+        "Luca Ferraro": { "Q5": 2, "Q6": 3, "Q13": 3, "Q14": 3 }
+      },
+      "consolidamento": {
+        "Q5": { "livello": 2, "sotto": "B" },
+        "Q6": { "livello": 2, "sotto": "A" },
+        "Q13": { "livello": 3, "sotto": "A" },
+        "Q14": { "livello": 3, "sotto": "B" }
+      },
+      "commitment": {
+        "priorita": "Q5",
+        "azione": "Catalogo dei dati critici per i casi d'uso AI, con un responsabile per ogni dominio",
+        "owner": "Davide Esposito, IT",
+        "scadenza": "2027-04-30",
+        "kpi": "Catalogo pubblicato con almeno 20 dataset descritti",
+        "confronto_community": false
+      },
+      "verifica_commitment_precedente": { "stato": "aperto", "nota": "Mandato non ancora deliberato: la scadenza di gennaio è superata" },
+      "call": {
+        "data": "2027-02-17",
+        "esito": "Priorità sui dati confermata; il mandato dell'AI torna all'ordine del giorno del CdA di marzo.",
+        "trascrizione": "Chiara Martini 0:01\nRiprendiamo dal commitment di Governare: è scaduto.\nAmministratore delegato 0:15\nLo portiamo al CdA di marzo. Sui dati sono d'accordo con la priorità.\nDavide Esposito 0:50\nPartiamo dai domini clienti e fatture."
+      }
+    },
+    "GROW": {
+      "risposte": {
+        "Chiara Martini": { "Q3": 3, "Q4": 2, "Q15": 2, "Q16": 1 },
+        "Marta Galli": { "Q3": 3, "Q4": 2, "Q15": 1, "Q16": 2 },
+        "Luca Ferraro": { "Q3": 2, "Q4": 2, "Q15": 2, "Q16": 1 },
+        "Davide Esposito": { "Q3": 3, "Q4": 3, "Q15": "ND", "Q16": 1 }
+      },
+      "consolidamento": {
+        "Q3": { "livello": 3, "sotto": "A" },
+        "Q4": { "livello": 2, "sotto": "B" },
+        "Q15": { "livello": 2, "sotto": "A" },
+        "Q16": { "livello": 1 }
+      },
+      "commitment": {
+        "priorita": "Q16",
+        "azione": "Definire un metodo di replica per estendere i due casi d'uso pilota ad altre funzioni",
+        "owner": "Marta Galli, Operations",
+        "scadenza": "2027-07-31",
+        "kpi": "Due casi d'uso replicati in una seconda business unit",
+        "confronto_community": true
+      },
+      "verifica_commitment_precedente": { "stato": "avviato", "nota": "Catalogo avviato: 12 dataset descritti su 20" },
+      "verifica_commitment": [
+        { "sessione": "GOV", "stato": "completato", "nota": "Mandato approvato dal CdA il 12/03/2027" }
+      ],
+      "call": {
+        "data": "2027-06-09",
+        "esito": "Priorità sulla replica confermata; il leader chiede un confronto con aziende della community.",
+        "trascrizione": "Chiara Martini 0:01\nIl mandato è stato approvato a marzo.\nAmministratore delegato 0:12\nBene. Ora il tema è far uscire i piloti dalla sperimentazione.\nMarta Galli 0:45\nPropongo di partire dalla funzione acquisti."
+      }
+    },
+    "SCALE": {
+      "risposte": {
+        "Chiara Martini": { "Q7": 3, "Q8": 2, "Q11": 3, "Q12": 2 },
+        "Davide Esposito": { "Q7": 4, "Q8": 2, "Q11": 3, "Q12": 2 },
+        "Luca Ferraro": { "Q7": 3, "Q8": 3, "Q11": 3, "Q12": "ND" },
+        "Marta Galli": { "Q7": 3, "Q8": 2, "Q11": 2, "Q12": 3 }
+      },
+      "consolidamento": {
+        "Q7": { "livello": 3, "sotto": "B" },
+        "Q8": { "livello": 2, "sotto": "A" },
+        "Q11": { "livello": 3, "sotto": "A" },
+        "Q12": { "livello": 2, "sotto": "B" }
+      },
+      "commitment": {
+        "priorita": "Q12",
+        "azione": "Un unico processo di rilascio in produzione dei modelli, con controlli e responsabili",
+        "owner": "Davide Esposito, IT",
+        "scadenza": "2027-10-31",
+        "kpi": "Tre modelli rilasciati con il nuovo processo",
+        "confronto_community": false
+      },
+      "verifica_commitment_precedente": { "stato": "avviato", "nota": "Primo caso replicato negli acquisti" },
+      "call": {
+        "data": "2027-07-28",
+        "esito": "Map completa; priorità provvisorie da confermare dopo l'allineamento di settembre.",
+        "trascrizione": "Chiara Martini 0:01\nCon Scalare la mappa è completa.\nAmministratore delegato 0:10\nTeniamo le tre priorità come provvisorie fino a settembre."
+      }
+    }
+  },
+  "community": [
+    { "nome": "Aurora Energia", "settore": "Energia", "maturita": 3.4 },
+    { "nome": "Borealis Telecom", "settore": "Telecomunicazioni", "maturita": 3.8 },
+    { "nome": "Cassiopea Assicurazioni", "settore": "Assicurazioni", "maturita": 2.6 },
+    { "nome": "Delta Meccanica", "settore": "Manifattura", "maturita": 1.9 },
+    { "nome": "Eridano Trasporti", "settore": "Trasporti", "maturita": 2.2 },
+    { "nome": "Fenice Banca", "settore": "Banche", "maturita": 3.6 },
+    { "nome": "Gemini Servizi", "settore": "Servizi", "maturita": 2.9 },
+    { "nome": "Helios Infrastrutture", "settore": "Infrastrutture", "maturita": 2.4 },
+    { "nome": "Iride Pharma", "settore": "Farmaceutico", "maturita": 3.1 },
+    { "nome": "Kappa Retail", "settore": "Retail", "maturita": 2.0 },
+    { "nome": "Lyra Utility", "settore": "Utility", "maturita": 2.7 },
+    { "nome": "Minerva Difesa", "settore": "Difesa", "maturita": 3.3 },
+    { "nome": "Nova Media", "settore": "Media", "maturita": 2.5 },
+    { "nome": "Orione Logistica", "settore": "Logistica", "maturita": 1.8 }
+  ]
+}
