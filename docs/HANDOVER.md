@@ -12,7 +12,7 @@ La piattaforma copre il ciclo completo di una sessione e il lavoro dopo la sessi
 | Motore di calcolo (score, fasce, confidence, mediana/override, benchmark, coerenza, priorità) | Completo, 17 test |
 | Partecipante dal telefono (QR, codice azienda, risposte, confronti a coppie, vista anonima) | Completo |
 | Referente (scheda pre-sessione, confronto, consolidamento con sotto-opzioni, commitment, report) | Completo |
-| Console ELIS: Programma, sessioni con schede Prima/In sala/Dopo/Risultati, report e call, commitment, aziende | Completa, riorganizzata il 19/10 |
+| Console ELIS: Programma, sessioni con schede Prima/In sala/Mappe/Follow up, report e call, commitment, aziende | Completa, riorganizzata il 19/10 |
 | Ambiente di Prova separato dalla Produzione (cookie `aito_mode`, dati `seeded = 1`) | Completo |
 | Dashboard live, plenaria, mappe a quadranti §10.2–10.4 | Complete |
 | Report web e PDF per azienda, con versioni rilasciate immutabili; zip di tutti i PDF | Completi |

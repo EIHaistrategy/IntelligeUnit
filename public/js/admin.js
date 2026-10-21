@@ -67,8 +67,11 @@ async function buildNav(view, arg) {
     ${link('#/impostazioni', 'Impostazioni', view === 'impostazioni', 'navsmall')}`;
 }
 
+let keyHandler = null; // scorciatoie da tastiera della pagina aperta (oggi solo la control room)
+document.addEventListener('keydown', (e) => keyHandler?.(e));
 async function route() {
   if (stopPoll) { stopPoll(); stopPoll = null; }
+  keyHandler = null;
   const parts = location.hash.replace(/^#\/?/, '').split('/');
   let [view = 'programma', ...rest] = parts;
   view = (view || '').split('?')[0];
@@ -267,9 +270,9 @@ const FLOW = [
   { id: 'individuale', group: 'In sala', title: 'Risposte individuali', phase: 'individuale', minutes: 10 },
   { id: 'confronto', group: 'In sala', title: 'Confronto al tavolo', phase: 'confronto', minutes: 10 },
   { id: 'consolidamento', group: 'In sala', title: 'Consolidamento', phase: 'consolidamento', minutes: 10 },
-  { id: 'benchmark', group: 'Dopo la sessione', title: 'Congelare il benchmark' },
-  { id: 'report', group: 'Dopo la sessione', title: 'Rilasciare i report' },
-  { id: 'call', group: 'Dopo la sessione', title: 'Call con i leader' },
+  { id: 'benchmark', group: 'Follow up', title: 'Congelare il benchmark' },
+  { id: 'report', group: 'Follow up', title: 'Rilasciare i report' },
+  { id: 'call', group: 'Follow up', title: 'Call con i leader' },
 ];
 const NEXT = {
   preparazione: { to: 'individuale', label: 'Apri le risposte individuali', what: 'I partecipanti registrati vedono le domande della sessione e i confronti a coppie. Chi arriva dopo può ancora registrarsi.' },
@@ -283,8 +286,8 @@ const nextStepText = (phase) => ({ preparazione: 'Prossimo passo: aprire le risp
 const TABS = [
   { id: 'prima', label: 'Prima', steps: ['preparazione'] },
   { id: 'sala', label: 'In sala', steps: ['individuale', 'confronto', 'consolidamento'] },
-  { id: 'dopo', label: 'Dopo', steps: ['benchmark', 'report', 'call'] },
-  { id: 'risultati', label: 'Risultati', steps: [] },
+  { id: 'risultati', label: 'Mappe', steps: [] },
+  { id: 'dopo', label: 'Follow up', steps: ['benchmark', 'report', 'call'] },
 ];
 async function viewControl(arg) {
   const [id, tabArg] = String(arg).split('/');
@@ -481,14 +484,20 @@ async function viewControl(arg) {
     const results = `<div class="grid c3">
         <div class="card"><h3>Dashboard live</h3><p class="small ink2">Il benchmark in tempo reale, da proiettare in sala mentre le aziende consolidano.</p><a class="btn sm" href="/live/${s.id}" target="_blank">Apri la dashboard</a></div>
         <div class="card"><h3>Plenaria</h3><p class="small ink2">Come si posiziona la community, con le mappe del bisogno e del peer matching. Solo dati aggregati.</p><a class="btn sm" href="/plenaria/${s.base}" target="_blank">Apri la plenaria</a></div>
-        <div class="card"><h3>Mappe a quadranti</h3><p class="small ink2">Le tre mappe della nota, compresa la vista azienda per azienda. Nomi nascosti finché non li mostri.</p><a class="btn sm" href="/mappe/${s.base}" target="_blank">Apri le mappe</a></div></div>
+        <div class="card"><h3>Mappe a quadranti</h3><p class="small ink2">Le tre mappe della nota, compresa la vista azienda per azienda, con i nomi delle aziende (pagina riservata, non da proiettare).</p><a class="btn sm" href="/mappe/${s.base}" target="_blank">Apri le mappe</a></div></div>
       <div class="card"><h2>Versioni del benchmark</h2>${PROVA ? '<p class="muted" style="margin:0">Nell\'ambiente DEMO il benchmark si calcola sui dati DEMO e non si congela.</p>'
         : C.benchmark.length ? `<table><thead><tr><th>Versione</th><th class="num">Aziende</th><th>Creata</th></tr></thead><tbody>${C.benchmark.map((v) => `<tr><td>${esc(v.label)}</td><td class="num">${v.n_companies}</td><td>${fmtDate(v.created_at)}</td></tr>`).join('')}</tbody></table>`
-        : '<p class="muted" style="margin:0">Nessuna versione congelata: si congela nella scheda Dopo.</p>'}</div>`;
+        : '<p class="muted" style="margin:0">Nessuna versione congelata: si congela nella scheda Follow up.</p>'}</div>`;
     const T2 = TABS.find((t) => t.id === tab);
+    // navigazione tra le schede: Indietro / Avanti in fondo, scorciatoie da tastiera 1–4 e frecce
+    const ti = TABS.indexOf(T2), prevT = TABS[ti - 1], nextT = TABS[ti + 1];
+    const tabnav = `<nav class="tabnav" aria-label="Schede della sessione">${prevT ? `<button type="button" class="ghost" data-tab="${prevT.id}">${icon('back')} ${esc(prevT.label)}</button>` : '<span></span>'}
+      <span class="small muted kbdhint">Scorciatoie: <kbd>1</kbd>–<kbd>4</kbd> per le schede, <kbd>←</kbd> <kbd>→</kbd> per passare alla precedente o alla successiva</span>
+      ${nextT ? `<button type="button" class="ghost" data-tab="${nextT.id}">${esc(nextT.label)} <span aria-hidden="true">→</span></button>` : '<span></span>'}</nav>`;
     app.innerHTML = `<a class="back" href="#/programma">${icon('back')} Programma</a>
       <div class="pagehead"><div><h1>${esc(s.title)}</h1><p class="small">Domande della sessione: ${esc(C.def.items.map((i) => `${i} ${INST.items[i].title}`).join(' · '))}</p></div>
-        <div class="row"><a class="btn sm ghost" href="#/tavoli/${s.id}">QR delle aziende</a><a class="btn sm ghost" href="/live/${s.id}" target="_blank">Dashboard live</a></div></div>
+        <div class="row shortcuts" aria-label="Collegamenti rapidi"><a class="btn sm ghost" href="#/tavoli/${s.id}">QR delle aziende</a><a class="btn sm ghost" href="/live/${s.id}" target="_blank">Dashboard live</a>
+          <a class="btn sm ghost" href="/plenaria/${s.base}" target="_blank">Plenaria</a><a class="btn sm ghost" href="/mappe/${s.base}" target="_blank">Mappe</a><a class="btn sm ghost" href="#/report">Report e call</a></div></div>
       <div class="tabs" role="tablist" aria-label="Momenti della sessione">${TABS.map((t) => `<button type="button" role="tab" class="tab ${tabState(t)} ${t.id === tab ? 'on' : ''}" aria-selected="${t.id === tab}" data-tab="${t.id}">
         <span class="tdot" aria-hidden="true">${tabState(t) === 'done' ? icon('check') : ''}</span>${esc(t.label)}${tabState(t) === 'now' ? '<span class="sr-only"> (in corso)</span>' : ''}</button>`).join('')}</div>
       ${tab === 'risultati' ? results : `
@@ -502,9 +511,10 @@ async function viewControl(arg) {
         ${action}${back}
       </section>`}
       ${tab === 'risultati' ? '' : s.phase === 'preparazione' ? prepTable() : `<div class="card"><h2>Aziende in questa sessione</h2><div class="tablewrap"><table>
-        <thead><tr><th>Azienda</th><th class="num">Partecipanti</th><th>Risposte</th><th>Funzioni</th><th>Consolidato</th><th>Dopo</th><th><span class="sr-only">Azioni</span></th></tr></thead>
+        <thead><tr><th>Azienda</th><th class="num">Partecipanti</th><th>Risposte</th><th>Funzioni</th><th>Consolidato</th><th>Follow up</th><th><span class="sr-only">Azioni</span></th></tr></thead>
         <tbody>${cos.filter((c) => c.participants || c.consolidated_at).map(row).join('') || `<tr><td colspan="7" class="muted">${cos.length ? 'Nessuna azienda ancora attiva in questa sessione.' : 'Nessuna azienda: aggiungile da <a href="#/aziende">Aziende e referenti</a>.'}</td></tr>`}</tbody></table></div>
-        ${cos.some((c) => !(c.participants || c.consolidated_at)) ? `<details style="margin-top:10px"><summary class="small">Altre aziende censite (${cos.filter((c) => !(c.participants || c.consolidated_at)).length})</summary><table><tbody>${cos.filter((c) => !(c.participants || c.consolidated_at)).map(row).join('')}</tbody></table></details>` : ''}</div>`}`;
+        ${cos.some((c) => !(c.participants || c.consolidated_at)) ? `<details style="margin-top:10px"><summary class="small">Altre aziende censite (${cos.filter((c) => !(c.participants || c.consolidated_at)).length})</summary><table><tbody>${cos.filter((c) => !(c.participants || c.consolidated_at)).map(row).join('')}</tbody></table></details>` : ''}</div>`}
+      ${tabnav}`;
 
     const reload = async () => { C = await api(`/api/admin/sessions/${id}/control`); draw(); };
     $$('[data-step]').forEach((b) => b.onclick = () => { sel = b.dataset.step; confirming = false; draw(); });
@@ -523,7 +533,15 @@ async function viewControl(arg) {
     };
     $$('[data-genqr]').forEach((b) => b.onclick = () => genQr(Number(b.dataset.genqr)));
     if ($('#genqr')) $('#genqr').onclick = () => genQr(null);
-    $$('[data-tab]').forEach((b) => b.onclick = () => { tab = b.dataset.tab; sel = null; confirming = false; history.replaceState(null, '', `#/sessione/${s.id}/${tab}`); draw(); });
+    const goTab = (t) => { tab = t; sel = null; confirming = false; history.replaceState(null, '', `#/sessione/${s.id}/${tab}`); draw(); scrollTo({ top: 0 }); };
+    $$('[data-tab]').forEach((b) => b.onclick = () => goTab(b.dataset.tab));
+    // scorciatoie: 1–4 aprono le schede, ← → la precedente o la successiva (mai mentre si scrive in un campo)
+    keyHandler = (e) => {
+      if (e.altKey || e.ctrlKey || e.metaKey || e.target.closest('input, textarea, select, [contenteditable], dialog')) return;
+      const i = TABS.findIndex((t) => t.id === tab);
+      const to = /^[1-4]$/.test(e.key) ? TABS[Number(e.key) - 1] : e.key === 'ArrowLeft' ? TABS[i - 1] : e.key === 'ArrowRight' ? TABS[i + 1] : null;
+      if (to && to.id !== tab) { e.preventDefault(); goTab(to.id); }
+    };
     $$('[data-goto]').forEach((b) => b.onclick = () => { sel = b.dataset.goto; tab = TABS.find((t) => t.steps.includes(sel)).id; draw(); });
     if ($('#nextphase')) $('#nextphase').onclick = () => { confirming = true; draw(); $('#yes')?.focus(); };
     if ($('#no')) $('#no').onclick = () => { confirming = false; draw(); };

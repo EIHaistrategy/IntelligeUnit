@@ -547,7 +547,7 @@ a.tl-node:hover b { text-decoration: underline; }
 .todolist .warn .tk { background: #B7791F; } .todolist .now .tk { background: var(--gold); color: #261E08; }
 @media (max-width: 560px) { .todolist li { grid-template-columns: 26px 1fr; } .todolist li .btn { grid-column: 2; justify-self: start; } }
 
-.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 18px; overflow-x: auto; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 18px; overflow-x: auto; position: relative; }
 .tab { background: transparent; border: 0; border-bottom: 3px solid transparent; border-radius: 0; color: var(--ink-2); padding: 10px 16px 9px; font-size: 1rem; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
 .tab:hover { background: transparent; color: var(--navy-deep); border-bottom-color: var(--line); }
 .tab.on, .tab.on:hover { color: var(--navy-deep); border-bottom-color: var(--navy); }
@@ -598,3 +598,9 @@ dialog.modal textarea { min-height: 260px; font-size: .92rem; }
 /* appendice del report: trascrizione integrale della call */
 .transcript { white-space: pre-wrap; font-size: .86rem; line-height: 1.5; color: var(--ink-2); background: var(--sunken); border: 1px solid var(--line-2); border-radius: var(--radius-sm); padding: 14px 16px; max-height: 520px; overflow: auto; }
 @media print { .transcript { max-height: none; overflow: visible; } }
+
+/* control room: Indietro / Avanti tra le schede e scorciatoie */
+.tabnav { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 8px; padding-top: 16px; border-top: 1px solid var(--line); }
+.tabnav .kbdhint { flex: 1; text-align: center; }
+kbd { font: 600 .78rem var(--font); background: var(--surface); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; color: var(--ink-2); }
+@media (max-width: 760px) { .tabnav .kbdhint { display: none; } }
