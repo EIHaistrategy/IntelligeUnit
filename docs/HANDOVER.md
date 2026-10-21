@@ -14,6 +14,7 @@ La piattaforma copre il ciclo completo di una sessione e il lavoro dopo la sessi
 | Referente (scheda pre-sessione, confronto, consolidamento con sotto-opzioni, commitment, report) | Completo |
 | Console ELIS: Programma, sessioni con schede Prima/In sala/Mappe/Follow up, report e call, commitment, aziende | Completa, riorganizzata il 19/10 |
 | Ambiente DEMO separato dalla Produzione (cookie `aito_mode`, dati `seeded = 1`, registro modifiche per ambiente) | Completo |
+| Allineamento finale (§14.1): revisione delle 16 capacità con evidenza, spostamenti, tre priorità finali, vista d'insieme, report unificato web e PDF (`server/alignment.js`, `public/js/align.js`) | Completo, 5 test; manca il benchmark ricalcolato sui valori allineati |
 | Percorso guidato DEMO: azienda fittizia dalla preparazione al report, vista admin e telefono, data simulata, reset (`server/demo.js`, dati in `server/demo/percorso-guidato.json`) | Completo, 10 test |
 | Dashboard live, plenaria, mappe a quadranti §10.2–10.4 | Complete |
 | Report web e PDF per azienda, con versioni rilasciate immutabili; zip di tutti i PDF | Completi |
@@ -58,11 +59,11 @@ Le scelte che la piattaforma ha dovuto rendere univoche sono nel README §7. Le 
 - **Trascrizione Teams della call con il leader**: dalla console (Report e call con i leader, o passo "Call con i leader" della sessione) si incolla il testo; salvando si rilascia una nuova versione del report con la trascrizione **integrale** in appendice, visibile anche al referente. Le versioni precedenti non cambiano; una trascrizione sostituita resta nel registro modifiche. **Da sentire con il Data Privacy Officer**: la trascrizione contiene dati personali (nomi e parole di chi partecipa alla call): va citata nell'informativa, con il consenso dei partecipanti alla registrazione e una durata di conservazione.
 - **Consolidamento condotto dal facilitatore ELIS** (come prevede la nota, ruoli): dalla console, pulsante *Tavolo* della control room (`/tavolo-elis/:azienda`), il facilitatore vede la stessa pagina del referente, registra consolidamento, priorità e commitment, e gestisce i partecipanti in ogni fase (corregge nome o funzione, rimuove). Il referente può comunque registrare e correggere dal suo link e completare priorità e commitment nel pomeriggio. Accesso del facilitatore = password della console (una sola, condivisa).
 - **Consensi concessi di default**: alla creazione di un'azienda i quattro consensi (benchmark anonimo, peer matching, testimonianza, follow-up) sono già concessi, con una riga nel registro; si toglie la spunta, con il motivo, solo se l'azienda ne nega uno. **Da sentire con il Data Privacy Officer**: un consenso dato per scontato va confermato per iscritto dall'azienda (es. nel modulo di adesione).
-- **Report**: ogni rilascio resta com'è oggi (tutta la mappa dell'azienda fino a quella sessione). A settembre 2027 si manda un **report cumulativo**, generato **dopo l'allineamento finale** (§14.1): va costruita la funzione, insieme all'allineamento.
+- **Report**: ogni rilascio resta com'è oggi (tutta la mappa dell'azienda fino a quella sessione). A settembre 2027 si manda il **report unificato**, generato **dopo l'allineamento finale** (§14.1): costruito il 21/10/2026 (README, «Allineamento finale»). Decisioni del 21/10: si possono rivedere tutte le 16 capacità (le 12 prima di luglio evidenziate), compilano referente ed ELIS, tre priorità finali come dimensioni.
 
 ## Non ancora costruito
 
-Dal README §6: item pulse (da Efficientare), ordinamento delle 8 dimensioni e tre priorità registrabili (Scalare), classificazione degli use case (Allegato D), abbinamento nominativo del peer matching (§13), allineamento finale e benchmark allineato di settembre 2027 (§14.1) con il report cumulativo che ne deriva, distribuzioni del profilo in plenaria, vista degli indicatori del pilot (§19.1), account ELIS nominativi e ruoli distinti (§21).
+Dal README §6: item pulse (da Efficientare), ordinamento delle 8 dimensioni e tre priorità registrabili (Scalare), classificazione degli use case (Allegato D), abbinamento nominativo del peer matching (§13), benchmark allineato di settembre 2027 (§14.1; allineamento e report unificato ci sono), distribuzioni del profilo in plenaria, vista degli indicatori del pilot (§19.1), account ELIS nominativi e ruoli distinti (§21).
 
 Limiti noti:
 - una sola password admin condivisa;
@@ -75,7 +76,7 @@ Limiti noti:
 ```
 git clone https://github.com/EIHaistrategy/IntelligeUnit.git && cd IntelligeUnit
 npm install
-npm test                                   # 27 test (17 motore + 10 DEMO)
+npm test                                   # 32 test (17 motore + 10 DEMO + 5 allineamento)
 ADMIN_PASSWORD=una-password npm start      # console su http://localhost:3000/admin
 ```
 

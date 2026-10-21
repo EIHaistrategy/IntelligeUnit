@@ -37,12 +37,23 @@ La console ELIS è su `http://localhost:3000/admin`. La finestra mostra anche l'
 - **Aziende e referenti**: per ogni azienda il percorso nelle 4 sessioni, i consensi (concessi di default alla creazione; si toglie la spunta se l'azienda ne nega uno), i referenti, i report rilasciati.
 - In fondo: *Registro modifiche* e *Impostazioni* (divise in *Per la sala* e *Sistema*).
 
+### Allineamento finale (settembre 2027)
+
+Nel menu, *Programma → Allineamento finale*.
+1. Il team ELIS preme **Apri l'allineamento alle aziende**: da quel momento ogni referente lo trova in cima al suo link. Il facilitatore può lavorarci anche dal tavolo dell'azienda (*Apri il tavolo*).
+2. Per ciascuna delle 16 capacità l'azienda vede il valore della sessione e sceglie **Confermo il valore** oppure **Modifico**: nuovo livello, sotto-opzione ed **evidenza obbligatoria** (che cosa è cambiato, con un fatto osservabile). Le 12 capacità misurate prima di luglio sono segnate «da riallineare».
+3. I valori delle sessioni **non si cancellano**: ogni scelta è una riga nuova, la precedente resta nello storico e nel registro modifiche. La pagina mostra lo spostamento (▲ in su, ▼ in giù) per capacità e per dimensione.
+4. L'azienda sceglie **le tre priorità finali** (dimensioni A–H, in ordine; la piattaforma propone le tre della regola della nota) e preme **Conferma l'allineamento**. Dopo la conferma non si modifica più: ELIS può riaprire, con un motivo.
+5. ELIS preme **Rilascia il report unificato**: un report con tutte le sessioni, i valori allineati, una sezione con gli spostamenti rispetto alla prima rilevazione e le priorità finali, web e PDF. È una copia congelata come gli altri report; le correzioni diventano una nuova versione.
+
+La pagina della console dà la **vista d'insieme**: aziende confermate e in corso, capacità salite e scese, spostamento medio per dimensione, priorità più scelte. I valori allineati non entrano nel benchmark delle sessioni né nei report di sessione.
+
 ### Percorso guidato (ambiente DEMO)
 
 Serve a mostrare il programma dall'inizio alla fine a stakeholder e clienti, senza dati reali e senza creare nulla a mano.
 
 1. Nella console scegli **DEMO** in alto (conferma). I dati DEMO si presentano come a **programma concluso**: quattro sessioni chiuse, mappe, report, call e commitment da mostrare (online si caricano da soli a ogni avvio; altrimenti *Carica i dati DEMO*). Per vedere il **processo dall'inizio** apri **Percorso guidato** e premi *Riparti da zero*: le sessioni tornano in preparazione.
-2. In alto le tappe: Governare, Efficientare, Crescere, Scalare e l'Allineamento finale (solo anteprima: non è ancora costruito). Sotto, i 7 passi di ogni sessione: preparazione, QR e link, risposte dal telefono, confronto al tavolo, consolidamento, report e call con il leader, commitment e verifica.
+2. In alto le tappe: Governare, Efficientare, Crescere, Scalare e l'Allineamento finale (a fine percorso è compilato: quattro capacità modificate, priorità finali, report unificato rilasciato). Sotto, i 7 passi di ogni sessione: preparazione, QR e link, risposte dal telefono, confronto al tavolo, consolidamento, report e call con il leader, commitment e verifica.
 3. Per ogni passo la pagina mostra a sinistra cosa vede il team ELIS (con i collegamenti alle pagine vere della console) e a destra cosa vede l'azienda, dentro una cornice a forma di telefono: è la pagina vera, si può usare. Con *Aprila sul tuo telefono* compare un QR per aprirla su un telefono reale.
 4. **Avanza** porta al passo successivo: la piattaforma compie da sola le azioni del passo (risposte dei partecipanti, consolidamento, commitment, rilascio del report, call con la trascrizione). Anche la data è simulata (la barra DEMO la indica): così, per esempio, il commitment di Governare risulta scaduto durante Efficientare.
 5. **Riparti da zero** (con conferma) riporta tutto all'inizio con gli stessi dati; *Vai alla fine* (o *Carica i dati DEMO*) torna al programma concluso.
@@ -91,7 +102,7 @@ Dove compaiono: voce *Mappe* nel menu della console; pulsante nella control room
 
 ## 6. Non ancora presente (fasi successive)
 
-Item pulse (da Efficientare), ordinamento delle 8 dimensioni e tre priorità provvisorie registrabili (Scalare), classificazione degli use case (Allegato D), abbinamento nominativo del peer matching con verifica dei contributor (§13; la mappa §10.4 c'è), allineamento finale e benchmark allineato di settembre 2027 (§14.1), distribuzioni del profilo di approccio in plenaria (Allegato C), indicatori di funzionamento del pilot in una vista dedicata (§19.1, oggi ricavabili dall'export), distinzione dei ruoli ELIS (§21).
+Item pulse (da Efficientare), ordinamento delle 8 dimensioni e tre priorità provvisorie registrabili (Scalare), classificazione degli use case (Allegato D), abbinamento nominativo del peer matching con verifica dei contributor (§13; la mappa §10.4 c'è), benchmark allineato di settembre 2027 (§14.1: l'allineamento e il report unificato ci sono, il benchmark ricalcolato sui valori allineati no), distribuzioni del profilo di approccio in plenaria (Allegato C), indicatori di funzionamento del pilot in una vista dedicata (§19.1, oggi ricavabili dall'export), distinzione dei ruoli ELIS (§21).
 
 ## 7. Scelte che la piattaforma ha dovuto rendere univoche (da confermare)
 
