@@ -1,13 +1,16 @@
-/* AITO Map · sistema visivo
-   Caratteri: Source Serif 4 (titoli, numeri) e Source Sans 3 (testo), serviti dal server: nessuna richiesta esterna.
-   Segno ricorrente: i cinque gradini dei livelli di maturità (.alt), usati nel marchio, nelle scelte e nei grafici. */
+/* AI Transformation & Adoption Map · sistema visivo
+   Caratteri: Fraunces (titoli, numeri) e Plus Jakarta Sans (testo), serviti dal server: nessuna richiesta esterna.
+   Marchio: quattro quadranti con il percorso dell'azienda verso l'alto a destra.
+   Segno ricorrente dei livelli: i cinque gradini di maturità (.alt), nelle scelte e nei grafici. */
 
 @font-face { font-family: "AITO Sans"; src: url(/static/fonts/sans-400.woff2) format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
 @font-face { font-family: "AITO Sans"; src: url(/static/fonts/sans-400i.woff2) format("woff2"); font-weight: 400; font-style: italic; font-display: swap; }
 @font-face { font-family: "AITO Sans"; src: url(/static/fonts/sans-600.woff2) format("woff2"); font-weight: 600; font-style: normal; font-display: swap; }
 @font-face { font-family: "AITO Sans"; src: url(/static/fonts/sans-700.woff2) format("woff2"); font-weight: 700; font-style: normal; font-display: swap; }
 @font-face { font-family: "AITO Serif"; src: url(/static/fonts/serif-600.woff2) format("woff2"); font-weight: 600; font-style: normal; font-display: swap; }
-@font-face { font-family: "AITO Display"; src: url(/static/fonts/serifd-600.woff2) format("woff2"); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: "AITO Serif"; src: url(/static/fonts/serif-600i.woff2) format("woff2"); font-weight: 600; font-style: italic; font-display: swap; }
+@font-face { font-family: "AITO Display"; src: url(/static/fonts/serif-600.woff2) format("woff2"); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: "AITO Display"; src: url(/static/fonts/serif-600i.woff2) format("woff2"); font-weight: 600; font-style: italic; font-display: swap; }
 
 :root {
   /* marchio ELIS · AITO */
@@ -17,9 +20,9 @@
   --gold-ink: #6F5718;    /* oro leggibile su chiaro */
   --teal: #1FB5B8;        /* community / peer */
   /* superfici */
-  --bg: #F1F4F7; --surface: #FFFFFF; --sunken: #F7F9FB;
-  --ink: #16202D; --ink-2: #44505F; --ink-3: #5B6777;
-  --line: #D8DFE7; --line-2: #E8EDF2;
+  --bg: #F4F6F9; --surface: #FFFFFF; --sunken: #F7F9FB;
+  --ink: #1A2333; --ink-2: #3D4757; --ink-3: #4F5B6B;
+  --line: #DDE3EA; --line-2: #EDF0F4;
   --ok: #17784B; --warn: #8A5A12; --risk: #B03424; --info: #2563A8;
   /* scala dei livelli 1→5 (altitudine) */
   --l1: #D3DEE7; --l2: #9CC9D8; --l3: #45AEBB; --l4: #0E7894; --l5: #1F3864;
@@ -27,8 +30,8 @@
   --band-fond: #E9A066; --band-cost: #DCC57E; --band-cons: #17784B;
   --radius: 12px; --radius-sm: 8px;
   --lift: 0 1px 0 rgba(22,32,45,.04), 0 8px 24px -12px rgba(22,32,45,.18);
-  --font: "AITO Sans", "Source Sans 3", "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
-  --serif: "AITO Serif", "Source Serif 4", Georgia, "Times New Roman", serif;
+  --font: "AITO Sans", "Plus Jakarta Sans", "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+  --serif: "AITO Serif", "Fraunces", Georgia, "Times New Roman", serif;
   --display: "AITO Display", "AITO Serif", Georgia, serif;
 }
 * { box-sizing: border-box; }
@@ -50,7 +53,7 @@ h1[tabindex="-1"]:focus, h2[tabindex="-1"]:focus { outline: none; }
 a { color: var(--navy); text-underline-offset: 2px; text-decoration-thickness: 1px; }
 a:hover { text-decoration-thickness: 2px; }
 h1, h2, h3, h4 { margin: 0 0 .5em; line-height: 1.2; color: var(--navy-deep); font-weight: 600; }
-h1, h2 { font-family: var(--serif); letter-spacing: -.005em; }
+h1, h2 { font-family: var(--serif); letter-spacing: -.01em; }
 h1 { font-size: 1.85rem; line-height: 1.15; }
 h2 { font-size: 1.35rem; }
 h3 { font-size: 1.06rem; font-weight: 700; }
@@ -72,17 +75,26 @@ details > summary { cursor: pointer; }
 
 /* ---------- Barra superiore ---------- */
 .topbar { background: var(--navy-deep); color: #fff; padding: 0 20px; min-height: 56px; display: flex; align-items: center; gap: 14px; position: sticky; top: 0; z-index: 20; box-shadow: inset 0 -3px 0 var(--gold); }
-.topbar .brand { display: inline-flex; align-items: center; gap: 10px; font-family: var(--serif); font-weight: 600; font-size: 1.22rem; color: #fff; text-decoration: none; letter-spacing: .01em; white-space: nowrap; }
-.topbar .brand svg { width: 26px; height: 22px; flex: none; }
+.topbar .brand { display: inline-flex; align-items: center; gap: 10px; font-family: var(--serif); font-weight: 600; font-size: 1.12rem; color: #fff; text-decoration: none; white-space: nowrap; min-width: 0; }
+.topbar .brand svg { width: 30px; height: 30px; flex: none; }
+.brand em { font-style: italic; color: var(--gold); }
 .topbar .sub { font-size: .9rem; color: #C9D3E2; padding-left: 14px; border-left: 1px solid rgba(255,255,255,.22); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .topbar .spacer { flex: 1; }
 .topbar a, .topbar button.link { color: #fff; }
 .topbar label { color: #DCE3EE; font-size: .86rem; display: inline-flex; gap: 6px; align-items: center; }
-@media (max-width: 560px) { .topbar { padding: 0 14px; gap: 10px; } .topbar .brand { font-size: 1.08rem; } .topbar .sub { font-size: .8rem; padding-left: 10px; } }
+@media (max-width: 760px) {
+  /* al telefono il nome completo sta su una riga e la sessione va sotto, allineata al nome */
+  .topbar { padding: 8px 16px; gap: 2px 10px; flex-wrap: wrap; }
+  .topbar .brand { font-size: 1rem; }
+  .topbar .brand svg { width: 28px; height: 28px; }
+  .topbar .sub { order: 5; flex-basis: 100%; border-left: 0; padding-left: 38px; font-size: .8rem; }
+}
+@media (max-width: 380px) { .topbar .brand { font-size: .92rem; } }
 
 .wrap { max-width: 1200px; margin: 0 auto; padding: 24px 20px 40px; }
 .wrap.narrow { max-width: 660px; padding: 18px 16px 112px; }
 .layout { display: grid; grid-template-columns: 232px 1fr; min-height: calc(100vh - 56px); }
+.layout > * { min-width: 0; } /* al telefono il menu scorre di lato dentro di sé, senza allargare la pagina */
 .sidenav { background: var(--surface); border-right: 1px solid var(--line); padding: 20px 12px; display: flex; flex-direction: column; gap: 2px; }
 .sidenav a { display: block; padding: 9px 14px; border-radius: var(--radius-sm); color: var(--ink-2); text-decoration: none; font-weight: 600; font-size: .95rem; position: relative; }
 .sidenav a:hover { background: var(--sunken); color: var(--navy-deep); }
@@ -167,21 +179,27 @@ th { font-size: .84rem; color: var(--ink-3); font-weight: 600; background: trans
 tbody tr:hover td { background: #FAFBFD; }
 tbody tr:last-child td { border-bottom: 0; }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
-.tablewrap { overflow-x: auto; }
+.tablewrap { overflow-x: auto; position: relative; }
+/* i testi per lettori di schermo (.sr-only, assoluti) restano dentro la tabella o la scheda: altrimenti al telefono allargano la pagina */
+.card { position: relative; }
 .card th:first-child, .card td:first-child { padding-left: 0; }
 .card th:last-child, .card td:last-child { padding-right: 0; }
 td.date, .nowrap { white-space: nowrap; }
 
 /* ---------- Scelta dei livelli ---------- */
 .levels { display: grid; gap: 10px; }
-.level { display: grid; grid-template-columns: 52px 1fr; gap: 14px; align-items: center; border: 1px solid #B9C4D0; background: #fff; border-radius: 10px; padding: 14px 16px 14px 12px; cursor: pointer; text-align: left; color: var(--ink); font-weight: 400; font-size: 1rem; line-height: 1.4; width: 100%; position: relative; transition: border-color .15s, background-color .15s, box-shadow .15s; }
+.level { display: grid; grid-template-columns: 52px 1fr; gap: 14px; align-items: center; border: 1px solid #C3CDD9; background: #fff; border-radius: 10px; padding: 14px 16px 14px 12px; cursor: pointer; text-align: left; color: var(--ink); font-weight: 400; font-size: 1rem; line-height: 1.4; width: 100%; position: relative; transition: border-color .15s, background-color .15s, box-shadow .15s; }
 .level:hover { background: #fff; border-color: #B9C4D0; }
 .level.sel:hover { background: #EAF3F7; border-color: var(--navy); }
 .level.nd:hover { background: transparent; }
 .level.nd.sel:hover { background: #EAF3F7; }
 @media (hover: hover) { .level:not(.sel):hover { background: #F6FAFC; border-color: #7FA3B7; } }
 /* "Chi sei?": una persona per riga; un nome già scelto su un altro telefono è spento, non selezionato */
-.level.person { grid-template-columns: 1fr; }
+.level.person { grid-template-columns: 36px 1fr; gap: 12px; padding: 12px 14px; }
+.level.person .ava { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: #E6ECF5; color: var(--navy-deep); font-weight: 700; font-size: .8rem; letter-spacing: .02em; }
+.level.person.sel .ava { background: var(--navy); color: #fff; }
+.level.person:disabled .ava { background: var(--line-2); color: var(--ink-3); }
+.level.person .fn { display: block; }
 .level.person:disabled { cursor: not-allowed; background: var(--sunken); border-color: var(--line-2); color: var(--ink-3); box-shadow: none; }
 .level.person:disabled b { color: var(--ink-3); }
 .level .n { display: grid; justify-items: center; gap: 5px; font-family: var(--display); font-size: 1.5rem; font-weight: 600; color: var(--navy-deep); line-height: 1; font-variant-numeric: lining-nums; }
@@ -190,7 +208,7 @@ td.date, .nowrap { white-space: nowrap; }
 .level .n .alt i:not(.on) { background: #BFC9D4; }
 .level.sel { border-color: var(--navy); background: #EAF3F7; box-shadow: 0 0 0 1px var(--navy) inset; }
 .level.sel .n { color: var(--navy); }
-.level.sel::after { content: ""; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.2 4.2L19 7'/%3E%3C/svg%3E"); background-size: 14px; background-repeat: no-repeat; background-position: center; position: absolute; top: 10px; right: 10px; width: 22px; height: 22px; border-radius: 50%; background: var(--navy); color: #fff; font-size: .78rem; font-weight: 700; display: grid; place-items: center; }
+.level.sel::after { content: ""; background-color: var(--navy); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.2 4.2L19 7'/%3E%3C/svg%3E"); background-size: 14px; background-repeat: no-repeat; background-position: center; position: absolute; top: 10px; right: 10px; width: 22px; height: 22px; border-radius: 50%; color: #fff; font-size: .78rem; font-weight: 700; display: grid; place-items: center; }
 .level.sel > span:last-child { padding-right: 22px; }
 .level:disabled { cursor: default; opacity: 1; }
 .level:disabled:not(.sel) { color: var(--ink-2); background: var(--sunken); }
@@ -306,6 +324,9 @@ td.date, .nowrap { white-space: nowrap; }
 .who { display: grid; gap: 1px; margin: 2px 0 16px; }
 .who b { font-family: var(--serif); font-size: 1.2rem; font-weight: 600; color: var(--navy-deep); line-height: 1.2; }
 .who span { font-size: .9rem; color: var(--ink-3); }
+.qprog { display: flex; gap: 4px; margin: -2px 0 12px; }
+.qprog i { flex: 1; height: 4px; border-radius: 2px; background: var(--line); }
+.qprog i.on { background: var(--navy); }
 .qmeta { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: .88rem; color: var(--ink-3); font-weight: 600; margin-bottom: 8px; }
 .statement { font-size: 1.04rem; color: var(--ink-2); border-left: 3px solid var(--gold); padding: 2px 0 2px 14px; margin: 4px 0 14px; }
 .picked { display: grid; gap: 2px; padding: 12px 14px; border-radius: var(--radius-sm); background: #EAF3F7; border: 1px solid #BCD4E0; margin-top: 14px; }
@@ -554,7 +575,7 @@ td.actions .btn + .btn { margin-left: 4px; }
 
 /* pagina di accesso: il marchio sopra la card */
 .login-brand { display: grid; justify-items: center; gap: 12px; margin: 40px auto 18px; color: var(--ink-2); font-size: .95rem; letter-spacing: .02em; }
-.login-brand svg { width: 64px; height: 54px; }
+.login-brand svg { width: 64px; height: 64px; }
 .login-brand + .login { margin-top: 0; }
 
 /* domande della sessione in sola lettura (pagina del referente prima della sessione) */

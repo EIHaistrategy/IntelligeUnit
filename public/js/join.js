@@ -73,6 +73,7 @@ async function renderJoin(cc = preCompany, codeError = false, notice = '') {
   }
 
   const fn = (id) => info.functions.find((f) => f.id === id)?.label || id;
+  const initials = (n) => n.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
   const roster = info.roster || [];
   let chosen = null; // id della persona scelta, oppure 'new'
   const companyField = pre
@@ -83,7 +84,7 @@ async function renderJoin(cc = preCompany, codeError = false, notice = '') {
   const who = roster.length ? `<h2 class="f" id="who-t" style="margin-top:18px">Chi sei?</h2>
       <p class="small ink2" style="margin:0 0 8px">Tocca il tuo nome. Se non c'è, tocca l'ultima voce.</p>
       <div class="levels" role="group" aria-labelledby="who-t">${ordered.map((r) => `<button type="button" class="level person" data-r="${r.id}" data-n="${esc(r.name)}" aria-pressed="false" ${r.taken ? 'disabled' : ''}>
-        <span><b>${esc(r.name)}</b><span class="small muted"> · ${esc(fn(r.func))}</span>${r.referent ? ' <span class="tag navy">referente</span>' : ''}${r.taken ? '<span class="small muted"><br>già registrato su un altro telefono. Sei tu? Chiedi al referente di toccare «Rimuovi» accanto al tuo nome, poi ricarica la pagina.</span>' : ''}</span></button>`).join('')}
+        <span class="ava" aria-hidden="true">${esc(initials(r.name))}</span><span><b>${esc(r.name)}</b>${r.referent ? ' <span class="tag gold">referente</span>' : ''}<span class="small muted fn">${esc(fn(r.func))}</span>${r.taken ? '<span class="small muted fn">già registrato su un altro telefono. Sei tu? Chiedi al referente di toccare «Rimuovi» accanto al tuo nome, poi ricarica la pagina.</span>' : ''}</span></button>`).join('')}
         <button type="button" class="level nd" data-r="new" aria-pressed="false">Non sono nell'elenco</button></div>` : '';
   const newPerson = `<div id="newp" class="${roster.length ? 'hidden' : ''}">
       <label class="f" for="name">Nome e cognome</label><input type="text" id="name" autocomplete="name" maxlength="120">
@@ -168,6 +169,7 @@ function renderIndividual() {
     app.innerHTML = `${header()}${bar}
       <div class="card">
         <div class="qmeta"><span>Domanda ${step + 1} di ${n}</span><span class="tag navy">${esc(it.id)}</span></div>
+        <div class="qprog" aria-hidden="true">${Array.from({ length: n }, (_, k) => `<i class="${k <= step ? 'on' : ''}"></i>`).join('')}</div>
         <h2 id="qt">${esc(it.title)}</h2>
         <p class="statement">${esc(it.statement)}</p>
         ${it.help ? `<p class="small muted">${esc(it.help)}</p>` : ''}

@@ -22,6 +22,6 @@ async function start() {
       <ol class="preview-levels">${it.levels.map((l) => `<li><span class="n" aria-hidden="true">${l.level}${alt(l.level)}</span><span><span class="sr-only">Livello ${l.level}: </span>${esc(l.descriptor)}</span></li>`).join('')}</ol></section>`; }).join('')}
     ${pairs.length ? `<section class="card"><h2>Confronti a coppie</h2><p class="small ink2">Dopo le domande, due confronti: tra due temi della sessione, quale è più avanti nella vostra azienda?</p>
       <ul>${pairs.map((p) => `<li>${p}</li>`).join('')}</ul></section>` : ''}
-    <p class="small muted">AITO Map · ELIS. Nessuna risposta viene raccolta da questa pagina.</p>`;
+    <p class="small muted">AI Transformation & Adoption Map · ELIS. Nessuna risposta viene raccolta da questa pagina.</p>`;
 }
 start().catch(() => { app.innerHTML = '<div class="card" role="alert"><h1>Pagina non disponibile</h1><p>Controlla la connessione e riprova.</p></div>'; });

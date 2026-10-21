@@ -122,8 +122,8 @@ server/instrument/  strumento V1 e regole di scoring (dati versionati)
 server/engine/      motore di calcolo (funzioni pure, testate)
 server/             database, API, export, script
 public/             pagine: admin, referente, partecipante, report, plenaria, dashboard live
-public/fonts/       caratteri Source Sans 3 e Source Serif 4 (licenza SIL OFL), serviti dal server
-server/fonts/       gli stessi caratteri in TTF per i PDF
+public/fonts/       caratteri Plus Jakarta Sans e Fraunces (licenza SIL OFL), serviti dal server
+server/fonts/       gli stessi caratteri in WOFF per i PDF
 test/               test del motore; test/e2e/e2e.mjs prova completa nel browser (Playwright)
 CLAUDE.md           istruzioni per Claude Code (regole da non rompere, comandi, agenti, pubblicazione)
 .claude/agents/     13 agenti revisori per Claude Code (agency-agents, licenza MIT)

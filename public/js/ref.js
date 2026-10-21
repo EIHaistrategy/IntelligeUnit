@@ -28,7 +28,7 @@ async function boot() {
     return;
   }
   $('#who').textContent = `${me.referent.company} · ${me.referent.name}`;
-  if (FAC) document.title = `AITO Map · Tavolo ${me.referent.company}`;
+  if (FAC) document.title = `AI Transformation & Adoption Map · Tavolo ${me.referent.company}`;
   addEventListener('hashchange', route);
   route();
 }
@@ -154,8 +154,8 @@ async function renderQuestions(base) {
   const opts = (list) => `<ul class="opt-list">${list.map((o) => `<li>${esc(o)}</li>`).join('')}</ul>`;
   const factAnswer = (f) => (f.type === 'choice' || f.type === 'multi') ? opts(f.options.map((o) => o.label))
     : `<p class="small muted" style="margin:4px 0 0">${f.type === 'percent' ? 'Una percentuale' : 'Un numero'}</p>`;
-  const subject = `AITO Map: le domande di ${S.name}${S.date ? ` del ${S.date.split('-').reverse().join('/')}` : ''}`;
-  const body = `Buongiorno,\n${date ? `il ${date} ` : ''}parteciperemo alla sessione ${S.name} di AITO Map. Ecco le domande a cui risponderemo in sala, per prepararci (da questa pagina non si risponde):\n${location.origin}/anteprima/${base}\n\nIn sala ognuno risponde dal telefono, per conto suo: inquadrerete il QR sul tavolo dell'azienda e sceglierete il vostro nome dall'elenco. Portate il telefono carico.`;
+  const subject = `AI Transformation & Adoption Map: le domande di ${S.name}${S.date ? ` del ${S.date.split('-').reverse().join('/')}` : ''}`;
+  const body = `Buongiorno,\n${date ? `il ${date} ` : ''}parteciperemo alla sessione ${S.name} di AI Transformation & Adoption Map. Ecco le domande a cui risponderemo in sala, per prepararci (da questa pagina non si risponde):\n${location.origin}/anteprima/${base}\n\nIn sala ognuno risponde dal telefono, per conto suo: inquadrerete il QR sul tavolo dell'azienda e sceglierete il vostro nome dall'elenco. Portate il telefono carico.`;
   app.innerHTML = `
     <div class="pagehead"><div><h1>${esc(S.name)}${date ? ` · ${esc(date)}` : ''}</h1>
       <p>Le domande a cui risponderete in sala. Da questa pagina non si risponde: la compilazione è in presenza, il giorno della sessione.</p></div></div>

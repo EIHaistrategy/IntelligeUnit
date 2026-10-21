@@ -34,7 +34,7 @@ async function boot() {
 function login() {
   $('#nav').classList.add('hidden'); $('#logout').classList.add('hidden');
   $('.layout').classList.add('solo');
-  app.innerHTML = `<div class="login-brand" aria-hidden="true"><svg viewBox="0 0 26 22"><rect x="0" y="16" width="4" height="6" rx="1" fill="#C9A84C" fill-opacity=".45"/><rect x="5.5" y="12" width="4" height="10" rx="1" fill="#C9A84C" fill-opacity=".6"/><rect x="11" y="8" width="4" height="14" rx="1" fill="#C9A84C" fill-opacity=".75"/><rect x="16.5" y="4" width="4" height="18" rx="1" fill="#C9A84C" fill-opacity=".9"/><rect x="22" y="0" width="4" height="22" rx="1" fill="#C9A84C"/></svg>
+  app.innerHTML = `<div class="login-brand" aria-hidden="true"><svg viewBox="0 0 32 32"><rect x="1.5" y="1.5" width="29" height="29" rx="7" fill="none" stroke="#1F3864" stroke-opacity=".5" stroke-width="1.5"/><path d="M16 5v22M5 16h22" stroke="#1F3864" stroke-opacity=".25" stroke-width="1.2"/><path d="M7.5 24.5l5-5 5 1.5 6.5-11.5" fill="none" stroke="#C9A84C" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="24" cy="9.5" r="3" fill="#C9A84C"/></svg>
       <span>AI Transformation &amp; Adoption Map · ELIS</span></div>
     <div class="card lift login"><h1>Console ELIS</h1><p class="ink2">Sessioni, aziende, benchmark e report del pilot AITO 3.</p>
     <label class="f" for="pw">Password</label><input type="password" id="pw" autocomplete="current-password" autofocus>
@@ -271,7 +271,7 @@ async function viewControl(arg) {
   // Una bozza per ogni referente: ognuno riceve solo il proprio link personale.
   const mailtoFor = (c, r) => {
     const s = C.session;
-    const subject = `AITO Map · ${s.title} · le domande della sessione per ${c.name}`;
+    const subject = `AI Transformation & Adoption Map · ${s.title} · le domande della sessione per ${c.name}`;
     const body = `Gentile ${r.name},\n\nin vista della sessione ${s.title.split(' · ')[0]}${s.date ? ` del ${longDate(s.date)}` : ''}, dal Suo link personale può consultare le domande a cui ${c.name} risponderà in sala e inoltrarle ai colleghi (c'è un pulsante apposito). Non c'è nulla da compilare prima: si risponde in presenza, il giorno della sessione.\n${C.baseUrl}/r/${r.token}\n\nIl link è personale: La preghiamo di non inoltrarlo. In sala il facilitatore ELIS condurrà con voi il confronto e registrerà la posizione ufficiale dell'azienda: dallo stesso link Lei potrà seguirla, correggerla e completare priorità e commitment; dopo la sessione vi leggerà il report.\n\nIn sala risponderà anche Lei come gli altri: inquadri il QR sul tavolo e scelga il Suo nome dall'elenco.\n\nGrazie,\nTeam AI Strategy ELIS`;
     return `mailto:${encodeURIComponent(r.email || '')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   };
@@ -280,8 +280,8 @@ async function viewControl(arg) {
     const s = C.session, day = s.date ? longDate(s.date) : '';
     const to = c.referents.map((r) => r.email).filter(Boolean).join(',');
     const names = c.roster.map((r) => r.name).join(', ');
-    const subject = `Da inoltrare: AITO Map, le domande di ${s.title.split(' · ')[0]}${s.date ? ` del ${s.date.split('-').reverse().join('/')}` : ''}`;
-    const body = `[Per ${c.referents.map((r) => r.name).join(', ')}: inoltri ai colleghi iscritti${names ? ` (${names})` : ''} il testo qui sotto, dalla riga «Buongiorno» in poi. Non contiene il Suo link personale.]\n\n----------\n\nBuongiorno,\n${day ? `il ${day} ` : ''}parteciperete alla sessione ${s.title.split(' · ')[0]} di AITO Map. Per presa visione, ecco le domande a cui risponderete dal telefono (da questa pagina non si risponde):\n${C.baseUrl}/anteprima/${s.base}\n\nIn sala:\n- portate il telefono carico, con i dati mobili attivi o collegato al Wi-Fi della sala;\n- inquadrate il QR sul tavolo di ${c.name} e scegliete il vostro nome dall'elenco; se non c'è, scegliete «Non sono nell'elenco»;\n- ognuno risponde per conto suo, in circa dieci minuti; se su un tema non avete visibilità, scegliete N.D.\n\nGrazie,\nTeam AI Strategy ELIS`;
+    const subject = `Da inoltrare: AI Transformation & Adoption Map, le domande di ${s.title.split(' · ')[0]}${s.date ? ` del ${s.date.split('-').reverse().join('/')}` : ''}`;
+    const body = `[Per ${c.referents.map((r) => r.name).join(', ')}: inoltri ai colleghi iscritti${names ? ` (${names})` : ''} il testo qui sotto, dalla riga «Buongiorno» in poi. Non contiene il Suo link personale.]\n\n----------\n\nBuongiorno,\n${day ? `il ${day} ` : ''}parteciperete alla sessione ${s.title.split(' · ')[0]} di AI Transformation & Adoption Map. Per presa visione, ecco le domande a cui risponderete dal telefono (da questa pagina non si risponde):\n${C.baseUrl}/anteprima/${s.base}\n\nIn sala:\n- portate il telefono carico, con i dati mobili attivi o collegato al Wi-Fi della sala;\n- inquadrate il QR sul tavolo di ${c.name} e scegliete il vostro nome dall'elenco; se non c'è, scegliete «Non sono nell'elenco»;\n- ognuno risponde per conto suo, in circa dieci minuti; se su un tema non avete visibilità, scegliete N.D.\n\nGrazie,\nTeam AI Strategy ELIS`;
     return `mailto:${encodeURIComponent(to).replace(/%2C/g, ',')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   };
   // un indirizzo locale (portatile ELIS) non si apre da fuori: lo si dice prima di mandare l'email
@@ -530,7 +530,7 @@ async function viewControl(arg) {
     <td class="small">${c.functions.length || '<span class="muted">—</span>'}${c.participants && c.functions.length < 2 ? ' <span class="tag warn">1 sola</span>' : ''}</td>
     <td>${c.consolidated_at ? yes(c.consolidated_at) : '<span class="muted">—</span>'}</td>
     <td>${c.commitment ? yes() : '<span class="muted">—</span>'}${c.report_released_at ? ` <span class="tag ok">report</span>` : ''}${c.leader_call_note ? ' <span class="tag ok">call</span>' : ''}</td>
-    <td class="actions"><a class="btn sm ${C.session.phase === 'consolidamento' && !c.consolidated_at ? '' : 'ghost'}" href="/tavolo-elis/${c.id}#/sessione/${C.session.id}" target="_blank" title="Partecipanti, confronto e consolidamento di ${esc(c.name)}">Tavolo<span class="sr-only"> di ${esc(c.name)} (si apre in una nuova scheda)</span></a>${c.consolidated_at ? `<a class="btn sm ghost" href="/report/${c.id}" target="_blank">Report</a><a class="btn sm ghost" href="/api/admin/pdf/${c.id}">PDF</a>` : ''}<a class="btn sm ghost" href="#/tavolo/${C.session.id}:${c.id}">QR</a></td></tr>`;
+    <td class="actions"><a class="btn sm ${C.session.phase === 'consolidamento' && !c.consolidated_at ? '' : 'ghost'}" href="/tavolo-elis/${c.id}#/sessione/${C.session.id}" target="_blank" title="Partecipanti, confronto e consolidamento di ${esc(c.name)}">Apri il tavolo<span class="sr-only"> di ${esc(c.name)} (si apre in una nuova scheda)</span></a>${c.consolidated_at ? `<a class="btn sm ghost" href="/report/${c.id}" target="_blank">Report</a><a class="btn sm ghost" href="/api/admin/pdf/${c.id}">PDF</a>` : ''}<a class="btn sm ghost" href="#/tavolo/${C.session.id}:${c.id}">QR</a></td></tr>`;
   draw();
   stopPoll = poll(async () => {
     const n = await api(`/api/admin/sessions/${id}/control`);
@@ -545,7 +545,7 @@ const qrFile = (C, c) => {
 };
 const tableCard = (C, c, size) => {
   const url = `${C.joinUrl}?c=${c.joinCode}`;
-  return `<div class="tablecard"><div class="small muted">AITO Map · ${esc(C.session.title)}</div>${qrLabeled(url, c.name, size)}
+  return `<div class="tablecard"><div class="small muted">AI Transformation & Adoption Map · ${esc(C.session.title)}</div>${qrLabeled(url, c.name, size)}
     <p>Inquadra il QR con la fotocamera: entri già nella tua azienda.</p>
     <p class="small tcode">Codice azienda: <b class="mono">${esc(c.joinCode)}</b></p>
     <p class="small tfallback">Se il QR non si apre: vai su <span class="mono">${esc(C.joinUrl.replace(/^https?:\/\//, ''))}</span> e inserisci il codice.</p>
@@ -554,7 +554,7 @@ const tableCard = (C, c, size) => {
 const bindPng = (C, cs) => $$('[data-png]').forEach((b) => b.onclick = async () => {
   const c = cs.find((x) => x.id === Number(b.dataset.png));
   b.disabled = true;
-  try { await downloadQrPng(`${C.joinUrl}?c=${c.joinCode}`, c.name, `AITO Map · ${C.session.title} · codice ${c.joinCode}`, qrFile(C, c)); }
+  try { await downloadQrPng(`${C.joinUrl}?c=${c.joinCode}`, c.name, `AI Transformation & Adoption Map · ${C.session.title} · codice ${c.joinCode}`, qrFile(C, c)); }
   catch { toast('Immagine non generata: riprova', true); }
   finally { b.disabled = false; }
 });

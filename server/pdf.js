@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import * as E from './engine/index.js';
 import { radar, whereMap, benchStrip } from '../public/js/charts.js';
 
-// Source Sans 3 e Source Serif 4 (SIL OFL), ridotti ai caratteri usati: gli stessi della piattaforma web.
+// Plus Jakarta Sans e Fraunces (SIL OFL), sottoinsieme latino: gli stessi della piattaforma web.
 const FONT_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fonts');
 const I = E.INSTRUMENT, SC = E.SCORING;
 const C = { navy: '#005172', deep: '#1F3864', gold: '#C9A84C', goldInk: '#6F5718', teal: '#1FB5B8', ink: '#16202D', ink2: '#44505F', ink3: '#5B6777', line: '#D8DFE7', bg: '#F1F4F7',
@@ -21,14 +21,21 @@ const dateIt = (d) => new Date(d).toLocaleDateString('it-IT', { day: '2-digit', 
 
 export function buildCompanyPdf(R) {
   const doc = new PDFDocument({ size: 'A4', margins: { top: 50, bottom: 56, left: 48, right: 48 }, bufferPages: true,
-    info: { Title: `AITO Map — ${R.company.name}`, Author: 'ELIS Innovation Hub · AITO', Subject: 'AI Transformation & Adoption Map — report riservato' } });
-  doc.registerFont('Body', path.join(FONT_DIR, 'sans-400.ttf'));
-  doc.registerFont('Semi', path.join(FONT_DIR, 'sans-600.ttf'));
-  doc.registerFont('Bold', path.join(FONT_DIR, 'sans-700.ttf'));
-  doc.registerFont('Serif', path.join(FONT_DIR, 'serif-600.ttf'));
-  doc.registerFont('Display', path.join(FONT_DIR, 'serifd-600.ttf'));
-  // i cinque gradini dei livelli, segno ricorrente della Map
-  const mark = (x, y, h, color) => { const bw = h * 0.17, gap = h * 0.07; for (let k = 0; k < 5; k++) { const bh = h * (0.2 + 0.2 * k); doc.roundedRect(x + k * (bw + gap), y + h - bh, bw, bh, bw * 0.15).fillOpacity(0.45 + 0.1375 * k).fill(color); } doc.fillOpacity(1); };
+    info: { Title: `AI Transformation & Adoption Map — ${R.company.name}`, Author: 'ELIS Innovation Hub · AITO', Subject: 'AI Transformation & Adoption Map — report riservato' } });
+  doc.registerFont('Body', path.join(FONT_DIR, 'sans-400.woff'));
+  doc.registerFont('Semi', path.join(FONT_DIR, 'sans-600.woff'));
+  doc.registerFont('Bold', path.join(FONT_DIR, 'sans-700.woff'));
+  doc.registerFont('Serif', path.join(FONT_DIR, 'serif-600.woff'));
+  doc.registerFont('Display', path.join(FONT_DIR, 'serif-600.woff'));
+  // logo della Map: quattro quadranti e il percorso dell'azienda verso l'alto a destra (lo stesso del sito)
+  const logo = (x, y, size, frame) => {
+    doc.save().translate(x, y).scale(size / 32);
+    doc.roundedRect(1.5, 1.5, 29, 29, 7).lineWidth(1.5).strokeColor(frame).strokeOpacity(0.45).stroke();
+    doc.moveTo(16, 5).lineTo(16, 27).moveTo(5, 16).lineTo(27, 16).lineWidth(1.2).strokeOpacity(0.3).stroke();
+    doc.strokeOpacity(1).moveTo(7.5, 24.5).lineTo(12.5, 19.5).lineTo(17.5, 21).lineTo(24, 9.5).lineWidth(2.2).lineCap('round').lineJoin('round').strokeColor(C.gold).stroke();
+    doc.circle(24, 9.5, 3).fill(C.gold);
+    doc.restore();
+  };
   const W = doc.page.width - 96, X0 = 48;
   const bottom = () => doc.page.height - 56;
   const ensure = (h) => { if (doc.y + h > bottom()) doc.addPage(); };
@@ -85,7 +92,7 @@ export function buildCompanyPdf(R) {
   // ---------- Copertina ----------
   doc.rect(0, 0, doc.page.width, 196).fill(C.deep);
   doc.rect(0, 196, doc.page.width, 4).fill(C.gold);
-  mark(X0 + W - 64, 40, 52, C.gold);
+  logo(X0 + W - 56, 40, 56, '#FFFFFF');
   doc.font('Semi').fontSize(10).fillColor(C.gold).text('AI Transformation & Adoption Map · report riservato', X0, 44, { width: W - 90 });
   doc.font('Display').fontSize(28).fillColor('#FFFFFF').text(R.company.name, X0, 62, { width: W - 90 });
   doc.font('Body').fontSize(10.5).fillColor('#DCE3EE')
@@ -269,9 +276,9 @@ export function buildCompanyPdf(R) {
     doc.switchToPage(i);
     doc.page.margins.bottom = 0;
     doc.moveTo(X0, doc.page.height - 44).lineTo(X0 + W, doc.page.height - 44).lineWidth(0.5).strokeColor(C.line).stroke();
-    mark(X0, doc.page.height - 37, 8, C.gold);
+    logo(X0, doc.page.height - 38.5, 11, C.ink3);
     doc.font('Body').fontSize(7.5).fillColor(C.ink3)
-      .text(`AITO Map · ${R.company.name} · riservato`, X0 + 16, doc.page.height - 36, { width: W - 80, lineBreak: false })
+      .text(`AI Transformation & Adoption Map · ${R.company.name} · riservato`, X0 + 16, doc.page.height - 36, { width: W - 80, lineBreak: false })
       .text(`${i + 1} / ${range.count}`, X0 + W - 60, doc.page.height - 36, { width: 60, align: 'right', lineBreak: false });
   }
   doc.end();
