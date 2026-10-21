@@ -80,7 +80,7 @@ async function boot() {
     <div class="explain">Ogni punto è una dimensione completa. Orizzontale: lo score dell'azienda. Verticale: quanto è sopra (+) o sotto (−) la mediana delle altre aziende. Essere sopra la mediana non significa essere consolidati: la linea verticale a 70 separa le capacità consolidate.</div>
     ${wherePts.length ? `<div class="grid c2"><div class="chart">${whereMap(wherePts, { names })}</div><div><table><tbody>${R.dims.filter((d) => d.quadrant).map((d) => `<tr><td><span class="dim-letter">${d.id}</span>${esc(d.name)}</td><td><b>${esc(d.quadrant.name)}</b></td><td class="num">${d.quadrant.delta > 0 ? '+' : ''}${fmtNum(d.quadrant.delta)}</td></tr>`).join('')}</tbody></table></div></div>`
       : ''}
-    ${anyDimBench ? `<table style="margin-top:10px"><thead><tr><th>Dimensione</th><th>Benchmark AITO${stab(R.dims.map((d) => d.bench))}</th></tr></thead><tbody>${R.dims.filter((d) => d.score != null).map((d) => `<tr><td>${d.id} ${esc(d.name)}</td><td class="small">${d.bench?.available ? `${benchStrip(d.bench, d.score)}<br>` : ''}${benchTxt(d.bench)}</td></tr>`).join('')}</tbody></table>` : noBench('Mappa e confronto per dimensione')}
+    ${anyDimBench ? `<div class="tablewrap" style="margin-top:10px"><table><thead><tr><th>Dimensione</th><th>Benchmark AITO${stab(R.dims.map((d) => d.bench))}</th></tr></thead><tbody>${R.dims.filter((d) => d.score != null).map((d) => `<tr><td>${d.id} ${esc(d.name)}</td><td class="small">${d.bench?.available ? `${benchStrip(d.bench, d.score)}<br>` : ''}${benchTxt(d.bench)}</td></tr>`).join('')}</tbody></table></div>` : noBench('Mappa e confronto per dimensione')}
   </div>
 
   ${R.dims.some((d) => d.community) ? `<div class="card"><h3>La dimensione nella community</h3>
@@ -103,8 +103,8 @@ async function boot() {
       <ol>${R.priorities.slice(0, 3).map((p) => `<li><b>${p.dimension} · ${esc(p.name)}</b> (${fmtScore(p.score)}) — <span class="small">${esc(p.reasons.join('; ') || 'nessun segnale specifico')}</span></li>`).join('')}</ol>`
       : `<p class="small">Le tre priorità complessive si calcolano a Map completa (${R.dimsComplete}/8 dimensioni misurate finora). In ogni sessione l'azienda sceglie la propria priorità e il commitment, riportati qui sotto.</p>`}
     <h3>Commitment registrati</h3>
-    ${R.commitments.length ? `<table><thead><tr><th>Sessione</th><th>Priorità</th><th>Azione</th><th>Owner</th><th>Scadenza</th><th>KPI / evidenza</th><th>Stato</th></tr></thead><tbody>
-      ${R.commitments.map((c) => `<tr><td>${esc(c.session_title)}</td><td>${esc(c.priority_item)} ${esc(I.items[c.priority_item]?.title || '')}</td><td>${esc(c.action)}</td><td>${esc(c.owner)}</td><td>${dDate(c.due_date)}</td><td>${esc(c.kpi)}${c.peer_interest ? '<br><span class="tag teal">interesse peer</span>' : ''}</td><td>${esc(c.status || 'aperto')}${c.status_note ? `<br><span class="small muted">${esc(c.status_note)}</span>` : ''}</td></tr>`).join('')}</tbody></table>` : '<p class="muted">Nessun commitment registrato.</p>'}
+    ${R.commitments.length ? `<div class="tablewrap"><table><thead><tr><th>Sessione</th><th>Priorità</th><th>Azione</th><th>Owner</th><th>Scadenza</th><th>KPI / evidenza</th><th>Stato</th></tr></thead><tbody>
+      ${R.commitments.map((c) => `<tr><td>${esc(c.session_title)}</td><td>${esc(c.priority_item)} ${esc(I.items[c.priority_item]?.title || '')}</td><td>${esc(c.action)}</td><td>${esc(c.owner)}</td><td>${dDate(c.due_date)}</td><td>${esc(c.kpi)}${c.peer_interest ? '<br><span class="tag teal">interesse peer</span>' : ''}</td><td>${esc(c.status || 'aperto')}${c.status_note ? `<br><span class="small muted">${esc(c.status_note)}</span>` : ''}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Nessun commitment registrato.</p>'}
   </div>
 
   <div class="card"><h2><span class="secnum">7</span>Profilo di approccio</h2>
