@@ -102,6 +102,7 @@ async function buildNav(view, arg) {
       `${sessName(s)} · ${shortDate(s.date)}${live(s) ? ' · in corso' : s.phase === 'chiusa' ? ' · chiusa' : ''}`)).join('')}
     </div>
     ${PROVA ? link('#/percorso', ico('flag'), 'Percorso guidato', view === 'percorso') : ''}
+    ${link('#/allineamento', ico('layers'), 'Allineamento finale', view === 'allineamento')}
     ${link('#/domande', ico('list'), 'Domande delle sessioni', view === 'domande')}
     <div class="navgroup">Operatività</div>
     ${link('#/adhoc', ico('plus'), `Sessioni ad hoc${adhoc().length ? ` <span class="navcount">${adhoc().length}</span>` : ''}`, view === 'adhoc' || (cur && cur.mode === 'adhoc'), '', 'Sessioni ad hoc')}
@@ -114,7 +115,7 @@ async function buildNav(view, arg) {
   // percorso in alto: dove si è, con i livelli superiori cliccabili
   const C = (label, href) => ({ label, href });
   const trail = {
-    programma: [C('Programma')], percorso: [C('Programma', '#/programma'), C('Percorso guidato')], domande: [C('Programma', '#/programma'), C('Domande delle sessioni')],
+    programma: [C('Programma')], percorso: [C('Programma', '#/programma'), C('Percorso guidato')], domande: [C('Programma', '#/programma'), C('Domande delle sessioni')], allineamento: [C('Programma', '#/programma'), C('Allineamento finale')],
     adhoc: [C('Operatività'), C('Sessioni ad hoc')], report: [C('Operatività'), C('Report e call con i leader')], commitment: [C('Operatività'), C('Commitment e verifica')],
     aziende: [C('Amministrazione'), C('Aziende e referenti')], azienda: [C('Amministrazione'), C('Aziende e referenti', '#/aziende'), C('Scheda azienda')],
     audit: [C('Amministrazione'), C('Registro modifiche')], impostazioni: [C('Amministrazione'), C('Impostazioni')],
@@ -136,7 +137,7 @@ async function route() {
   const arg = rest.join('/');
   await buildNav(view, arg);
   ({ programma: viewProgram, sessione: viewControl, adhoc: viewAdhoc, report: viewReports, commitment: viewCommitments, aziende: viewCompanies, azienda: viewCompany,
-    benchmark: viewBenchmark, audit: viewAudit, impostazioni: viewSettings, qr: viewQr, tavolo: viewTableCard, tavoli: viewTables, mappe: viewMaps, domande: viewQuestions, percorso: viewTour }[view] || viewProgram)(arg);
+    benchmark: viewBenchmark, audit: viewAudit, impostazioni: viewSettings, qr: viewQr, tavolo: viewTableCard, tavoli: viewTables, mappe: viewMaps, domande: viewQuestions, percorso: viewTour, allineamento: viewAlignment }[view] || viewProgram)(arg);
 }
 
 // ---------- DEMO: percorso guidato con un'azienda fittizia ----------
@@ -185,23 +186,24 @@ async function viewTour() {
     return `<li class="tstage st-${st}"><span class="stage-n" aria-hidden="true">${st === 'done' ? icon('check') : i + 1}</span><span><b>${esc(sname(x))}</b><small>${esc(longDate(x.date))}</small></span></li>`;
   };
   const phoneHtml = D.done
-    ? `<div class="phone-static"><p class="eyebrow">Anteprima</p><h3>Allineamento finale · settembre 2027</h3><p>Il referente, con il leader, riceverà un modulo precompilato con livelli e sotto-opzioni dei 12 item misurati prima di luglio: per ognuno conferma o modifica, con un'evidenza. Poi la call con il leader conferma le tre priorità finali.</p><p class="small muted">Funzione non ancora disponibile nella piattaforma: questa è solo un'anteprima.</p></div>`
+    ? `<iframe class="phone-frame" src="/r/${esc(D.referentToken)}#/allineamento" title="Vista azienda: allineamento finale"></iframe>`
+    : false ? `<div class="phone-static"><p class="eyebrow">Anteprima</p><h3>Allineamento finale · settembre 2027</h3><p>Il referente, con il leader, riceverà un modulo precompilato con livelli e sotto-opzioni dei 12 item misurati prima di luglio: per ognuno conferma o modifica, con un'evidenza. Poi la call con il leader conferma le tre priorità finali.</p><p class="small muted">Funzione non ancora disponibile nella piattaforma: questa è solo un'anteprima.</p></div>`
     : /null|undefined/.test(phone.url) ? '<div class="phone-static"><p>Questa vista non è disponibile: il referente o il partecipante DEMO è stato rimosso dalla console. Con <b>Riparti da zero</b> il percorso si ricarica.</p></div>'
     : `<iframe class="phone-frame" src="${esc(phone.url)}" title="Vista azienda: ${esc(step.label)}"></iframe>`;
   const realUrl = !D.done && phone.url.startsWith('/j/') ? `${NET.baseUrl}${phone.url.replace('&anteprima=1', '').replace(/&p=[^&#]*/, '')}` : null;
   app.innerHTML = `<div class="pagehead"><div><h1>Percorso guidato</h1><p>${esc(D.company.name)} · ${esc(D.company.sector || '')} · perimetro ${esc(D.company.perimeter || '')}. Dati inventati: nulla entra nei dati reali o nel benchmark ufficiale.</p></div>
       <div class="row"><button type="button" class="sm" id="tour_reset">Riparti da zero</button></div></div>
-    <ol class="tstages" aria-label="Sessioni del percorso">${S.map(stage).join('')}<li class="tstage ${D.done ? 'st-live' : 'st-prep'}"><span class="stage-n" aria-hidden="true">${icon('flag')}</span><span><b>Allineamento finale</b><small>settembre 2027 · anteprima</small></span></li></ol>
+    <ol class="tstages" aria-label="Sessioni del percorso">${S.map(stage).join('')}<li class="tstage ${D.done ? 'st-live' : 'st-prep'}"><span class="stage-n" aria-hidden="true">${icon('flag')}</span><span><b>Allineamento finale</b><small>settembre 2027</small></span></li></ol>
     ${D.done ? '' : `<ol class="tsteps" aria-label="Passi di ${esc(sname(cur))}">${D.steps.map((x, k) => `<li class="${k < D.k ? 'done' : k === D.k ? 'on' : ''}" ${k === D.k ? 'aria-current="step"' : ''}><span aria-hidden="true">${k < D.k ? icon('check') : k + 1}</span>${esc(x.label)}</li>`).join('')}</ol>`}
     <div class="tourbar">
-      <div><span class="eyebrow">${D.done ? 'Fine del percorso' : `${esc(sname(cur))} · passo ${D.k + 1} di ${D.steps.length}`}</span><h2>${D.done ? 'Allineamento finale (anteprima)' : esc(step.label)}</h2>
-        <p>${D.done ? 'Le quattro sessioni sono chiuse: la mappa è completa. A settembre 2027 l\'allineamento porta tutte le dimensioni alla stessa data.' : esc(step.who)}</p></div>
+      <div><span class="eyebrow">${D.done ? 'Fine del percorso' : `${esc(sname(cur))} · passo ${D.k + 1} di ${D.steps.length}`}</span><h2>${D.done ? 'Allineamento finale' : esc(step.label)}</h2>
+        <p>${D.done ? 'Le quattro sessioni sono chiuse. A settembre l\'azienda conferma o modifica le 16 capacità con un\'evidenza e sceglie le tre priorità finali; ELIS rilascia il report unificato con gli spostamenti rispetto alle sessioni.' : esc(step.who)}</p></div>
       <div class="row tour-actions">${D.done ? '' : `<button type="button" class="primary" id="tour_next">Avanza${icon('arrow', 'thin')}</button><button type="button" class="ghost" id="tour_sess">${D.s < 3 ? 'Vai alla sessione successiva' : 'Chiudi l\'ultima sessione'}</button><button type="button" class="ghost" id="tour_end">Vai alla fine</button>`}</div>
     </div>
     <div class="tourtabs" role="tablist" aria-label="Viste del passo"><button type="button" role="tab" data-tv="admin" aria-selected="${tourView === 'admin'}">Vista admin ELIS</button><button type="button" role="tab" data-tv="phone" aria-selected="${tourView === 'phone'}">Vista azienda</button></div>
     <div class="tourpanes view-${tourView}">
       <section class="panel tp-admin" aria-labelledby="tpa-t"><h3 id="tpa-t">Vista admin ELIS</h3>
-        ${D.done ? `<p>La mappa dell'azienda è completa. Apri il report finale e la plenaria della community.</p><div class="tlinks"><a class="btn ghost" href="/report/${cid}" target="_blank">Report dell'azienda</a><a class="btn ghost" href="#/report">Report e call con i leader</a><a class="btn ghost" href="#/commitment">Commitment e verifica</a></div>`
+        ${D.done ? `<p>L'allineamento è confermato e il report unificato è rilasciato. Le pagine vere della console:</p><div class="tlinks"><a class="btn ghost" href="#/allineamento">Allineamento finale: vista d'insieme</a><a class="btn ghost" href="/report/${cid}${D.snapshot ? `?snap=${D.snapshot.id}` : ''}" target="_blank">Report unificato<span class="sr-only"> (nuova scheda)</span></a><a class="btn ghost" href="/tavolo-elis/${cid}#/allineamento" target="_blank">Tavolo del facilitatore<span class="sr-only"> (nuova scheda)</span></a><a class="btn ghost" href="#/commitment">Commitment e verifica</a></div>`
           : `<p class="small ink2">Le pagine vere della console, con i dati di questo passo:</p><div class="tlinks">${console_.map(([href, label, ext]) => `<a class="btn ghost" href="${href}" ${ext ? 'target="_blank"' : ''}>${esc(label)}${ext ? '<span class="sr-only"> (nuova scheda)</span>' : ''}</a>`).join('')}</div>`}
         <dl class="tfacts"><div><dt>Azienda</dt><dd>${esc(D.company.name)} · TEST, fuori dal benchmark</dd></div>
           <div><dt>Referenti</dt><dd>${D.referents.map((r) => `${esc(r.name)} <span class="muted">(${esc(r.role || '')})</span>`).join('<br>')}</dd></div>
@@ -209,7 +211,7 @@ async function viewTour() {
           ${D.simDay ? `<div><dt>Data simulata</dt><dd>${esc(longDate(D.simDay))}</dd></div>` : ''}</dl>
       </section>
       <section class="panel tp-phone" aria-labelledby="tpp-t"><h3 id="tpp-t">Vista azienda</h3>
-        <p class="small ink2">${D.done ? 'Anteprima di quello che vedrà il referente.' : phone.who}</p>
+        <p class="small ink2">${D.done ? 'Il referente rivede le 16 capacità: conferma o modifica con un\'evidenza, vede lo spostamento e sceglie le tre priorità finali.' : phone.who}</p>
         <div class="phone">${phoneHtml}</div>
         ${realUrl ? `<details class="small"><summary>Aprila sul tuo telefono</summary><div style="margin-top:8px">${qrImg(realUrl, 150)}</div><p class="mono small" style="word-break:break-all">${esc(realUrl)}</p></details>` : ''}
       </section>
@@ -219,6 +221,56 @@ async function viewTour() {
   if ($('#tour_sess')) $('#tour_sess').onclick = () => act('/api/admin/demo/advance', { mode: 'session' }, 'Sessione successiva');
   if ($('#tour_end')) $('#tour_end').onclick = () => { if (confirm('Portare il percorso alla fine? Le quattro sessioni DEMO si chiudono con tutti i dati del file.')) act('/api/admin/demo/advance', { mode: 'end' }, 'Percorso completato'); };
   $('#tour_reset').onclick = () => { if (confirm('Ripartire da zero? I dati DEMO si cancellano (anche aziende e sessioni create a mano in DEMO) e si ricaricano con tutte le sessioni in preparazione, per seguire il processo passo per passo. I dati reali non vengono toccati.')) act('/api/admin/demo/reset', {}, 'Percorso guidato ripartito da zero'); };
+}
+
+// ---------- Allineamento finale (§14.1): vista d'insieme del team ELIS ----------
+// Avanzamento per azienda, spostamenti medi per dimensione rispetto alle sessioni, apertura e rilascio del report unificato.
+async function viewAlignment() {
+  const O = await api('/api/admin/alignment');
+  const shift = (x) => (x == null ? '—' : x === 0 ? '<span class="shift zero">invariato</span>' : `<span class="shift ${x > 0 ? 'up' : 'down'}">${x > 0 ? '▲ +' : '▼ '}${fmtScore(x).replace('-', '−')}</span>`);
+  const dimName = (id) => INST.dimensions.find((d) => d.id === id)?.name || id;
+  const prioRank = Object.entries(O.priorityCount).sort((a, b) => b[1] - a[1]);
+  const status = (c) => (c.confirmedAt ? (c.released ? '<span class="chip chip-done">report rilasciato</span>' : '<span class="chip chip-done">confermato</span>')
+    : c.reviewed ? `<span class="chip chip-live">in corso · ${c.reviewed}/${c.total}</span>` : '<span class="chip chip-off">da iniziare</span>');
+  app.innerHTML = `<div class="pagehead"><div><h1>Allineamento finale</h1>
+      <p>Settembre 2027. Ogni azienda rivede le 16 capacità delle quattro sessioni: conferma o modifica con un'evidenza e sceglie le tre priorità finali. I valori delle sessioni restano: qui si vedono gli spostamenti. Dopo la conferma, ELIS rilascia il report unificato.</p></div>
+      <div class="row"><button type="button" class="${O.open ? 'ghost' : 'primary'}" id="al_open">${O.open ? 'Chiudi l\'allineamento' : 'Apri l\'allineamento alle aziende'}</button></div></div>
+    <div class="banner ${O.open ? 'ok' : 'info'}">${O.open ? `Aperto: i referenti lo vedono dal loro link. ${O.confirmed} ${O.confirmed === 1 ? 'azienda ha confermato' : 'aziende hanno confermato'}, ${O.started - O.confirmed} in corso.` : 'Chiuso: i referenti non lo vedono ancora. Il facilitatore può già prepararlo dal tavolo di ogni azienda.'}</div>
+    <section class="kpis" aria-label="Indicatori dell'allineamento">
+      <div class="kpitile"><span class="kt-l">Aziende</span><span class="kt-v">${O.companies.length}</span><span class="kt-s">con capacità misurate</span></div>
+      <div class="kpitile"><span class="kt-l">Confermate</span><span class="kt-v">${O.confirmed}<small>/${O.companies.length}</small></span><span class="kt-s">${O.started - O.confirmed} in corso</span></div>
+      <div class="kpitile"><span class="kt-l">Capacità modificate</span><span class="kt-v">${O.companies.reduce((n, c) => n + c.changed, 0)}</span><span class="kt-s">${O.companies.reduce((n, c) => n + c.up, 0)} in su · ${O.companies.reduce((n, c) => n + c.down, 0)} in giù</span></div>
+      <div class="kpitile"><span class="kt-l">Priorità più scelta</span><span class="kt-v">${prioRank[0] ? prioRank[0][0] : '—'}</span><span class="kt-s">${prioRank[0] ? `${esc(dimName(prioRank[0][0]))} · ${prioRank[0][1]} ${prioRank[0][1] === 1 ? 'azienda' : 'aziende'}` : 'nessuna conferma ancora'}</span></div>
+    </section>
+    <div class="card"><h2>Vista d'insieme per dimensione</h2>
+      <p class="small ink2">Media delle aziende che hanno iniziato l'allineamento: score in sessione, dopo l'allineamento e spostamento. Le aziende salite o scese indicano dove il quadro è cambiato da quando la dimensione è stata misurata.</p>
+      <div class="tablewrap"><table><thead><tr><th>Dimensione</th><th class="num">Aziende</th><th class="num">In sessione</th><th class="num">Allineamento</th><th>Spostamento medio</th><th class="num">Salite</th><th class="num">Scese</th><th class="num">Priorità finale per</th></tr></thead><tbody>
+      ${O.dims.map((d) => `<tr><td><span class="dim-letter">${d.id}</span>${esc(d.name)}</td><td class="num">${d.n}</td><td class="num">${fmtScore(d.before)}</td><td class="num"><b>${fmtScore(d.after)}</b></td><td>${shift(d.shift)}</td><td class="num">${d.up}</td><td class="num">${d.down}</td><td class="num">${O.priorityCount[d.id] || 0}</td></tr>`).join('')}
+      </tbody></table></div></div>
+    <div class="card"><h2>Aziende</h2>
+      ${O.companies.length ? `<div class="tablewrap"><table><thead><tr><th>Azienda</th><th>Stato</th><th class="num">Modificate</th><th>Priorità finali</th><th>Azioni</th></tr></thead><tbody>
+      ${O.companies.map((c) => `<tr><td><a href="#/azienda/${c.id}"><b>${esc(c.name)}</b></a>${c.kind === 'TEST' ? ' <span class="tag">TEST</span>' : ''}</td><td>${status(c)}</td>
+        <td class="num">${c.changed}${c.changed ? `<div class="small muted">${c.up} su · ${c.down} giù</div>` : ''}</td>
+        <td>${c.priorities.length ? c.priorities.map((p, i) => `<span class="nowrap">${i + 1}. <b>${p}</b> ${esc(dimName(p))}</span>`).join('<br>') : '<span class="muted">—</span>'}</td>
+        <td class="actions"><div class="row"><a class="btn sm ghost" href="/tavolo-elis/${c.id}#/allineamento" target="_blank">Apri il tavolo<span class="sr-only"> di ${esc(c.name)} (nuova scheda)</span></a>
+          <a class="btn sm ghost" href="/report/${c.id}?final=1" target="_blank">Anteprima del report<span class="sr-only"> di ${esc(c.name)}</span></a>
+          ${c.confirmedAt ? `<button type="button" class="sm" data-rel="${c.id}" data-n="${esc(c.name)}">${c.released ? 'Rilascia una nuova versione' : 'Rilascia il report unificato'}</button><button type="button" class="sm ghost" data-reopen="${c.id}" data-n="${esc(c.name)}">Riapri</button>` : ''}
+          ${c.released ? `<a class="btn sm ghost" href="/report/${c.id}?snap=${c.released.id}" target="_blank">Report rilasciato<span class="sr-only"> di ${esc(c.name)}</span></a>` : ''}</div></td></tr>`).join('')}
+      </tbody></table></div>` : '<p class="muted">Nessuna azienda ha ancora capacità consolidate.</p>'}</div>`;
+  $('#al_open').onclick = async () => {
+    const msg = O.open ? 'Chiudere l\'allineamento? I referenti non potranno più modificarlo dal loro link; quello che hanno già salvato resta.' : 'Aprire l\'allineamento finale alle aziende? I referenti lo vedranno dal loro link e potranno confermare o modificare le capacità.';
+    if (!confirm(msg)) return;
+    try { await api('/api/admin/alignment/open', { method: 'POST', body: { open: !O.open } }); toast(O.open ? 'Allineamento chiuso' : 'Allineamento aperto'); route(); } catch (e) { toast(e.message, true); }
+  };
+  $$('[data-rel]').forEach((b) => b.onclick = async () => {
+    if (!confirm(`Rilasciare il report unificato di ${b.dataset.n}? Il referente lo vedrà dal suo link. Il report rilasciato non cambia più: eventuali correzioni diventano una nuova versione.`)) return;
+    try { const r = await api(`/api/admin/alignment/${b.dataset.rel}/release`, { method: 'POST', body: {} }); toast(`Report unificato v${r.version} rilasciato`); route(); } catch (e) { toast(e.message, true); }
+  });
+  $$('[data-reopen]').forEach((b) => b.onclick = async () => {
+    const reason = prompt(`Riaprire l'allineamento di ${b.dataset.n}? Il referente potrà di nuovo modificarlo. Scrivi il motivo (resta nel registro):`);
+    if (!reason || !reason.trim()) return;
+    try { await api(`/api/admin/alignment/${b.dataset.reopen}/reopen`, { method: 'POST', body: { reason } }); toast('Allineamento riaperto'); route(); } catch (e) { toast(e.message, true); }
+  });
 }
 
 // ---------- Domande delle sessioni: le stesse in DEMO e in Produzione (lo strumento V1 è uno solo) ----------
@@ -303,7 +355,8 @@ async function viewProgram() {
   const cal = calendar();
   const ctrl = await Promise.all(SESSIONS.map((s) => api(`/api/admin/sessions/${s.id}/control`)));
   const byId = Object.fromEntries(ctrl.map((C) => [C.session.id, C]));
-  const [commits, companies] = await Promise.all([api('/api/admin/commitments'), api('/api/admin/companies')]);
+  const [commits, companies, AO] = await Promise.all([api('/api/admin/commitments'), api('/api/admin/companies'), api('/api/admin/alignment')]);
+  const alNote = AO.open ? `Aperto · ${AO.confirmed} di ${AO.companies.length} aziende confermate` : AO.companies.length ? 'Da aprire alle aziende' : 'Dopo le quattro sessioni';
   const today = SIMDAY || isoDay(new Date());
   const next = cal.find((s) => s.phase !== 'chiusa');
   const live = SESSIONS.find((s) => ['individuale', 'confronto', 'consolidamento'].includes(s.phase));
@@ -413,8 +466,9 @@ async function viewProgram() {
         <a class="btn primary" href="${primary.href}">${esc(primary.label)}${icon('arrow', 'thin')}</a>
         ${missing.length ? `<p class="hn-miss"><b>Manca ancora:</b> ${missing.map(([t, h]) => `<a href="${h}">${esc(t)}</a>`).join(' · ')}</p>` : ''}</div>`
       : cal.length ? `<div class="hero-next"><span class="hn-l">Prossima tappa</span><span class="hn-t">Allineamento finale</span><span class="hn-d">Inizio settembre 2027 · le 4 sessioni sono chiuse</span>
-          <span class="chip chip-prep">Non ancora disponibile nella piattaforma</span>
-          <a class="btn primary" href="#/report">${relTodo > 0 ? `Report e call · ${relTodo} da rilasciare` : 'Report e call con i leader'}${icon('arrow', 'thin')}</a></div>`
+          <span class="chip ${AO.open ? 'chip-live' : 'chip-prep'}">${esc(alNote)}</span>
+          <a class="btn primary" href="#/allineamento">${AO.open ? 'Segui l\'allineamento' : 'Apri l\'allineamento finale'}${icon('arrow', 'thin')}</a>
+          ${relTodo > 0 ? `<a class="small" style="color:#C9D4E3" href="#/report">Prima: ${relTodo} report da rilasciare</a>` : ''}</div>`
       : `<div class="hero-next"><span class="hn-l">Calendario</span><span class="hn-t">Nessuna sessione</span><span class="hn-d">${PROVA ? 'Il percorso guidato carica un\'azienda fittizia e le quattro sessioni DEMO, da seguire passo per passo.' : 'Le sessioni del programma non sono ancora in calendario.'}</span>
           ${PROVA ? `<a class="btn primary" href="#/percorso">Apri il percorso guidato${icon('arrow', 'thin')}</a>` : '<a class="btn primary" href="#/adhoc">Sessioni ad hoc</a>'}</div>`}
     </section>
@@ -435,9 +489,10 @@ async function viewProgram() {
     <section class="roadmap" aria-labelledby="rm-t">
       <div class="sechead"><h2 id="rm-t">Percorso delle sessioni</h2><a class="small" href="#/domande">Domande delle sessioni</a></div>
       <ol class="stages">${cal.map(stage).join('')}
-        <li class="stage st-future final"><div class="stage-top"><span class="stage-n" aria-hidden="true">${icon('flag')}</span><span class="chip chip-off">Non ancora disponibile</span></div>
-          <h3>Allineamento finale</h3><p class="stage-date">${icon('calendar', 'thin')}Inizio settembre 2027</p>
-          <p class="stage-desc">Conferma o modifica dei 12 item misurati prima di luglio e tre priorità finali.</p><p class="stage-facts">Da costruire nella piattaforma</p></li></ol>
+        <li class="stage ${AO.open ? 'st-live' : 'st-future'} final"><div class="stage-top"><span class="stage-n" aria-hidden="true">${icon('flag')}</span><span class="chip ${AO.confirmed && AO.confirmed === AO.companies.length ? 'chip-done' : AO.open ? 'chip-live' : 'chip-off'}">${AO.open ? 'Aperto' : 'Da aprire'}</span></div>
+          <h3>Allineamento finale</h3><p class="stage-date">${icon('calendar', 'thin')}Settembre 2027</p>
+          <p class="stage-desc">Conferma o modifica delle 16 capacità con un'evidenza, tre priorità finali, report unificato.</p><p class="stage-facts">${esc(alNote)}</p>
+          <a class="stage-go" href="#/allineamento">Apri<span class="sr-only"> l'allineamento finale</span>${icon('arrow', 'thin')}</a></li></ol>
     </section>
 
     ${PROVA ? '<div class="card" id="demo"><p class="muted small">…</p></div>' : ''}
@@ -453,7 +508,7 @@ async function viewProgram() {
         <ul class="afterlist">
           <li><a href="#/report">${icon('file', 'thin')}<span><b>Report e call con i leader</b><small>${consTot ? `Sessioni del calendario: ${relTot} report rilasciati su ${consTot} consolidati · ${callTot} call annotate` : 'I report arrivano dopo il primo consolidamento'}</small></span>${icon('arrow', 'thin')}</a></li>
           <li><a href="#/commitment">${icon('target', 'thin')}<span><b>Commitment e verifica</b><small>${commits.length ? `${open.length} aperti${overdue.length ? ` · ${overdue.length} scaduti` : ''}` : 'Nessun commitment registrato'}</small></span>${icon('arrow', 'thin')}</a></li>
-          <li><div>${icon('clock', 'thin')}<span><b>Allineamento finale</b><small>Settembre 2027 · funzione non ancora disponibile</small></span></div></li>
+          <li><a href="#/allineamento">${icon('flag', 'thin')}<span><b>Allineamento finale</b><small>Settembre 2027 · ${esc(alNote)}</small></span>${icon('arrow', 'thin')}</a></li>
         </ul>
       </section>
     </div>`;

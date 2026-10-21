@@ -9,6 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { q, tx, shortCode, token, audit, getSetting, setSetting } from './db.js';
 import * as L from './logic.js';
+import * as AL from './alignment.js';
 import * as E from './engine/index.js';
 
 const I = E.INSTRUMENT;
@@ -94,7 +95,7 @@ export function removeDemo() {
         q.run(`DELETE FROM answers WHERE participant_id IN (${pp})`, ...pids);
         q.run(`DELETE FROM pair_answers WHERE participant_id IN (${pp})`, ...pids);
       }
-      for (const t of ['participants', 'presession', 'session_company', 'consolidated', 'commitments', 'report_snapshots', 'consents', 'referents', 'roster']) {
+      for (const t of ['participants', 'presession', 'session_company', 'consolidated', 'commitments', 'report_snapshots', 'consents', 'referents', 'roster', 'alignment_items', 'alignment']) {
         q.run(`DELETE FROM ${t} WHERE company_id IN (${ph})`, ...ids);
       }
       q.run(`DELETE FROM companies WHERE id IN (${ph})`, ...ids);
@@ -103,7 +104,7 @@ export function removeDemo() {
       // partecipanti di sessioni DEMO registrati dal telefono con aziende non DEMO non esistono (il codice azienda è dell'ambiente)
       q.run(`DELETE FROM sessions WHERE id IN (${sids.map(() => '?').join(',')})`, ...sids);
     }
-    q.run("DELETE FROM settings WHERE key = 'demo_tour'");
+    q.run("DELETE FROM settings WHERE key IN ('demo_tour', 'alignment_open_demo')");
   });
   audit(ACTOR, 'demo', '', 'remove', null, { removed: ids.length });
   return { removed: ids.length };
@@ -126,9 +127,40 @@ export function advanceDemo(mode = 'step') {
     t = t.k + 1 < STEPS.length ? { s: t.s, k: t.k + 1 } : { s: t.s + 1, k: 0 };
     // passo e suoi effetti insieme: se un effetto fallisce, il percorso resta dov'era
     const n = t;
-    tx(() => { tourSet({ s: n.s, k: n.k }); if (n.s < BASES.length) enter(n.s, n.k, S); });
+    tx(() => { tourSet({ s: n.s, k: n.k }); if (n.s < BASES.length) enter(n.s, n.k, S); else enterFinal(S); });
   } while ((mode === 'session' && t.s === startS) || (mode === 'end' && t.s < BASES.length));
   return tourState();
+}
+
+// Allineamento finale (settembre 2027): l'azienda guidata conferma o modifica le 16 capacità come da file,
+// la community si allinea con pochi spostamenti; poi il report unificato dell'azienda guidata
+function enterFinal(S) {
+  const g = guided(); if (!g) return;
+  const A = S.allineamento || {};
+  AL.setOpen(1, true, ACTOR, 'Percorso guidato DEMO');
+  const align = (cid, itemId, ch, evidence) => {
+    const out = AL.saveItem(cid, itemId, ch ? { action: 'modifica', level: ch.livello, sub: ch.sotto, evidence } : { action: 'conferma' }, ACTOR);
+    if (!out.ok) throw new Error(`Allineamento demo non riuscito: ${out.errors.join(' · ')}`);
+  };
+  const fixSub = (itemId, ch) => { const subs = E.subOptions(itemId, ch.livello); return { ...ch, sotto: subs.length ? (subs.some((x) => x.key === ch.sotto) ? ch.sotto : subs[0].key) : null }; };
+  for (const itemId of Object.keys(L.currentValues(g.id))) {
+    const ch = A.modifiche?.[itemId];
+    align(g.id, itemId, ch && fixSub(itemId, ch), ch?.evidenza);
+  }
+  AL.savePriorities(g.id, A.priorita || AL.alignmentState(g.id, 1).suggestedPriorities, A.nota_priorita || '', ACTOR);
+  const c1 = AL.confirm(g.id, 1, ACTOR); if (!c1.ok) throw new Error(c1.errors.join(' · '));
+  const comps = q.all("SELECT * FROM companies WHERE seeded = 1 AND kind = 'DEMO' ORDER BY id");
+  comps.forEach((c, n) => {
+    const rnd = prng(7000 + n);
+    for (const [itemId, v] of Object.entries(L.currentValues(c.id))) {
+      const r = rnd();
+      const lv = v.level == null ? null : r < 0.18 ? clamp(v.level + 1) : r < 0.24 ? clamp(v.level - 1) : v.level;
+      align(c.id, itemId, lv != null && lv !== v.level ? fixSub(itemId, { livello: lv }) : null, 'Dato dimostrativo');
+    }
+    AL.savePriorities(c.id, AL.alignmentState(c.id, 1).suggestedPriorities, '', ACTOR);
+    AL.confirm(c.id, 1, ACTOR);
+  });
+  const rel = L.releaseFinalReport(g.id, ACTOR); if (!rel.ok) throw new Error(rel.errors.join(' · '));
 }
 
 // Effetti dell'ingresso nel passo k della sessione i
@@ -272,7 +304,7 @@ export function tourState() {
   const step = done ? null : STEPS[t.k];
   // data simulata: avanza con il percorso (serve, per esempio, a far scadere un commitment)
   const sc = sess && S.sessioni[sess.base];
-  const simDay = done ? '2027-09-01' : !sess ? null
+  const simDay = done ? (S.allineamento?.data || '2027-09-20') : !sess ? null
     : step.id === 'prep' ? addDays(sess.date, -14) : ['report', 'commitment'].includes(step.id) ? (sc?.call?.data || addDays(sess.date, 14)) : sess.date;
   return {
     present: true, done, s: t.s, k: t.k, steps: STEPS, simDay,

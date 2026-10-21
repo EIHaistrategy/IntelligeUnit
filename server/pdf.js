@@ -94,7 +94,7 @@ export function buildCompanyPdf(R) {
   doc.rect(0, 0, doc.page.width, 196).fill(C.deep);
   doc.rect(0, 196, doc.page.width, 4).fill(C.gold);
   logo(X0 + W - 56, 40, 56, '#FFFFFF');
-  doc.font('Semi').fontSize(10).fillColor(C.gold).text('AI Transformation & Adoption Map · report riservato', X0, 44, { width: W - 90 });
+  doc.font('Semi').fontSize(10).fillColor(C.gold).text(`AI Transformation & Adoption Map · ${R.final ? 'report unificato dopo l\'allineamento finale' : 'report riservato'}`, X0, 44, { width: W - 90 });
   doc.font('Display').fontSize(28).fillColor('#FFFFFF').text(R.company.name, X0, 62, { width: W - 90 });
   doc.font('Body').fontSize(10.5).fillColor('#DCE3EE')
     .text(`Perimetro valutato: ${R.company.perimeter || 'non indicato'}   ·   Dimensioni misurate: ${R.dimsComplete}/8`, X0, doc.y + 6, { width: W })
@@ -114,6 +114,42 @@ export function buildCompanyPdf(R) {
     doc.y += 30;
   }
   explain('Come leggere il report. La Map descrive la capacità dell\'azienda di trasformare l\'AI in pratica governata, adottata e scalabile. Non è una graduatoria e non esiste un livello giusto in assoluto. La lettura principale è la coerenza tra le capacità: livelli bassi ma allineati possono indicare un percorso coerente, mentre una forte distanza tra una capacità e quella da cui dipende segnala un punto da esaminare. Il benchmark confronta l\'azienda con le altre aziende AITO (non con il mercato), esclude l\'azienda stessa quando il campione lo consente e indica sempre su quante aziende si basa.');
+
+  // ---------- Allineamento finale (§14.1): spostamenti rispetto alle sessioni ----------
+  const AL = R.alignment;
+  const sh = (x) => (x == null ? '—' : x === 0 ? 'invariato' : `${x > 0 ? '+' : '−'}${n1(Math.abs(x))}`);
+  if (AL) {
+    h2('Allineamento finale: che cosa è cambiato', 160);
+    explain(`L'azienda ha rivisto le capacità misurate nelle quattro sessioni, confermandole o modificandole con un'evidenza. I valori delle sessioni non sono stati sovrascritti: accanto a ciascuno c'è il valore allineato e lo spostamento. Le sezioni seguenti usano i valori allineati.`);
+    para(`${AL.reviewed} di ${AL.total} capacità riviste · ${AL.changed} ${AL.changed === 1 ? 'modificata' : 'modificate'}${AL.confirmedAt ? ` · confermato il ${dateIt(AL.confirmedAt.replace(' ', 'T') + 'Z')}` : ' · non ancora confermato'}${AL.overallBefore != null ? ` · indicatore complessivo da ${n1(AL.overallBefore)} a ${n1(AL.overallAfter)}` : ''}`, { size: 8.6, bold: true });
+    doc.moveDown(0.4);
+    // tabella per dimensione
+    const cols = [[X0, 'Dimensione', 210], [X0 + 220, 'In sessione', 70], [X0 + 300, 'Allineamento', 80], [X0 + 390, 'Spostamento', 90]];
+    const row = (vals, bold) => {
+      ensure(16); const y = doc.y;
+      vals.forEach((v, i) => doc.font(bold || i === 2 ? 'Semi' : 'Body').fontSize(8.4).fillColor(i === 3 && /^\+/.test(v) ? C.ok : i === 3 && /^−/.test(v) ? C.risk : bold ? C.ink3 : C.ink).text(v, cols[i][0], y + 3, { width: cols[i][2] }));
+      doc.y = y + 15; doc.moveTo(X0, doc.y).lineTo(X0 + W, doc.y).lineWidth(0.4).strokeColor(C.line).stroke();
+    };
+    row(cols.map((c) => c[1]), true);
+    for (const d of AL.dims) row([`${d.id} · ${d.name}`, n1(d.before), n1(d.after), d.before == null ? '—' : sh(d.shift)]);
+    doc.moveDown(0.8);
+    doc.font('Bold').fontSize(10).fillColor(C.deep).text('Per capacità', X0, doc.y, { width: W }); doc.moveDown(0.3);
+    for (const i of AL.items) {
+      const ev = i.evidence ? `Evidenza: ${i.evidence}` : i.action === 'conferma' ? 'Confermato' : '';
+      doc.font('Body').fontSize(8);
+      const hEv = doc.heightOfString(ev, { width: W - 258 }) + 10;
+      doc.font('Bold').fontSize(8.6); const hT = doc.heightOfString(`${i.itemId} ${i.title}`, { width: 160 }) + 18;
+      const h = Math.max(32, hEv, hT);
+      ensure(h + 2); const y = doc.y;
+      doc.moveTo(X0, y).lineTo(X0 + W, y).lineWidth(0.4).strokeColor(C.line).stroke();
+      doc.font('Bold').fontSize(8.6).fillColor(C.ink).text(`${i.itemId} ${i.title}`, X0, y + 4, { width: 160 });
+      doc.font('Body').fontSize(7.4).fillColor(C.ink3).text(`Dim. ${i.dimension} · ${i.session}`, X0, doc.y + 1, { width: 160 });
+      doc.font('Semi').fontSize(9).fillColor(C.ink).text(`${i.before ? lvl(i.before.level, i.before.sub) : '—'}  »  ${i.after ? lvl(i.after.level, i.after.sub) : '—'}`, X0 + 168, y + 4, { width: 80 });
+      doc.font('Bold').fontSize(8.6).fillColor(i.shift > 0 ? C.ok : i.shift < 0 ? C.risk : C.ink3).text(i.after ? sh(i.shift) : '—', X0 + 168, y + 17, { width: 80 });
+      doc.font('Body').fontSize(8).fillColor(C.ink2).text(ev, X0 + 258, y + 4, { width: W - 258 });
+      doc.y = y + h;
+    }
+  }
 
   // ---------- 1 · Profilo ----------
   h2('1 · Il profilo AI rispetto ai peer');
@@ -144,7 +180,7 @@ export function buildCompanyPdf(R) {
     else doc.font('Body').fontSize(7).fillColor(C.ink3).text(I.sessions.find((s) => s.id === d.session).name, tx + 210, y + 3.5, { width: tw - 210 });
     y += rowH;
   }
-  doc.font('Body').fontSize(7.6).fillColor(C.ink3).text('Fasce del pilot: Fondativa < 44 · In costruzione 44–69 · Consolidata ≥ 70. Le dimensioni non ancora misurate restano N.D. e non sono disegnate come zero.', tx, y + 2, { width: tw });
+  doc.font('Body').fontSize(7.6).fillColor(C.ink3).text('Fasce del pilot: Fondativa < 44 · In costruzione 44–69 · Consolidata da 70. Le dimensioni non ancora misurate restano N.D. e non sono disegnate come zero.', tx, y + 2, { width: tw });
   if (R.overall != null) doc.font('Semi').fontSize(8.4).fillColor(C.ink2).text(`Indicatore sintetico complessivo (lettura secondaria, Map completa): ${n1(R.overall)}`, tx, doc.y + 4, { width: tw });
   doc.y = Math.max(yTop + 226, doc.y + 4);
 
@@ -159,7 +195,7 @@ export function buildCompanyPdf(R) {
     doc.font('Bold').fontSize(9.6).fillColor(C.ink).text(`${c.id} · ${c.label}`, X0, y0, { continued: false });
     tag(st[0], st[1], X0 + doc.widthOfString(`${c.id} · ${c.label}`) + 8, y0 - 0.5);
     doc.y = y0 + 13;
-    for (const x of c.comparisons) para(x.available ? `${x.enabler} ${n1(x.enablerScore)}  →  ${c.dependent} ${n1(x.dependentScore)}   (scarto ${x.diff > 0 ? '+' : ''}${n1(x.diff)})${x.status === 'da_esaminare' ? '  · da esaminare' : ''}` : `${x.enabler} → ${c.dependent}: non ancora disponibile (abilitante N.D.)`, { size: 8, color: C.ink2 });
+    for (const x of c.comparisons) para(x.available ? `${x.enabler} ${n1(x.enablerScore)}  »  ${c.dependent} ${n1(x.dependentScore)}   (scarto ${x.diff > 0 ? '+' : ''}${n1(x.diff)})${x.status === 'da_esaminare' ? '  · da esaminare' : ''}` : `${x.enabler} » ${c.dependent}: non ancora disponibile (abilitante N.D.)`, { size: 8, color: C.ink2 });
     if (c.flagged) para(`Segnale: ${c.signal}`, { size: 8 });
     if (c.crossSession) para('Confronta dimensioni misurate in sessioni diverse.', { size: 7.5, color: C.ink3 });
     doc.moveDown(0.4);
@@ -233,7 +269,11 @@ export function buildCompanyPdf(R) {
 
   // ---------- 5 · Priorità ----------
   h2('5 · Priorità e commitment');
-  if (R.mapComplete) {
+  if (R.finalPriorities?.length) {
+    explain('Le tre priorità finali, scelte dall\'azienda nell\'allineamento finale.');
+    R.finalPriorities.forEach((p, i) => para(`${i + 1}. ${p.id} · ${p.name} (${n1(p.score)})`, { size: 8.8, bold: true }));
+    if (R.finalPrioritiesNote) para(R.finalPrioritiesNote, { size: 8.4, color: C.ink2 });
+  } else if (R.mapComplete) {
     explain('Tre priorità provvisorie, confermate dopo l\'allineamento finale di settembre 2027. L\'ordine proposto segue la nota: prima riportare a coerenza, poi i prerequisiti fondativi, poi le dimensioni sotto 70 e sotto la mediana peer. È una proposta trasparente, che non sostituisce il giudizio dell\'azienda.');
     R.priorities.slice(0, 3).forEach((p, i) => para(`${i + 1}. ${p.dimension} · ${p.name} (${n1(p.score)}) — ${p.reasons.join('; ') || 'nessun segnale specifico'}`, { size: 8.5 }));
   } else {
@@ -305,4 +345,4 @@ export function pdfBuffer(R) {
   });
 }
 
-export const pdfFileName = (R) => `AITO_Map_${R.snapshot ? `v${R.snapshot.version}_` : ''}${R.company.name.replace(/[^\p{L}\p{N}]+/gu, '_').replace(/^_|_$/g, '')}_${R.generatedAt.slice(0, 10)}.pdf`;
+export const pdfFileName = (R) => `AITO_Map_${R.final ? 'unificato_' : ''}${R.snapshot ? `v${R.snapshot.version}_` : ''}${R.company.name.replace(/[^\p{L}\p{N}]+/gu, '_').replace(/^_|_$/g, '')}_${R.generatedAt.slice(0, 10)}.pdf`;

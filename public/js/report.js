@@ -9,10 +9,27 @@ const app = $('#app');
 async function boot() {
   const { instrument: I, scoring: SC } = await api('/api/instrument');
   let R;
-  try { R = await api(`/api/report/${cid}?${t ? `t=${encodeURIComponent(t)}&` : ''}${params.get('snap') ? `snap=${params.get('snap')}` : ''}`); }
+  const fin = params.get('final') === '1' ? 'final=1&' : ''; // anteprima del report unificato (solo console ELIS)
+  try { R = await api(`/api/report/${cid}?${t ? `t=${encodeURIComponent(t)}&` : ''}${fin}${params.get('snap') ? `snap=${params.get('snap')}` : ''}`); }
   catch (e) { app.innerHTML = `<div class="card"><h2>${e.network ? 'Connessione non disponibile' : 'Report non disponibile'}</h2><p>${esc(e.message)}</p>${e.network ? '<button onclick="location.reload()">Riprova</button>' : ''}</div>`; return; }
   const snap = params.get('snap');
-  $('#pdfbtn').href = `/api/report/${cid}/pdf?${t ? `t=${encodeURIComponent(t)}&` : ''}${snap ? `snap=${snap}` : ''}`;
+  $('#pdfbtn').href = `/api/report/${cid}/pdf?${t ? `t=${encodeURIComponent(t)}&` : ''}${fin}${snap ? `snap=${snap}` : ''}`;
+  const AL = R.alignment;
+  const shiftTag = (x) => (x == null ? '—' : x === 0 ? '<span class="shift zero">invariato</span>' : `<span class="shift ${x > 0 ? 'up' : 'down'}">${x > 0 ? '▲ +' : '▼ '}${fmtScore(x).replace('-', '−')}</span>`);
+  const alignHtml = AL ? `<div class="card"><h2>Allineamento finale: che cosa è cambiato</h2>
+    <div class="explain">A settembre 2027 l'azienda ha rivisto le capacità misurate nelle quattro sessioni: le ha confermate o modificate indicando un'evidenza. I valori delle sessioni non sono stati sovrascritti: qui accanto a ciascuno c'è il valore allineato e lo spostamento. Tutte le sezioni seguenti usano i valori allineati.</div>
+    <p class="small"><b>${AL.reviewed} di ${AL.total}</b> capacità riviste · <b>${AL.changed}</b> ${AL.changed === 1 ? 'modificata' : 'modificate'}${AL.confirmedAt ? ` · confermato il ${fmtDate(AL.confirmedAt)}` : ' · <span class="tag warn">non ancora confermato</span>'}${AL.overallBefore != null ? ` · indicatore complessivo ${fmtScore(AL.overallBefore)} → <b>${fmtScore(AL.overallAfter)}</b>` : ''}</p>
+    <h3>Per dimensione</h3>
+    <div class="tablewrap"><table><thead><tr><th>Dimensione</th><th class="num">In sessione</th><th class="num">Allineamento</th><th>Spostamento</th></tr></thead><tbody>
+      ${AL.dims.map((d) => `<tr><td><span class="dim-letter">${d.id}</span>${esc(d.name)}</td><td class="num">${fmtScore(d.before)}</td><td class="num"><b>${fmtScore(d.after)}</b></td><td>${d.before == null ? '—' : shiftTag(d.shift)}</td></tr>`).join('')}
+    </tbody></table></div>
+    <h3>Per capacità</h3>
+    <div class="tablewrap"><table><thead><tr><th>Capacità</th><th>Prima rilevazione</th><th>Allineamento</th><th>Spostamento</th><th>Evidenza</th></tr></thead><tbody>
+      ${AL.items.map((i) => `<tr><td><b>${esc(i.itemId)}</b> ${esc(i.title)}<div class="small muted">Dim. ${i.dimension} · ${esc(i.session)}</div></td>
+        <td>${i.before ? `<b>${levelLabel(i.before.level, i.before.sub)}</b> <span class="small muted">${fmtScore(i.before.score)}</span>` : '—'}</td>
+        <td>${i.after ? `<b>${levelLabel(i.after.level, i.after.sub)}</b> <span class="small muted">${fmtScore(i.after.score)}</span>${i.action === 'conferma' ? '<div class="small muted">confermato</div>' : ''}` : '<span class="muted">non rivisto</span>'}</td>
+        <td>${i.after ? shiftTag(i.shift) : '—'}</td><td class="small">${esc(i.evidence || '')}</td></tr>`).join('')}
+    </tbody></table></div></div>` : '';
 
   const names = SC.quadrantNames[SC.quadrantNamesInUse];
   const fnLabel = (id) => I.functions.find((f) => f.id === id)?.label || id;
@@ -34,7 +51,7 @@ async function boot() {
   ${R.preview ? (demoBar('report non ufficiale'), '') : ''}${R.draft ? `<div class="banner warn noprint">${['', R.draft ? '<b>Bozza</b>: versione calcolata ora, non ancora rilasciata; l\'azienda vede solo le versioni rilasciate, che non cambiano più.' : ''].filter(Boolean).join(' ')}</div>` : ''}
   ${R.snapshot ? `<div class="banner ok">Versione rilasciata v${R.snapshot.version} · ${esc(R.snapshot.sessionTitle)} · ${fmtDate(R.snapshot.releasedAt)}</div>` : ''}
   <div id="versions" class="noprint"></div>
-  <div class="cover"><div class="eyebrow">AI Transformation &amp; Adoption Map · report riservato</div>
+  <div class="cover"><div class="eyebrow">AI Transformation &amp; Adoption Map · ${R.final ? 'report unificato dopo l\'allineamento finale' : 'report riservato'}</div>
     <h1>${esc(R.company.name)}</h1>
     <dl class="covermeta"><div><dt>Perimetro</dt><dd>${esc(R.company.perimeter || 'non indicato')}</dd></div><div><dt>Dimensioni misurate</dt><dd>${R.dimsComplete} di 8</dd></div><div><dt>Generato il</dt><dd>${fmtDate(R.generatedAt)}</dd></div></dl>
     <div class="small" style="color:#AFC0D6;margin-top:14px">Strumento V${esc(R.instrumentVersion)} · scoring ${esc(R.scoringVersion)} · Benchmark: ${[...new Set(Object.values(R.benchVersions))].map(esc).join(' · ') || 'nessuna versione congelata'}</div>
@@ -43,6 +60,8 @@ async function boot() {
   <div class="card"><h2>Come leggere questo report</h2>
     <p class="small ink2">La Map descrive la capacità dell'azienda di trasformare l'AI in pratica governata, adottata e scalabile. Non è una graduatoria e non esiste un livello giusto in assoluto. La lettura principale è la <b>coerenza tra le capacità</b>: livelli bassi ma allineati possono indicare un percorso coerente, mentre una forte distanza tra una capacità e quella da cui dipende segnala un punto da esaminare. Il benchmark confronta l'azienda con le altre aziende AITO (non con il mercato) e indica sempre su quante aziende si basa.</p>
   </div>
+
+  ${alignHtml}
 
   <div class="card"><h2><span class="secnum">1</span>Il profilo AI</h2>
     <div class="grid c2"><div class="chart">${radar(radarDims)}<div class="legend"><span><i style="background:#005172"></i>Azienda</span>${anyDimBench ? '<span><i style="background:#1FB5B8"></i>Mediana delle altre aziende</span>' : ''}</div></div>
@@ -99,7 +118,9 @@ async function boot() {
 
   <div class="card"><h2><span class="secnum">6</span>Priorità</h2>
     <div class="explain">L'ordine segue la nota: prima riportare a coerenza, poi i prerequisiti fondativi, poi le dimensioni sotto 70 e sotto la mediana peer. È una proposta trasparente, non sostituisce il giudizio dell'azienda.</div>
-    ${R.mapComplete ? `<h3>Tre priorità provvisorie</h3><p class="small muted">Provvisorie dopo Scalare; si confermano dopo l'allineamento finale di settembre 2027, quando tutte le dimensioni hanno la stessa data.</p>
+    ${R.finalPriorities?.length ? `<h3>Le tre priorità finali</h3><p class="small muted">Scelte dall'azienda nell'allineamento finale.</p>
+      <ol>${R.finalPriorities.map((p) => `<li><b>${p.id} · ${esc(p.name)}</b> (${fmtScore(p.score)})</li>`).join('')}</ol>${R.finalPrioritiesNote ? `<p class="small">${esc(R.finalPrioritiesNote)}</p>` : ''}`
+      : R.mapComplete ? `<h3>Tre priorità provvisorie</h3><p class="small muted">Provvisorie dopo Scalare; si confermano dopo l'allineamento finale di settembre 2027, quando tutte le dimensioni hanno la stessa data.</p>
       <ol>${R.priorities.slice(0, 3).map((p) => `<li><b>${p.dimension} · ${esc(p.name)}</b> (${fmtScore(p.score)}) — <span class="small">${esc(p.reasons.join('; ') || 'nessun segnale specifico')}</span></li>`).join('')}</ol>`
       : `<p class="small">Le tre priorità complessive si calcolano a Map completa (${R.dimsComplete}/8 dimensioni misurate finora). In ogni sessione l'azienda sceglie la propria priorità e il commitment, riportati qui sotto.</p>`}
     <h3>Commitment registrati</h3>

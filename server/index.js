@@ -10,6 +10,7 @@ import * as L from './logic.js';
 import * as E from './engine/index.js';
 import { buildExport } from './export.js';
 import { pdfBuffer, pdfFileName } from './pdf.js';
+import * as AL from './alignment.js';
 import { liveDashboard } from './live.js';
 import JSZip from 'jszip';
 import compression from 'compression';
@@ -326,8 +327,12 @@ app.get(['/api/r/:t', '/api/f/:c'], wrap((req, res) => {
       commitment: !!q.get('SELECT 1 FROM commitments WHERE session_id = ? AND company_id = ?', s.id, r.company_id), leader_call: !!sc?.leader_call_note };
   }).filter((s) => s.mode === 'workshop' || s.participants > 0 || s.consolidated_at || q.get('SELECT 1 FROM session_company WHERE session_id = ? AND company_id = ?', s.id, r.company_id));
   return { referent: { name: r.name, companyId: r.company_id, company: r.company_name, perimeter: r.perimeter, kind: r.company_kind, demo: !!r.company_seeded }, sessions,
-    reports: L.listSnapshots(r.company_id) };
+    reports: L.listSnapshots(r.company_id), alignment: alignSummary(r) };
 }));
+function alignSummary(r) {
+  const st = AL.alignmentState(r.company_id, r.company_seeded);
+  return { open: st.open, reviewed: st.reviewed, total: st.total, changed: st.changed, confirmedAt: st.confirmedAt };
+}
 
 app.get(['/api/r/:t/presession/:base', '/api/f/:c/presession/:base'], wrap((req, res) => {
   const r = referent(req, res); if (!r) return;
@@ -412,6 +417,28 @@ app.get('/api/r/:t/report', wrap((req, res) => {
   const R = L.getSnapshot(r.company_id, req.query.snap ? Number(req.query.snap) : null);
   if (!R) return bad(res, 'Il report non è ancora stato rilasciato da ELIS', 403);
   return R;
+}));
+
+// ---------- Allineamento finale (§14.1): referente dal suo link, facilitatore ELIS dal tavolo ----------
+const alignGate = (r, res) => { if (!AL.isOpen(r.company_seeded)) { bad(res, 'L\'allineamento finale non è ancora aperto', 403); return false; } return true; };
+app.get(['/api/r/:t/alignment', '/api/f/:c/alignment'], wrap((req, res) => {
+  const r = referent(req, res); if (!r) return;
+  return AL.alignmentState(r.company_id, r.company_seeded);
+}));
+app.put(['/api/r/:t/alignment/item/:item', '/api/f/:c/alignment/item/:item'], wrap((req, res) => {
+  const r = referent(req, res); if (!r || !alignGate(r, res)) return;
+  const out = AL.saveItem(r.company_id, req.params.item, req.body || {}, refActor(r));
+  return out.ok ? AL.alignmentState(r.company_id, r.company_seeded) : bad(res, out.errors.join(' · '));
+}));
+app.put(['/api/r/:t/alignment/priorities', '/api/f/:c/alignment/priorities'], wrap((req, res) => {
+  const r = referent(req, res); if (!r || !alignGate(r, res)) return;
+  const out = AL.savePriorities(r.company_id, req.body?.priorities, req.body?.note, refActor(r));
+  return out.ok ? AL.alignmentState(r.company_id, r.company_seeded) : bad(res, out.errors.join(' · '));
+}));
+app.post(['/api/r/:t/alignment/confirm', '/api/f/:c/alignment/confirm'], wrap((req, res) => {
+  const r = referent(req, res); if (!r || !alignGate(r, res)) return;
+  const out = AL.confirm(r.company_id, r.company_seeded, refActor(r));
+  return out.ok ? AL.alignmentState(r.company_id, r.company_seeded) : bad(res, out.errors.join(' · '));
 }));
 
 // ---------- Admin ELIS ----------
@@ -765,7 +792,7 @@ app.get('/api/admin/maps/:base', wrap((req, res) => (I.sessions.some((x) => x.id
 // Report per l'admin: una versione rilasciata (?snap=id) oppure la bozza corrente, marcata come tale.
 function reportFor(cid, req, admin) {
   if (req.query.snap) { const R = L.getSnapshot(cid, Number(req.query.snap)); if (R) return R; }
-  if (admin) return { ...L.companyReport(cid), draft: true };
+  if (admin) return { ...L.companyReport(cid, { final: req.query.final === '1' }), draft: true };
   return L.getSnapshot(cid);
 }
 app.get('/api/admin/report/:cid', wrap((req) => reportFor(Number(req.params.cid), req, true)));
@@ -777,6 +804,24 @@ app.post('/api/admin/correct', wrap((req, res) => {
   const out = L.adminCorrect(companyId, itemId, level, sub, reason, ADMIN);
   if (!out.ok) return bad(res, out.errors.join(' · '));
   return out;
+}));
+// Allineamento finale: vista d'insieme, apertura, riapertura con motivo, rilascio del report unificato
+const envCompany = (req, res) => {
+  const c = q.get('SELECT * FROM companies WHERE id = ? AND seeded = ?', req.params.cid, envOf(req));
+  if (!c) bad(res, 'Azienda non trovata', 404);
+  return c;
+};
+app.get('/api/admin/alignment', wrap((req) => AL.overview(envOf(req))));
+app.post('/api/admin/alignment/open', wrap((req) => { AL.setOpen(envOf(req), !!req.body?.open, ADMIN, txt(req.body?.reason, 1000)); return AL.overview(envOf(req)); }));
+app.post('/api/admin/alignment/:cid/reopen', wrap((req, res) => {
+  const c = envCompany(req, res); if (!c) return;
+  const out = AL.reopen(c.id, txt(req.body?.reason, 1000), ADMIN);
+  return out.ok ? out : bad(res, out.errors.join(' · '));
+}));
+app.post('/api/admin/alignment/:cid/release', wrap((req, res) => {
+  const c = envCompany(req, res); if (!c) return;
+  const out = L.releaseFinalReport(c.id, ADMIN);
+  return out.ok ? out : bad(res, out.errors.join(' · '));
 }));
 // Ambiente DEMO: stato del percorso guidato, caricamento, avanzamento e reset. Mai in Produzione.
 const onlyDemo = (req, res) => { if (isProva(req)) return true; bad(res, 'Disponibile solo nell\'ambiente DEMO', 403); return false; };

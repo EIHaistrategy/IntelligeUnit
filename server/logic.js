@@ -1,6 +1,7 @@
 // Logica applicativa: collega il database al motore di calcolo.
 import { q, tx, audit } from './db.js';
 import * as E from './engine/index.js';
+import * as A from './alignment.js';
 
 const I = E.INSTRUMENT;
 const S = E.SCORING;
@@ -398,10 +399,15 @@ export function sessionMaps(base, { preview = false } = {}) {
 }
 
 // ---------- Report aziendale ----------
-export function companyReport(companyId, { preview = false } = {}) {
+export function companyReport(companyId, { preview = false, final = false } = {}) {
   const company = q.get('SELECT * FROM companies WHERE id = ?', companyId);
   if (company?.seeded) preview = true; // un'azienda di prova si confronta con il benchmark di prova, mai con quello ufficiale
   const cur = currentValues(companyId);
+  // report unificato: i valori allineati si mettono sopra quelli della sessione, che restano com'erano
+  if (final) for (const [k, a] of Object.entries(A.alignedOverlay(companyId))) {
+    const b = cur[k] || { item_id: k, confidence_label: null, confidence_reason: null, override: 0, override_reason: null, valid_n: 0, nd_n: 0, range_: null, median: null };
+    cur[k] = { ...b, level: a.level, sub: a.sub, score: a.score, kind: 'allineato', created_at: a.created_at };
+  }
   const itemScores = Object.fromEntries(Object.keys(I.items).map((k) => [k, cur[k]?.score ?? null]));
   const dimScores = E.allDimensionScores(itemScores);
   const bench = {};
@@ -458,6 +464,26 @@ export function companyReport(companyId, { preview = false } = {}) {
     mapComplete: dims.every((d) => d.score != null),
     priorities: E.proposePriorities(itemScores, dimScores, peerMedians),
     pairs, profile, commitments, calls, sessions: sessionsDone,
+    ...(final ? finalPart(companyId, company) : {}),
+  };
+}
+
+// Parte del report unificato: spostamenti rispetto alla rilevazione in sessione e tre priorità finali (§14.1)
+function finalPart(companyId, company) {
+  const st = A.alignmentState(companyId, company.seeded);
+  const dimName = (id) => I.dimensions.find((d) => d.id === id)?.name || id;
+  return {
+    final: true,
+    alignment: {
+      confirmedAt: st.confirmedAt, reviewed: st.reviewed, total: st.total, changed: st.changed, overallBefore: st.overallBefore, overallAfter: st.overallAfter,
+      items: st.items.filter((i) => i.base || i.current).map((i) => ({ itemId: i.itemId, title: i.title, dimension: i.dimension, session: i.sessionName, preJuly: i.preJuly,
+        before: i.base ? { level: i.base.level, sub: i.base.sub, score: i.base.score } : null,
+        after: i.current ? { level: i.current.level, sub: i.current.sub, score: i.current.score } : null,
+        action: i.current?.action || null, evidence: i.current?.evidence || '', shift: i.shift })),
+      dims: st.dims,
+    },
+    finalPriorities: st.priorities.map((id) => ({ id, name: dimName(id), score: st.dims.find((d) => d.id === id)?.after ?? null })),
+    finalPrioritiesNote: st.prioritiesNote,
   };
 }
 
@@ -474,8 +500,29 @@ export function releaseReport(sessionId, companyId, actor) {
   return { id: Number(r.lastInsertRowid), version };
 }
 export function listSnapshots(companyId) {
-  return q.all(`SELECT r.id, r.session_id, r.version, r.created_at, s.title session_title FROM report_snapshots r JOIN sessions s ON s.id = r.session_id
+  const rows = q.all(`SELECT r.id, r.session_id, r.version, r.kind, r.created_at, s.title session_title FROM report_snapshots r JOIN sessions s ON s.id = r.session_id
                 WHERE r.company_id = ? ORDER BY r.id DESC`, companyId);
+  // il report unificato ha una numerazione sua (v1, v2…), indipendente da quella della sessione a cui è appoggiato
+  const fin = rows.filter((r) => r.kind === 'finale').reverse();
+  fin.forEach((r, i) => { r.version = i + 1; r.session_title = 'Report unificato · allineamento finale'; });
+  return rows;
+}
+
+// Report unificato dopo l'allineamento confermato: copia congelata, nuove versioni numerate (regola 2)
+export function releaseFinalReport(companyId, actor) {
+  const company = q.get('SELECT * FROM companies WHERE id = ?', companyId);
+  if (!A.headerOf(companyId)?.confirmed_at) return { ok: false, errors: ['L\'allineamento finale non è ancora confermato'] };
+  // appoggiato all'ultima sessione del programma dell'azienda (serve una sessione per lo schema delle versioni)
+  const s = q.get(`SELECT s.* FROM session_company sc JOIN sessions s ON s.id = sc.session_id WHERE sc.company_id = ? AND sc.consolidated_at IS NOT NULL ORDER BY s.date DESC, s.id DESC LIMIT 1`, companyId)
+    || q.get("SELECT * FROM sessions WHERE seeded = ? AND mode = 'workshop' ORDER BY date DESC LIMIT 1", company.seeded ? 1 : 0);
+  if (!s) return { ok: false, errors: ['Nessuna sessione a cui collegare il report'] };
+  const R = companyReport(companyId, { final: true });
+  const n = q.get("SELECT COUNT(*) n FROM report_snapshots WHERE company_id = ? AND kind = 'finale'", companyId).n + 1;
+  const version = (q.get('SELECT MAX(version) v FROM report_snapshots WHERE session_id = ? AND company_id = ?', s.id, companyId).v || 0) + 1;
+  R.snapshot = { version: n, sessionId: s.id, sessionTitle: 'Report unificato · allineamento finale', releasedAt: new Date().toISOString(), final: true };
+  const r = q.run("INSERT INTO report_snapshots (session_id, company_id, version, kind, data_json, created_by) VALUES (?,?,?,'finale',?,?)", s.id, companyId, version, JSON.stringify(R), actor);
+  audit(actor, 'report', `finale/${companyId}`, n > 1 ? 'release_new_version' : 'release', null, { version: n });
+  return { ok: true, id: Number(r.lastInsertRowid), version: n };
 }
 export function getSnapshot(companyId, snapId = null) {
   const r = snapId

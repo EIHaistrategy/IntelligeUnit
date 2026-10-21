@@ -5,7 +5,8 @@
     "Livelli: numeri da 1 a 5, oppure \"ND\" (non ho sufficiente visibilità). Sotto-opzioni: \"A\", \"B\" o \"C\" se il livello le prevede.",
     "Funzioni: CEO, STRAT, IT, FIN, HR, LEGAL, RISK, PROC, MKT, OPS, OTHER.",
     "Date nel formato AAAA-MM-GG. Stati dei commitment: aperto, avviato, completato, non avviato, sospeso.",
-    "Ai nomi delle aziende la piattaforma aggiunge da sola '(demo)'."
+    "Ai nomi delle aziende la piattaforma aggiunge da sola '(demo)'.",
+    "Allineamento finale: in 'modifiche' le capacità che l'azienda cambia rispetto alla sessione (livello, sotto-opzione, evidenza); tutte le altre si confermano. 'priorita' sono tre dimensioni (A–H)."
   ],
   "azienda": {
     "nome": "Altavia Servizi S.p.A.",
@@ -137,6 +138,17 @@
         "trascrizione": "Chiara Martini 0:01\nCon Scalare la mappa è completa.\nAmministratore delegato 0:10\nTeniamo le tre priorità come provvisorie fino a settembre."
       }
     }
+  },
+  "allineamento": {
+    "data": "2027-09-20",
+    "modifiche": {
+      "Q2": { "livello": 3, "sotto": "B", "evidenza": "Mandato AI approvato dal CdA il 12/03/2027, con budget e un comitato AI che si riunisce ogni mese" },
+      "Q5": { "livello": 3, "sotto": "A", "evidenza": "Catalogo dei dati critici pubblicato: 22 dataset descritti, un responsabile per dominio" },
+      "Q16": { "livello": 2, "sotto": "A", "evidenza": "Il primo caso d'uso è stato replicato negli acquisti con il metodo definito a Crescere" },
+      "Q13": { "livello": 2, "sotto": "B", "evidenza": "Verifica dei percorsi formativi: quelli per ruolo coprono solo l'IT, non ancora le funzioni di business" }
+    },
+    "priorita": ["F", "H", "G"],
+    "nota_priorita": "Industrializzare i rilasci, misurare il valore dei casi replicati e allargare le competenze alle funzioni di business."
   },
   "community": [
     { "nome": "Aurora Energia", "settore": "Energia", "maturita": 3.4 },

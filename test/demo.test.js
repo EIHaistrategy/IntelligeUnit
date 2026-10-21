@@ -65,7 +65,8 @@ test('avanzamento: le quattro sessioni si chiudono con report, call e commitment
   }
   assert.ok(st.sessions.every((s) => s.phase === 'chiusa'));
   const g = st.company.id;
-  assert.equal(q.get('SELECT COUNT(*) n FROM report_snapshots WHERE company_id = ?', g).n, 4);
+  assert.equal(q.get("SELECT COUNT(*) n FROM report_snapshots WHERE company_id = ? AND kind = 'sessione'", g).n, 4);
+  assert.equal(q.get("SELECT COUNT(*) n FROM report_snapshots WHERE company_id = ? AND kind = 'finale'", g).n, 1, 'report unificato dopo l\'allineamento');
   const snap = L.getSnapshot(g);
   assert.ok(snap.calls?.length >= 1 && snap.calls[0].transcript.length > 0, 'la trascrizione della call è nell\'appendice');
   assert.equal(q.get('SELECT COUNT(*) n FROM commitments WHERE company_id = ?', g).n, 4);
@@ -145,7 +146,7 @@ test('«Carica i dati DEMO» mostra il programma concluso; «Riparti da zero» t
   const st = await (await fetch(`${base}/api/admin/demo`, { method: 'POST', headers: C, body: '{}' })).json();
   assert.equal(st.done, true);
   assert.ok(st.sessions.every((s) => s.phase === 'chiusa'));
-  assert.equal(q.get('SELECT COUNT(*) n FROM report_snapshots WHERE company_id = ?', st.company.id).n, 4);
+  assert.equal(q.get("SELECT COUNT(*) n FROM report_snapshots WHERE company_id = ? AND kind = 'sessione'", st.company.id).n, 4);
   const z = await (await fetch(`${base}/api/admin/demo/reset`, { method: 'POST', headers: C, body: '{}' })).json();
   assert.equal(z.done, false); assert.ok(z.sessions.every((s) => s.phase === 'preparazione'));
   assert.equal(prod().companies, 1);

@@ -163,6 +163,23 @@ CREATE TABLE IF NOT EXISTS report_snapshots (  -- report consegnati: copia conge
 
 CREATE TABLE IF NOT EXISTS admin_tokens (token TEXT PRIMARY KEY, created_at TEXT NOT NULL DEFAULT (datetime('now')));
 
+CREATE TABLE IF NOT EXISTS alignment_items (  -- allineamento finale (§14.1): conferma o modifica per capacità; storico, mai sovrascritto
+  id INTEGER PRIMARY KEY,
+  company_id INTEGER NOT NULL REFERENCES companies(id),
+  item_id TEXT NOT NULL,
+  action TEXT NOT NULL,                     -- conferma | modifica
+  level INTEGER, sub TEXT, score REAL,
+  base_level INTEGER, base_sub TEXT, base_score REAL, base_session_id INTEGER,  -- rilevazione in sessione al momento della scelta
+  evidence TEXT,
+  is_current INTEGER NOT NULL DEFAULT 1,
+  created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS alignment (  -- stato dell'allineamento per azienda: tre priorità finali e conferma
+  company_id INTEGER PRIMARY KEY REFERENCES companies(id),
+  priorities_json TEXT, priorities_note TEXT,
+  confirmed_at TEXT, confirmed_by TEXT, updated_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS roster (  -- persone iscritte da ELIS: solo nome e funzione (regola 9); in sala si scelgono dal telefono
   id INTEGER PRIMARY KEY,
   company_id INTEGER NOT NULL REFERENCES companies(id),
@@ -181,7 +198,9 @@ for (const sql of ["ALTER TABLE commitments ADD COLUMN status_note TEXT", "ALTER
   // trascrizione della call con il leader (Teams), allegata al report in una nuova versione
   "ALTER TABLE session_company ADD COLUMN leader_call_transcript TEXT", "ALTER TABLE session_company ADD COLUMN leader_call_at TEXT",
   // registro modifiche separato per ambiente: le righe già presenti sono di Produzione, tranne quelle del caricamento DEMO
-  "ALTER TABLE audit ADD COLUMN seeded INTEGER NOT NULL DEFAULT 0"]) {
+  "ALTER TABLE audit ADD COLUMN seeded INTEGER NOT NULL DEFAULT 0",
+  // report unificato dell'allineamento finale: una versione congelata come le altre, distinta per tipo
+  "ALTER TABLE report_snapshots ADD COLUMN kind TEXT NOT NULL DEFAULT 'sessione'"]) {
   try { db.exec(sql); } catch { /* colonna già presente */ }
 }
 db.exec("UPDATE audit SET seeded = 1 WHERE seeded = 0 AND actor LIKE 'demo%'");

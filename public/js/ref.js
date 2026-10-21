@@ -1,4 +1,5 @@
 import { api, esc, $, $$, toast, poll, distBars, confTag, phaseChips, qrImg, fmtScore, fmtDate, bandTag, levelLabel, alt, icon, demoBar } from './ui.js';
+import { renderAlignment } from './align.js';
 
 const T = location.pathname.split('/').pop();
 // La stessa pagina serve al facilitatore ELIS (/tavolo-elis/:azienda, dalla console): conduce confronto e consolidamento
@@ -37,7 +38,7 @@ async function boot() {
 function route() {
   if (stopPoll) { stopPoll(); stopPoll = null; }
   const [, view, arg] = location.hash.split('/');
-  const go = view === 'scheda' ? renderScheda(arg) : view === 'sessione' ? renderSession(Number(arg)) : renderHome();
+  const go = view === 'scheda' ? renderScheda(arg) : view === 'sessione' ? renderSession(Number(arg)) : view === 'allineamento' ? renderAlignment(app, { API, FAC }) : renderHome();
   // un link vecchio o di un altro ambiente non lascia la pagina bianca
   return Promise.resolve(go).catch((e) => { app.innerHTML = `<div class="card" role="alert"><h2>Pagina non disponibile</h2><p>${esc(e.message)}</p><a class="btn" href="#/">Torna alle sessioni</a></div>`; });
 }
@@ -51,16 +52,26 @@ async function renderHome() {
   if (!FAC && prep && active.every((s) => s.phase === 'preparazione')) return renderQuestions(prep.base);
   const finished = !active.length && done.length;
   const activeTitle = finished ? 'Programma' : !active.length || active.every((s) => s.phase === 'preparazione') ? 'Prossima sessione' : 'Sessione in corso';
-  const activeNote = finished ? 'Le sessioni del programma sono concluse. ELIS vi contatterà per l\'allineamento finale di settembre 2027.'
+  const A = me.alignment || {};
+  const activeNote = finished ? (A.open ? 'Le sessioni del programma sono concluse: resta l\'allineamento finale, qui sotto.' : 'Le sessioni del programma sono concluse. ELIS vi contatterà per l\'allineamento finale di settembre 2027.')
     : !active.length ? 'Nessuna sessione in programma in questo momento.' : later ? 'Le sessioni successive del programma compariranno qui quando saranno le prossime.' : '';
   // al telefono la sessione attiva viene subito dopo l'intestazione; report e sessioni concluse sotto
   app.innerHTML = `${FAC ? `<a class="back" href="/admin">${icon('back')} Console ELIS</a>` : ''}
     <div class="pagehead"><div><h1>${esc(me.referent.company)}</h1>
       <p>Perimetro valutato: <b>${esc(me.referent.perimeter || 'non indicato')}</b></p></div></div>
+    ${A.open || A.reviewed ? alignCard(A) : ''}
     ${sessionsCard(activeTitle, active, activeNote, true)}
     ${reportsCard()}
     ${done.length ? sessionsCard('Sessioni concluse', done, '', false) : ''}`;
 }
+
+// allineamento finale (§14.1): in alto quando è aperto
+const alignCard = (A) => `<div class="card al-card"><div class="row between"><h2 style="margin:0">Allineamento finale</h2>
+    <span class="tag ${A.confirmedAt ? 'ok' : A.reviewed ? 'navy' : 'warn'}">${A.confirmedAt ? 'confermato' : A.reviewed ? 'in corso' : 'da fare'}</span></div>
+  <p class="small ink2">${A.confirmedAt ? `Confermato il ${esc(dOnly(A.confirmedAt))}: ELIS rilascerà il report unificato con tutte le sessioni e gli spostamenti.`
+    : 'Rivedete le 16 capacità delle quattro sessioni (confermate o modificate con un\'evidenza) e scegliete le tre priorità finali.'}</p>
+  <p class="small"><b>${A.reviewed} di ${A.total}</b> capacità riviste · ${A.changed} ${A.changed === 1 ? 'modificata' : 'modificate'}</p>
+  <a class="btn ${A.confirmedAt ? 'ghost' : 'primary'}" href="#/allineamento">${A.confirmedAt ? 'Rivedi l\'allineamento' : A.reviewed ? 'Continua l\'allineamento' : 'Inizia l\'allineamento'}</a></div>`;
 
 // report rilasciati: restano raggiungibili anche quando la pagina mostra solo le domande della sessione successiva
 const reportsCard = () => (me.reports.length ? `<div class="card"><h2>Report riservati</h2><div class="sesslist">${me.reports.map((v) => `<div class="sessrow">
