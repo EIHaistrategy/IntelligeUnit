@@ -66,7 +66,7 @@ async function boot() {
   <div class="card"><h2><span class="secnum">1</span>Il profilo AI</h2>
     <div class="grid c2"><div class="chart">${radar(radarDims)}<div class="legend"><span><i style="background:#005172"></i>Azienda</span>${anyDimBench ? '<span><i style="background:#1FB5B8"></i>Mediana delle altre aziende</span>' : ''}</div></div>
     <div><table><thead><tr><th>Dimensione</th><th class="num">Score</th><th>Fascia</th></tr></thead><tbody>
-      ${R.dims.map((d) => `<tr><td><span class="dim-letter">${d.id}</span>${esc(d.name)}</td><td class="num"><b>${fmtScore(d.score)}</b></td><td>${d.score == null ? `<span class="muted small">${esc(I.sessions.find((s) => s.id === d.session).name)}</span>` : bandTag(d.score, SC)}</td></tr>`).join('')}
+      ${R.dims.map((d) => `<tr><td><span class="dim-letter">${d.id}</span>${esc(d.name)}</td><td class="num"><b>${fmtScore(d.score)}</b></td><td>${d.score == null ? `<span class="muted small">${R.sessions.some((x) => x.base === d.session) ? 'nessuna visibilità (N.D.)' : `si misura a ${esc(I.sessions.find((s) => s.id === d.session).name)}`}</span>` : bandTag(d.score, SC)}</td></tr>`).join('')}
     </tbody></table>
     <p class="small muted" style="margin-top:8px">Fasce del pilot: Fondativa &lt; 44 · In costruzione 44–69 · Consolidata ≥ 70. Una dimensione ha uno score solo quando entrambi i suoi item sono consolidati; le altre restano N.D. e non sono disegnate come zero.
     ${R.overall != null ? `<br>Indicatore sintetico complessivo (lettura secondaria, Map completa): <b>${fmtScore(R.overall)}</b>` : ''}</p></div></div>

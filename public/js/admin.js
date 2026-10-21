@@ -1,4 +1,4 @@
-import { api, esc, $, $$, toast, poll, phaseChips, PHASES, qrImg, qrLabeled, downloadQrPng, icon, fmtDate, fmtScore, levelLabel, alt } from './ui.js';
+import { api, esc, $, $$, toast, ask, askText, poll, phaseChips, PHASES, qrImg, qrLabeled, downloadQrPng, icon, fmtDate, fmtScore, levelLabel, alt } from './ui.js';
 
 const app = $('#app');
 let INST, SC, NET;
@@ -6,11 +6,11 @@ let stopPoll = null;
 
 // ---------- Ambiente: Produzione o DEMO (cookie del browser, letto anche dal server) ----------
 const PROVA = /(?:^|;\s*)aito_mode=prova/.test(document.cookie);
-function setEnv(env) {
+async function setEnv(env) {
   const msg = env === 'prova'
     ? 'Passare all\'ambiente DEMO? Vedrai solo dati simulati (azienda del percorso guidato e community di prova). I dati reali restano dove sono.'
     : 'Tornare all\'ambiente di Produzione? Vedrai e modificherai i dati reali del programma.';
-  if (!confirm(msg)) return;
+  if (!await ask(msg)) return;
   document.cookie = `aito_mode=${env === 'prova' ? 'prova' : 'prod'}; Path=/; Max-Age=${60 * 60 * 24 * 30}; SameSite=Lax`;
   location.hash = '#/programma'; location.reload();
 }
@@ -123,11 +123,18 @@ async function buildNav(view, arg) {
   }[view] || (cur ? [C(cur.mode === 'adhoc' ? 'Sessioni ad hoc' : 'Programma', cur.mode === 'adhoc' ? '#/adhoc' : '#/programma'), C(sessName(cur), view === 'sessione' ? null : `#/sessione/${cur.id}`), ...(view === 'tavoli' ? [C('QR delle aziende')] : [])]
     : [C('Programma', '#/programma')]);
   $('#crumbs').innerHTML = `<ol>${trail.map((t, i) => `<li>${t.href && i < trail.length - 1 ? `<a href="${t.href}">${esc(t.label)}</a>` : `<span ${i === trail.length - 1 ? 'aria-current="page"' : ''}>${esc(t.label)}</span>`}</li>`).join('')}</ol>`;
+  // titolo della scheda del browser: la pagina in cui si è (utile con più schede aperte e ai lettori di schermo)
+  if (trail.length) document.title = `${trail[trail.length - 1].label} · Console ELIS${PROVA ? ' · DEMO' : ''}`;
 }
 
 let keyHandler = null; // scorciatoie da tastiera della pagina aperta (oggi solo la control room)
 document.addEventListener('keydown', (e) => keyHandler?.(e));
+// se in un'altra scheda si è passati da DEMO a Produzione (o viceversa), questa pagina si ricarica:
+// selettore, menu e dati restano sempre dello stesso ambiente
+const envChanged = () => /(?:^|;\s*)aito_mode=prova/.test(document.cookie) !== PROVA;
+addEventListener('focus', () => { if (envChanged()) location.reload(); });
 async function route() {
+  if (envChanged()) { location.reload(); return; }
   if (stopPoll) { stopPoll(); stopPoll = null; }
   keyHandler = null;
   const parts = location.hash.replace(/^#\/?/, '').split('/');
@@ -146,10 +153,11 @@ async function refreshSimDay() {
   const el = $('#simday'); if (el) el.textContent = SIMDAY ? ` · data simulata: ${longDate(SIMDAY)}` : '';
 }
 let tourView = 'admin'; // al telefono si vede una vista alla volta
+let tourReview = null; // passo già fatto che si sta rivedendo (solo vista: i dati restano quelli di adesso)
 async function viewTour() {
   if (!PROVA) { location.hash = '#/programma'; return; }
   const D = await api('/api/admin/demo');
-  const act = async (url, body, msg) => { $$('[id^=tour_]').forEach((b) => { b.disabled = true; }); try { await api(url, { method: 'POST', body: body || {} }); toast(msg); await refreshSimDay(); route(); } catch (e) { toast(e.message, true); $$('[id^=tour_]').forEach((b) => { b.disabled = false; }); } };
+  const act = async (url, body, msg) => { tourReview = null; $$('[id^=tour_]').forEach((b) => { b.disabled = true; }); try { await api(url, { method: 'POST', body: body || {} }); toast(msg); await refreshSimDay(); route(); } catch (e) { toast(e.message, true); $$('[id^=tour_]').forEach((b) => { b.disabled = false; }); } };
   if (!D.present) {
     app.innerHTML = `<div class="pagehead"><div><h1>Percorso guidato</h1><p>Il programma dall'inizio alla fine con un'azienda fittizia, per mostrarlo a stakeholder e clienti senza dati reali.</p></div></div>
       <div class="card"><p>I dati DEMO non sono caricati. Puoi caricarli in due modi:</p>
@@ -159,7 +167,8 @@ async function viewTour() {
     $('#tour_start').onclick = () => act('/api/admin/demo/reset', {}, 'Percorso guidato all\'inizio');
     return;
   }
-  const S = D.sessions, cur = D.done ? null : S[D.s], step = D.done ? null : D.steps[D.k], cid = D.company.id;
+  const rv = !D.done && tourReview != null && tourReview < D.k ? tourReview : null;
+  const S = D.sessions, cur = D.done ? null : S[D.s], step = D.done ? null : D.steps[rv ?? D.k], cid = D.company.id;
   const sname = (x) => INST.sessions.find((y) => y.id === x.base)?.name || x.title;
   // la pagina vera da mostrare nel telefono e quella della console per ogni passo
   const joinUrl = (p) => `/j/${cur.code}?c=${D.company.joinCode}&anteprima=1${p ? `&p=${p}` : ''}`;
@@ -190,15 +199,17 @@ async function viewTour() {
     : `<iframe class="phone-frame" src="${esc(phoneUrl)}" title="Vista azienda: ${D.done ? 'allineamento finale' : esc(step.label)}"></iframe>`;
   const realUrl = !D.done && phone.url.startsWith('/j/') ? `${NET.baseUrl}${phone.url.replace('&anteprima=1', '').replace(/&p=[^&#]*/, '')}` : null;
   app.innerHTML = `<div class="pagehead"><div><h1>Percorso guidato</h1><p>${esc(D.company.name)} · ${esc(D.company.sector || '')} · perimetro ${esc(D.company.perimeter || '')}. Dati inventati: nulla entra nei dati reali o nel benchmark ufficiale.</p></div>
-      <div class="row"><button type="button" class="sm" id="tour_reset">Riparti da zero</button></div></div>
+      <div class="row"><button type="button" class="sm ghost" id="tour_reset">Riparti da zero</button></div></div>
     <ol class="tstages" aria-label="Sessioni del percorso">${S.map(stage).join('')}<li class="tstage ${D.done ? 'st-live' : 'st-prep'}"><span class="stage-n" aria-hidden="true">${icon('flag')}</span><span><b>Allineamento finale</b><small>settembre 2027</small></span></li></ol>
-    ${D.done ? '' : `<ol class="tsteps" aria-label="Passi di ${esc(sname(cur))}">${D.steps.map((x, k) => `<li class="${k < D.k ? 'done' : k === D.k ? 'on' : ''}" ${k === D.k ? 'aria-current="step"' : ''}><span aria-hidden="true">${k < D.k ? icon('check') : k + 1}</span>${esc(x.label)}</li>`).join('')}</ol>`}
+    ${D.done ? '' : `<ol class="tsteps" aria-label="Passi di ${esc(sname(cur))}">${D.steps.map((x, k) => `<li class="${k < D.k ? 'done' : k === D.k ? 'on' : ''} ${k === rv ? 'rv' : ''}" ${k === D.k ? 'aria-current="step"' : ''}>${k < D.k
+      ? `<button type="button" class="tstep-btn" data-rv="${k}" aria-pressed="${k === rv}" title="Rivedi questo passo"><span aria-hidden="true">${icon('check')}</span>${esc(x.label)}<span class="sr-only"> (fatto: rivedi)</span></button>`
+      : `<span aria-hidden="true">${k + 1}</span>${esc(x.label)}`}</li>`).join('')}</ol>`}
     <div class="tourbar">
-      <div><span class="eyebrow">${D.done ? 'Fine del percorso' : `${esc(sname(cur))} · passo ${D.k + 1} di ${D.steps.length}`}</span><h2>${D.done ? 'Allineamento finale' : esc(step.label)}</h2>
+      <div><span class="eyebrow">${D.done ? 'Fine del percorso' : rv != null ? `${esc(sname(cur))} · stai rivedendo il passo ${rv + 1}: i dati sono quelli di adesso` : `${esc(sname(cur))} · passo ${D.k + 1} di ${D.steps.length}`}</span><h2>${D.done ? 'Allineamento finale' : esc(step.label)}</h2>
         <p>${D.done ? 'Le quattro sessioni sono chiuse. A settembre l\'azienda conferma o modifica le 16 capacità con un\'evidenza e sceglie le tre priorità finali; ELIS rilascia il report unificato con gli spostamenti rispetto alle sessioni.' : esc(step.who)}</p></div>
-      <div class="row tour-actions">${D.done ? '' : `<button type="button" class="primary" id="tour_next">Avanza${icon('arrow', 'thin')}</button><button type="button" class="ghost" id="tour_sess">${D.s < 3 ? 'Vai alla sessione successiva' : 'Chiudi l\'ultima sessione'}</button><button type="button" class="ghost" id="tour_end">Vai alla fine</button>`}</div>
+      <div class="row tour-actions">${rv != null ? `<button type="button" class="primary" id="tour_back">Torna al passo ${D.k + 1}</button>` : ''}${D.done || rv != null ? '' : `<button type="button" class="primary" id="tour_next">Avanza${icon('arrow', 'thin')}</button><button type="button" class="ghost" id="tour_sess">${D.s < 3 ? 'Vai alla sessione successiva' : 'Chiudi l\'ultima sessione'}</button><button type="button" class="ghost" id="tour_end">Vai alla fine</button>`}</div>
     </div>
-    <div class="tourtabs" role="tablist" aria-label="Viste del passo"><button type="button" role="tab" data-tv="admin" aria-selected="${tourView === 'admin'}">Vista admin ELIS</button><button type="button" role="tab" data-tv="phone" aria-selected="${tourView === 'phone'}">Vista azienda</button></div>
+    <div class="tourtabs" role="group" aria-label="Quale vista mostrare"><button type="button" data-tv="admin" aria-pressed="${tourView === 'admin'}">Vista admin ELIS</button><button type="button" data-tv="phone" aria-pressed="${tourView === 'phone'}">Vista azienda</button></div>
     <div class="tourpanes view-${tourView}">
       <section class="panel tp-admin" aria-labelledby="tpa-t"><h3 id="tpa-t">Vista admin ELIS</h3>
         ${D.done ? `<p>L'allineamento è confermato e il report unificato è rilasciato. Le pagine vere della console:</p><div class="tlinks"><a class="btn ghost" href="#/allineamento">Allineamento finale: vista d'insieme</a><a class="btn ghost" href="/report/${cid}${D.snapshot ? `?snap=${D.snapshot.id}` : ''}" target="_blank">Report unificato<span class="sr-only"> (nuova scheda)</span></a><a class="btn ghost" href="/tavolo-elis/${cid}#/allineamento" target="_blank">Tavolo del facilitatore<span class="sr-only"> (nuova scheda)</span></a><a class="btn ghost" href="#/commitment">Commitment e verifica</a></div>`
@@ -214,11 +225,13 @@ async function viewTour() {
         ${realUrl ? `<details class="small"><summary>Aprila sul tuo telefono</summary><div style="margin-top:8px">${qrImg(realUrl, 150)}</div><p class="mono small" style="word-break:break-all">${esc(realUrl)}</p></details>` : ''}
       </section>
     </div>`;
-  $$('[data-tv]').forEach((b) => b.onclick = () => { tourView = b.dataset.tv; $('.tourpanes').className = `tourpanes view-${tourView}`; $$('[data-tv]').forEach((x) => x.setAttribute('aria-selected', String(x.dataset.tv === tourView))); });
+  $$('[data-tv]').forEach((b) => b.onclick = () => { tourView = b.dataset.tv; $('.tourpanes').className = `tourpanes view-${tourView}`; $$('[data-tv]').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.tv === tourView))); });
+  $$('[data-rv]').forEach((b) => b.onclick = () => { tourReview = Number(b.dataset.rv) === rv ? null : Number(b.dataset.rv); viewTour(); });
+  if ($('#tour_back')) $('#tour_back').onclick = () => { tourReview = null; viewTour(); };
   if ($('#tour_next')) $('#tour_next').onclick = () => act('/api/admin/demo/advance', { mode: 'step' }, 'Passo successivo');
   if ($('#tour_sess')) $('#tour_sess').onclick = () => act('/api/admin/demo/advance', { mode: 'session' }, 'Sessione successiva');
-  if ($('#tour_end')) $('#tour_end').onclick = () => { if (confirm('Portare il percorso alla fine? Le quattro sessioni DEMO si chiudono con tutti i dati del file.')) act('/api/admin/demo/advance', { mode: 'end' }, 'Percorso completato'); };
-  $('#tour_reset').onclick = () => { if (confirm('Ripartire da zero? I dati DEMO si cancellano (anche aziende e sessioni create a mano in DEMO) e si ricaricano con tutte le sessioni in preparazione, per seguire il processo passo per passo. I dati reali non vengono toccati.')) act('/api/admin/demo/reset', {}, 'Percorso guidato ripartito da zero'); };
+  if ($('#tour_end')) $('#tour_end').onclick = async () => { if (await ask('Portare il percorso alla fine? Le quattro sessioni DEMO si chiudono con tutti i dati del file.')) act('/api/admin/demo/advance', { mode: 'end' }, 'Percorso completato'); };
+  $('#tour_reset').onclick = async () => { if (await ask('Ripartire da zero? I dati DEMO si cancellano (anche aziende e sessioni create a mano in DEMO) e si ricaricano con tutte le sessioni in preparazione, per seguire il processo passo per passo. I dati reali non vengono toccati.')) act('/api/admin/demo/reset', {}, 'Percorso guidato ripartito da zero'); };
 }
 
 // ---------- Allineamento finale (§14.1): vista d'insieme del team ELIS ----------
@@ -228,11 +241,14 @@ async function viewAlignment() {
   const shift = (x) => (x == null ? '—' : x === 0 ? '<span class="shift zero">invariato</span>' : `<span class="shift ${x > 0 ? 'up' : 'down'}">${x > 0 ? '▲ +' : '▼ '}${fmtScore(x).replace('-', '−')}</span>`);
   const dimName = (id) => INST.dimensions.find((d) => d.id === id)?.name || id;
   const prioRank = Object.entries(O.priorityCount).sort((a, b) => b[1] - a[1]);
+  const toRelease = O.companies.filter((c) => c.confirmedAt && !c.released);
   const status = (c) => (c.confirmedAt ? (c.released ? '<span class="chip chip-done">report rilasciato</span>' : '<span class="chip chip-done">confermato</span>')
     : c.reviewed ? `<span class="chip chip-live">in corso · ${c.reviewed}/${c.total}</span>` : '<span class="chip chip-off">da iniziare</span>');
+  const canOpen = O.companies.length > 0;
   app.innerHTML = `<div class="pagehead"><div><h1>Allineamento finale</h1>
       <p>Settembre 2027. Ogni azienda rivede le 16 capacità delle quattro sessioni: conferma o modifica con un'evidenza e sceglie le tre priorità finali. I valori delle sessioni restano: qui si vedono gli spostamenti. Dopo la conferma, ELIS rilascia il report unificato.</p></div>
-      <div class="row"><button type="button" class="${O.open ? 'ghost' : 'primary'}" id="al_open">${O.open ? 'Chiudi l\'allineamento' : 'Apri l\'allineamento alle aziende'}</button></div></div>
+      <div class="al-open">${O.open ? '<button type="button" class="ghost" id="al_open">Chiudi l\'allineamento</button><p class="small muted">Chiudendo, i referenti non modificano più; quanto salvato resta.</p>'
+        : `<button type="button" class="${canOpen ? 'primary' : 'ghost'}" id="al_open" ${canOpen ? '' : 'disabled'}>Apri l'allineamento alle aziende</button>${canOpen ? '' : '<p class="small muted">Si apre quando le aziende hanno capacità consolidate (dopo Scalare).</p>'}`}</div></div>
     <div class="banner ${O.open ? 'ok' : 'info'}">${O.open ? `Aperto: i referenti lo vedono dal loro link. ${O.confirmed} ${O.confirmed === 1 ? 'azienda ha confermato' : 'aziende hanno confermato'}, ${O.started - O.confirmed} in corso.` : 'Chiuso: i referenti non lo vedono ancora. Il facilitatore può già prepararlo dal tavolo di ogni azienda.'}</div>
     <section class="kpis" aria-label="Indicatori dell'allineamento">
       <div class="kpitile"><span class="kt-l">Aziende</span><span class="kt-v">${O.companies.length}</span><span class="kt-s">con capacità misurate</span></div>
@@ -241,32 +257,42 @@ async function viewAlignment() {
       <div class="kpitile"><span class="kt-l">Priorità più scelta</span><span class="kt-v">${prioRank[0] ? prioRank[0][0] : '—'}</span><span class="kt-s">${prioRank[0] ? `${esc(dimName(prioRank[0][0]))} · ${prioRank[0][1]} ${prioRank[0][1] === 1 ? 'azienda' : 'aziende'}` : 'nessuna conferma ancora'}</span></div>
     </section>
     <div class="card"><h2>Vista d'insieme per dimensione</h2>
-      <p class="small ink2">Media delle aziende che hanno iniziato l'allineamento: score in sessione, dopo l'allineamento e spostamento. Le aziende salite o scese indicano dove il quadro è cambiato da quando la dimensione è stata misurata.</p>
-      <div class="tablewrap"><table><thead><tr><th>Dimensione</th><th class="num">Aziende</th><th class="num">In sessione</th><th class="num">Allineamento</th><th>Spostamento medio</th><th class="num">Salite</th><th class="num">Scese</th><th class="num">Priorità finale per</th></tr></thead><tbody>
-      ${O.dims.map((d) => `<tr><td><span class="dim-letter">${d.id}</span>${esc(d.name)}</td><td class="num">${d.n}</td><td class="num">${fmtScore(d.before)}</td><td class="num"><b>${fmtScore(d.after)}</b></td><td>${shift(d.shift)}</td><td class="num">${d.up}</td><td class="num">${d.down}</td><td class="num">${O.priorityCount[d.id] || 0}</td></tr>`).join('')}
+      <p class="small ink2">Media delle aziende che hanno iniziato l'allineamento: score in sessione → dopo l'allineamento e spostamento. Salite e scese dicono dove il quadro è cambiato da quando la dimensione è stata misurata.${O.testExcluded ? ` Le aziende TEST (${O.testExcluded}) sono nell'elenco sotto ma non entrano nelle medie.` : ''}</p>
+      <div class="tablewrap"><table class="al-overview"><thead><tr><th>Dimensione</th><th class="num">Aziende</th><th class="num">Sessione → allineamento</th><th>Spostamento</th><th class="num">Salite / scese</th><th class="num">Scelta come priorità da</th></tr></thead><tbody>
+      ${O.dims.map((d) => `<tr><td><span class="dim-letter">${d.id}</span>${esc(d.name)}</td><td class="num">${d.n}</td><td class="num nowrap">${fmtScore(d.before)} → <b>${fmtScore(d.after)}</b></td><td>${shift(d.shift)}</td><td class="num">${d.up} / ${d.down}</td><td class="num">${O.priorityCount[d.id] || 0}</td></tr>`).join('')}
       </tbody></table></div></div>
-    <div class="card"><h2>Aziende</h2>
-      ${O.companies.length ? `<div class="tablewrap"><table><thead><tr><th>Azienda</th><th>Stato</th><th class="num">Modificate</th><th>Priorità finali</th><th>Azioni</th></tr></thead><tbody>
-      ${O.companies.map((c) => `<tr><td><a href="#/azienda/${c.id}"><b>${esc(c.name)}</b></a>${c.kind === 'TEST' ? ' <span class="tag">TEST</span>' : ''}</td><td>${status(c)}</td>
-        <td class="num">${c.changed}${c.changed ? `<div class="small muted">${c.up} su · ${c.down} giù</div>` : ''}</td>
-        <td>${c.priorities.length ? c.priorities.map((p, i) => `<span class="nowrap">${i + 1}. <b>${p}</b> ${esc(dimName(p))}</span>`).join('<br>') : '<span class="muted">—</span>'}</td>
-        <td class="actions"><div class="row"><a class="btn sm ghost" href="/tavolo-elis/${c.id}#/allineamento" target="_blank">Apri il tavolo<span class="sr-only"> di ${esc(c.name)} (nuova scheda)</span></a>
-          <a class="btn sm ghost" href="/report/${c.id}?final=1" target="_blank">Anteprima del report<span class="sr-only"> di ${esc(c.name)}</span></a>
-          ${c.confirmedAt ? `<button type="button" class="sm" data-rel="${c.id}" data-n="${esc(c.name)}">${c.released ? 'Rilascia una nuova versione' : 'Rilascia il report unificato'}</button><button type="button" class="sm ghost" data-reopen="${c.id}" data-n="${esc(c.name)}">Riapri</button>` : ''}
-          ${c.released ? `<a class="btn sm ghost" href="/report/${c.id}?snap=${c.released.id}" target="_blank">Report rilasciato<span class="sr-only"> di ${esc(c.name)}</span></a>` : ''}</div></td></tr>`).join('')}
-      </tbody></table></div>` : '<p class="muted">Nessuna azienda ha ancora capacità consolidate.</p>'}</div>`;
+    <div class="card"><div class="sechead"><h2>Aziende</h2>${toRelease.length ? `<button type="button" class="primary sm" id="al_relall">Rilascia i report unificati pronti (${toRelease.length})</button>` : ''}</div>
+      ${O.companies.length ? `<ul class="al-list">${O.companies.map((c) => `<li>
+        <div class="al-c-name"><a href="#/azienda/${c.id}"><b>${esc(c.name)}</b></a>${c.kind === 'TEST' ? ' <span class="tag">TEST</span>' : ''}<div>${status(c)}</div></div>
+        <div class="al-c-mod small">${c.changed ? `<b>${c.changed}</b> ${c.changed === 1 ? 'modificata' : 'modificate'}<br><span class="muted">${c.up} in su · ${c.down} in giù</span>` : '<span class="muted">nessuna modifica</span>'}</div>
+        <div class="al-c-prio small">${c.priorities.length ? `<span class="muted">Priorità finali</span><br>${c.priorities.map((p, i) => `${i + 1}. <b>${p}</b> ${esc(dimName(p))}`).join('<br>')}` : '<span class="muted">priorità non ancora scelte</span>'}</div>
+        <div class="al-c-act">
+          ${c.confirmedAt && !c.released ? `<button type="button" class="sm primary" data-rel="${c.id}" data-n="${esc(c.name)}">Rilascia il report unificato</button>` : ''}
+          ${c.released ? `<a class="btn sm ghost" href="/report/${c.id}?snap=${c.released.id}" target="_blank">Apri il report<span class="sr-only"> unificato di ${esc(c.name)} (nuova scheda)</span></a>` : ''}
+          <a class="btn sm ghost" href="/tavolo-elis/${c.id}#/allineamento" target="_blank">Apri il tavolo<span class="sr-only"> di ${esc(c.name)} (nuova scheda)</span></a>
+          <details class="more"><summary class="btn sm ghost">Altro<span class="sr-only"> per ${esc(c.name)}</span></summary><div class="more-menu">
+            <a href="/report/${c.id}?final=1" target="_blank">Anteprima del report unificato</a>
+            ${c.released ? `<button type="button" class="link" data-rel="${c.id}" data-n="${esc(c.name)}" data-again="1">Rilascia una nuova versione</button>` : ''}
+            ${c.confirmedAt ? `<button type="button" class="link" data-reopen="${c.id}" data-n="${esc(c.name)}">Riapri l'allineamento</button>` : ''}</div></details></div></li>`).join('')}</ul>` : '<p class="muted">Nessuna azienda ha ancora capacità consolidate.</p>'}</div>`;
   $('#al_open').onclick = async () => {
-    const msg = O.open ? 'Chiudere l\'allineamento? I referenti non potranno più modificarlo dal loro link; quello che hanno già salvato resta.' : 'Aprire l\'allineamento finale alle aziende? I referenti lo vedranno dal loro link e potranno confermare o modificare le capacità.';
-    if (!confirm(msg)) return;
+    const msg = O.open ? 'I referenti non potranno più modificarlo dal loro link; quello che hanno già salvato resta.' : 'I referenti lo vedranno dal loro link e potranno confermare o modificare le capacità.';
+    if (!await ask(msg, { title: O.open ? 'Chiudere l\'allineamento?' : 'Aprire l\'allineamento alle aziende?', ok: O.open ? 'Chiudi l\'allineamento' : 'Apri alle aziende' })) return;
     try { await api('/api/admin/alignment/open', { method: 'POST', body: { open: !O.open, env: PROVA ? 1 : 0 } }); toast(O.open ? 'Allineamento chiuso' : 'Allineamento aperto'); route(); } catch (e) { toast(e.message, true); }
   };
+  const release = async (id) => api(`/api/admin/alignment/${id}/release`, { method: 'POST', body: {} });
   $$('[data-rel]').forEach((b) => b.onclick = async () => {
-    if (!confirm(`Rilasciare il report unificato di ${b.dataset.n}? Il referente lo vedrà dal suo link. Il report rilasciato non cambia più: eventuali correzioni diventano una nuova versione.`)) return;
-    try { const r = await api(`/api/admin/alignment/${b.dataset.rel}/release`, { method: 'POST', body: {} }); toast(`Report unificato v${r.version} rilasciato`); route(); } catch (e) { toast(e.message, true); }
+    const again = !!b.dataset.again;
+    if (!await ask(`Il referente di ${b.dataset.n} lo vedrà dal suo link. Il report rilasciato non cambia più${again ? ': la versione precedente resta consultabile' : ': eventuali correzioni diventano una nuova versione'}.`, { title: again ? 'Rilasciare una nuova versione del report unificato?' : 'Rilasciare il report unificato?', ok: 'Rilascia il report' })) return;
+    try { const r = await release(b.dataset.rel); toast(`Report unificato v${r.version} rilasciato`); route(); } catch (e) { toast(e.message, true); }
   });
+  if ($('#al_relall')) $('#al_relall').onclick = async () => {
+    if (!await ask(`Si rilascia il report unificato di ${toRelease.length} ${toRelease.length === 1 ? 'azienda' : 'aziende'} con l'allineamento confermato: ${toRelease.map((c) => c.name).join(', ')}. I report rilasciati non cambiano più.`, { title: 'Rilasciare i report unificati pronti?', ok: `Rilascia ${toRelease.length} report` })) return;
+    let ok = 0; for (const c of toRelease) { try { await release(c.id); ok++; } catch (e) { toast(`${c.name}: ${e.message}`, true); } }
+    toast(`${ok} report unificati rilasciati`); route();
+  };
   $$('[data-reopen]').forEach((b) => b.onclick = async () => {
-    const reason = prompt(`Riaprire l'allineamento di ${b.dataset.n}? Il referente potrà di nuovo modificarlo. Scrivi il motivo (resta nel registro):`);
-    if (!reason || !reason.trim()) return;
+    const reason = await askText(`Il referente di ${b.dataset.n} potrà di nuovo modificarlo; il report già rilasciato resta com'è.`, '', { title: 'Riaprire l\'allineamento?', label: 'Motivo (resta nel registro modifiche)', required: true, ok: 'Riapri' });
+    if (!reason) return;
     try { const r = await api(`/api/admin/alignment/${b.dataset.reopen}/reopen`, { method: 'POST', body: { reason } }); toast(r.closed ? 'Riaperto: il referente potrà modificarlo quando apri l\'allineamento alle aziende (ora è chiuso)' : 'Allineamento riaperto'); route(); } catch (e) { toast(e.message, true); }
   });
 }
@@ -279,7 +305,7 @@ function viewQuestions(arg) {
   const pairQ = ([a, b]) => INST.pairQuestion.replace('{a}', `<b>${esc(INST.items[a].pairLabel || INST.items[a].title)}</b>`).replace('{b}', `<b>${esc(INST.items[b].pairLabel || INST.items[b].title)}</b>`);
   const facts = S.items.flatMap((id) => INST.items[id].levels.filter((l) => l.fact).map((l) => ({ ...l.fact, item: id, level: l.level })));
   const profile = (INST.profile || []).filter((p) => p.session === base);
-  try { localStorage.setItem('aito_q_seen', '1'); } catch { /* */ }
+  api('/api/admin/flags/questions-seen', { method: 'POST', body: {} }).catch(() => {});
   app.innerHTML = `<div class="pagehead"><div><h1>Domande delle sessioni</h1><p>Le domande sono le stesse in DEMO e in Produzione: lo strumento V1 è uno solo. Qui ci sono anche le sotto-opzioni, che si scelgono nel consolidamento.</p></div></div>
     <div class="tabs" role="tablist" aria-label="Sessioni">${INST.sessions.map((x, i) => `<button type="button" role="tab" class="tab ${x.id === base ? 'on' : ''}" aria-selected="${x.id === base}" data-qs="${x.id}"><span class="tdot" aria-hidden="true">${i + 1}</span>${esc(x.name)}</button>`).join('')}</div>
     <div class="row between" style="margin-bottom:16px"><p class="ink2" style="margin:0"><b>${esc(S.name)}</b>${S.date ? ` · ${esc(day(S.date))}` : ''} · dimensioni ${esc(S.dimensions.join(' e '))}</p>
@@ -299,18 +325,18 @@ function viewQuestions(arg) {
 
 // Azioni condivise tra control room e pagina "Report e call"
 async function releaseReport(sid, cid) {
-  if (!confirm('Rilasciare il report? Viene salvata una copia che l\'azienda vede da ora in poi e che non cambierà più.')) return false;
+  if (!await ask('Viene salvata una copia che l\'azienda vede da ora in poi e che non cambierà più.', { title: 'Rilasciare il report?', ok: 'Rilascia il report' })) return false;
   const url = `/api/admin/sessions/${sid}/companies/${cid}/release`;
   try { await api(url, { method: 'POST', body: {} }); toast('Report rilasciato'); return true; }
   catch (e) {
-    if (e.status === 409 && confirm(`${e.message}\n\nRilasciare comunque, senza confronto con il benchmark?`)) {
+    if (e.status === 409 && await ask(`${e.message}\n\nRilasciare comunque, senza confronto con il benchmark?`)) {
       try { await api(url, { method: 'POST', body: { withoutBenchmark: true } }); toast('Report rilasciato'); return true; } catch (e2) { toast(e2.message, true); }
     } else if (e.status !== 409) toast(e.message, true);
   }
   return false;
 }
 async function noteCall(sid, c) {
-  const note = prompt(`Esito della call con il leader: ${c.name}`, c.leader_call_note || '');
+  const note = await askText(`Che cosa è emerso nella call con il leader di ${c.name}? È una nota interna di ELIS: non va nel report.`, c.leader_call_note || '', { label: 'Esito della call', ok: 'Salva l\'esito', rows: 5 });
   if (note == null) return false;
   await api(`/api/admin/sessions/${sid}/companies/${c.id}/note`, { method: 'PUT', body: { note } }); toast('Esito annotato'); return true;
 }
@@ -324,7 +350,7 @@ function transcriptDialog(sid, c) {
       ${c.transcript_chars ? '<br><b>Sostituisce la trascrizione attuale</b>, che resta nel registro modifiche.' : ''}</p>
       <label class="f" for="tr-date">Data della call</label><input type="date" id="tr-date" value="${esc(c.transcript_date || isoDay(new Date()))}" style="max-width:220px">
       <label class="f" for="tr-text">Trascrizione</label><textarea id="tr-text" rows="14" maxlength="300000" placeholder="Incolla qui la trascrizione di Teams"></textarea>
-      <p class="small muted" id="tr-n" aria-live="polite">0 caratteri</p>
+      <p class="small muted" id="tr-n">0 caratteri</p>
       <div class="row" style="justify-content:flex-end;margin-top:8px"><button class="ghost" id="tr-no" type="button">Annulla</button><button id="tr-ok" type="button">Salva e rilascia la nuova versione</button></div>`;
     document.body.appendChild(d); d.showModal();
     const close = (v) => { d.close(); d.remove(); done(v); };
@@ -353,7 +379,7 @@ async function viewProgram() {
   const cal = calendar();
   const ctrl = await Promise.all(SESSIONS.map((s) => api(`/api/admin/sessions/${s.id}/control`)));
   const byId = Object.fromEntries(ctrl.map((C) => [C.session.id, C]));
-  const [commits, companies, AO] = await Promise.all([api('/api/admin/commitments'), api('/api/admin/companies'), api('/api/admin/alignment')]);
+  const [commits, companies, AO, FL] = await Promise.all([api('/api/admin/commitments'), api('/api/admin/companies'), api('/api/admin/alignment'), api('/api/admin/flags')]);
   const alNote = AO.open ? `Aperto · ${AO.confirmed} di ${AO.companies.length} aziende confermate` : AO.companies.length ? 'Da aprire alle aziende' : 'Dopo le quattro sessioni';
   const today = SIMDAY || isoDay(new Date());
   const next = cal.find((s) => s.phase !== 'chiusa');
@@ -414,14 +440,17 @@ async function viewProgram() {
     }
   }
   // B2: primi passi, finché il programma non è avviato (stato calcolato dai dati; le domande "viste" si ricordano nel browser)
-  let qSeen = false; try { qSeen = !!localStorage.getItem('aito_q_seen'); } catch { /* */ }
+  const qSeen = FL.questionsSeen;
   const nC = next ? byId[next.id].companies.filter((c) => !PROVA || c.kind === 'TEST') : [];
   const setup = next && next.phase === 'preparazione' && !closed && !live ? [
-    { done: companies.length > 0, label: 'Aggiungi le aziende e i referenti', href: '#/aziende', note: companies.length ? `${companies.length} ${companies.length === 1 ? 'azienda' : 'aziende'}` : 'nessuna ancora' },
+    { done: companies.length > 0 && companies.every((c) => c.referents.length), label: 'Aggiungi le aziende e i referenti', href: '#/aziende',
+      note: !companies.length ? 'nessuna ancora' : companies.every((c) => c.referents.length) ? `${companies.length} ${companies.length === 1 ? 'azienda' : 'aziende'}, tutte con referente` : `${companies.filter((c) => !c.referents.length).length} senza referente` },
     { done: qSeen, label: 'Verifica le domande della sessione', href: `#/domande/${next.base}`, note: qSeen ? 'consultate' : 'da consultare' },
     { done: nC.length > 0 && nC.every((c) => c.qr_generated_at), label: 'Genera i QR delle aziende', href: `#/sessione/${next.id}/prima`, note: nC.length ? `${nC.filter((c) => c.qr_generated_at).length} di ${nC.length}` : 'servono le aziende' },
     { done: nC.length > 0 && !missing.length, label: 'Prepara la sessione', href: `#/sessione/${next.id}/prima`, note: missing.length ? `manca: ${missing.map((m) => m[0]).join(', ')}` : nC.length ? 'pronta' : 'servono le aziende' },
   ] : null;
+  // «Da fare» riprende anche ciò che manca per preparare la prossima sessione (le aziende senza referente ci sono già)
+  for (const [t, h] of missing.filter(([t]) => !t.includes('senza referente'))) add('warn', `<b>${esc(sname(next))}</b>: ${esc(t)}.`, h, 'Vai');
   const kpi = (label, value, sub, extra = '') => `<div class="kpitile"><span class="kt-l">${label}</span><span class="kt-v">${value}</span>${sub ? `<span class="kt-s">${sub}</span>` : ''}${extra}</div>`;
   const pct = cal.length ? Math.round((closed / cal.length) * 100) : 0;
 
@@ -452,7 +481,7 @@ async function viewProgram() {
     <section class="hero" aria-labelledby="ph-t">
       <div class="hero-main">
         <p class="eyebrow">${PROVA ? 'Ambiente DEMO · dati dimostrativi' : 'AITO 2026-27 · ELIS Innovation Hub'}</p>
-        <h1 id="ph-t">Programma AITO 2026-27</h1>
+        <h1 id="ph-t">Programma AITO <span class="nowrap-word">2026-27</span></h1>
         <p class="hero-sub">Quattro sessioni in presenza per misurare come le aziende governano, adottano e scalano l'intelligenza artificiale, fino all'allineamento finale di settembre 2027.</p>
         ${cal.length ? `<div class="hero-prog"><div class="meter-bar" role="progressbar" aria-label="Avanzamento del programma" aria-valuemin="0" aria-valuemax="${cal.length}" aria-valuenow="${closed}" aria-valuetext="${closed} di ${cal.length} sessioni chiuse"><i style="width:${pct}%"></i></div><span aria-hidden="true"><b>${closed} di ${cal.length}</b> sessioni chiuse</span></div>` : ''}
       </div>
@@ -516,8 +545,8 @@ async function viewProgram() {
       <p class="ink2">${D.present ? `Sono caricate 14 aziende della community e l'azienda del percorso guidato (${esc(D.company?.name || '')}). ${D.done ? 'Il programma è concluso: sessioni chiuse, mappe, report e commitment da mostrare.' : 'Il percorso è in corso: lo segui passo per passo dal Percorso guidato.'} Con «Riparti da zero» le sessioni tornano in preparazione per vedere il processo dall\'inizio. Le aziende e le sessioni che crei in questo ambiente restano DEMO.` : 'Non ci sono dati DEMO. Caricali per vedere il programma concluso con un\'azienda fittizia: dashboard, plenaria, mappe e report.'}</p>
       <div class="row">${D.present ? `<a class="btn sm" href="#/percorso">Apri il percorso guidato</a>${D.vetrina ? `<a class="btn sm ghost" href="/report/${D.vetrina}" target="_blank">Report dell'azienda guidata</a>` : ''}<button class="sm ghost" id="demo_zero">Riparti da zero</button><button class="sm danger" id="demo_rm">Cancella tutti i dati DEMO</button>` : '<button class="sm" id="demo_add">Carica i dati DEMO</button>'}</div>`;
     if ($('#demo_add')) $('#demo_add').onclick = async () => { try { await api('/api/admin/demo', { method: 'POST' }); toast('Dati DEMO caricati'); await refreshSimDay(); route(); } catch (e) { toast(e.message, true); } };
-    if ($('#demo_zero')) $('#demo_zero').onclick = async () => { if (!confirm('Ripartire da zero? I dati DEMO si ricaricano con tutte le sessioni in preparazione, per seguire il processo passo per passo. I dati reali non vengono toccati.')) return; try { await api('/api/admin/demo/reset', { method: 'POST' }); toast('Percorso guidato ripartito da zero'); await refreshSimDay(); location.hash = '#/percorso'; } catch (e) { toast(e.message, true); } };
-    if ($('#demo_rm')) $('#demo_rm').onclick = async () => { if (!confirm('Cancellare tutti i dati DEMO (aziende, sessioni, risposte e report DEMO)? I dati reali non vengono toccati.')) return; await api('/api/admin/demo', { method: 'DELETE' }); toast('Dati DEMO cancellati'); await refreshSimDay(); route(); };
+    if ($('#demo_zero')) $('#demo_zero').onclick = async () => { if (!await ask('Ripartire da zero? I dati DEMO si ricaricano con tutte le sessioni in preparazione, per seguire il processo passo per passo. I dati reali non vengono toccati.')) return; try { await api('/api/admin/demo/reset', { method: 'POST' }); toast('Percorso guidato ripartito da zero'); await refreshSimDay(); location.hash = '#/percorso'; } catch (e) { toast(e.message, true); } };
+    if ($('#demo_rm')) $('#demo_rm').onclick = async () => { if (!await ask('Cancellare tutti i dati DEMO (aziende, sessioni, risposte e report DEMO)? I dati reali non vengono toccati.')) return; try { await api('/api/admin/demo', { method: 'DELETE' }); toast('Dati DEMO cancellati'); await refreshSimDay(); route(); } catch (e) { toast(e.message, true); } };
   }
 }
 
@@ -546,11 +575,11 @@ async function viewReports() {
     const cons = C.companies.filter((c) => c.consolidated_at);
     if (!cons.length) return '';
     const upd = benchUpToDate(C);
-    return `<div class="card"><div class="row between"><h2 style="margin:0">${esc(C.session.title)}</h2>
+    return `<div class="card rc-block" data-sid="${C.session.id}"><div class="row between"><h2 style="margin:0">${esc(C.session.title)}</h2>
         <span class="small muted">${cons.filter((c) => c.report_released_at).length} di ${cons.length} rilasciati · ${cons.filter((c) => c.leader_call_note).length} call annotate</span></div>
       ${!PROVA && !upd ? `<p class="note" style="margin-top:12px">Benchmark ${C.benchmark.length ? 'da aggiornare' : 'non ancora congelato'}: <a href="#/sessione/${C.session.id}/dopo">congelalo prima di rilasciare</a>, così il report contiene il confronto.</p>` : ''}
       <div class="tablewrap" style="margin-top:12px"><table><thead><tr><th>Azienda</th><th>Report</th><th>Call con il leader</th></tr></thead><tbody>
-      ${cons.map((c) => `<tr><td><a href="#/azienda/${c.id}"><b>${esc(c.name)}</b></a> ${c.kind !== 'REALE' ? `<span class="tag warn">${esc(c.kind)}</span>` : ''}<div class="small muted">consolidato ${fmtDate(c.consolidated_at)}</div></td>
+      ${cons.map((c) => `<tr data-name="${esc(c.name.toLowerCase())}" data-todo="${!c.report_released_at || !c.leader_call_note ? 1 : 0}"><td><a href="#/azienda/${c.id}"><b>${esc(c.name)}</b></a> ${c.kind !== 'REALE' ? `<span class="tag warn">${esc(c.kind)}</span>` : ''}<div class="small muted">consolidato ${fmtDate(c.consolidated_at)}</div></td>
         <td><div class="row">${c.report_released_at ? `<span class="tag ok">Rilasciato ${fmtDate(c.report_released_at)}</span>` : '<span class="tag">Bozza</span>'}
           <a class="small" href="/report/${c.id}" target="_blank">apri</a><a class="small" href="/api/admin/pdf/${c.id}">PDF</a>
           <button class="sm ${c.report_released_at ? 'ghost' : ''}" data-rel="${C.session.id}:${c.id}">${c.report_released_at ? 'Nuova versione' : 'Rilascia'}</button></div></td>
@@ -559,7 +588,24 @@ async function viewReports() {
       </tbody></table></div></div>`;
   }).join('');
   app.innerHTML = `<div class="pagehead"><div><h1>Report e call con i leader</h1><p>Rilasciare salva una copia del report che l'azienda vede dal link del referente e che non cambia più. Dopo il rilascio, la call con il leader discute il report: annota l'esito qui e incolla la trascrizione di Teams, che va integrale in appendice a una nuova versione del report.</p></div></div>
+    ${blocks ? `<div class="card rc-filter"><div class="row" role="group" aria-label="Sessione da mostrare">${ctrl.filter((C) => C.companies.some((c) => c.consolidated_at)).map((C) => `<button type="button" class="sm ghost" data-rcs="${C.session.id}" aria-pressed="false">${esc(INST.sessions.find((x) => x.id === C.session.base)?.name || C.session.title)}</button>`).join('')}<button type="button" class="sm ghost" data-rcs="all" aria-pressed="false">Tutte</button></div>
+      <div class="row" style="margin-top:10px;gap:16px"><label class="f" for="rc-q" style="margin:0">Cerca un'azienda</label><input type="search" id="rc-q" placeholder="Nome dell'azienda" style="max-width:280px">
+        <label class="small"><input type="checkbox" id="rc-todo"> solo report da rilasciare o call da annotare</label></div></div>` : ''}
     ${blocks || '<div class="card"><p class="muted" style="margin:0">Nessuna azienda ha ancora consolidato: i report compaiono qui dopo il consolidamento in sala.</p></div>'}`;
+  // filtro: una sessione alla volta (di default l'ultima), ricerca per nome, solo cose da fare
+  const sids = $$('[data-rcs]').map((b) => b.dataset.rcs).filter((x) => x !== 'all');
+  let pick = sids[sids.length - 1] || 'all';
+  const applyFilter = () => {
+    const qv = ($('#rc-q')?.value || '').trim().toLowerCase(), todo = $('#rc-todo')?.checked;
+    $$('[data-rcs]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.rcs === pick)));
+    $$('.rc-block').forEach((bl) => {
+      let n = 0;
+      bl.querySelectorAll('tr[data-name]').forEach((tr) => { const ok = (!qv || tr.dataset.name.includes(qv)) && (!todo || tr.dataset.todo === '1'); tr.hidden = !ok; if (ok) n++; });
+      bl.hidden = !(pick === 'all' || bl.dataset.sid === pick) || n === 0;
+    });
+  };
+  $$('[data-rcs]').forEach((b) => b.onclick = () => { pick = b.dataset.rcs; applyFilter(); });
+  if ($('#rc-q')) { $('#rc-q').oninput = applyFilter; $('#rc-todo').onchange = applyFilter; applyFilter(); }
   const find = (v) => { const [sid, cid] = v.split(':').map(Number); return { sid, c: ctrl.find((C) => C.session.id === sid).companies.find((x) => x.id === cid) }; };
   $$('[data-rel]').forEach((b) => b.onclick = async () => { const { sid, c } = find(b.dataset.rel); b.disabled = true; if (await releaseReport(sid, c.id)) route(); else b.disabled = false; });
   $$('[data-call]').forEach((b) => b.onclick = async () => { const { sid, c } = find(b.dataset.call); if (await noteCall(sid, c)) route(); });
@@ -580,8 +626,8 @@ async function viewCommitments() {
       ${list.map((m) => `<tr><td><a href="#/azienda/${m.company_id}"><b>${esc(m.company_name)}</b></a><div class="small muted">${esc(m.session_title)}</div></td>
         <td class="small"><b>${esc(m.priority_item)}</b> ${esc(INST.items[m.priority_item]?.title || '')}<br>${esc(m.action || '—')}<br><span class="muted">KPI: ${esc(m.kpi || '—')}</span></td>
         <td class="small">${esc(m.owner || '—')}<br><span class="${due(m) ? 'tag risk' : ''}">${m.due_date ? esc(new Date(`${m.due_date}T12:00:00`).toLocaleDateString('it-IT')) : '—'}${due(m) ? ' · scaduto' : ''}</span></td>
-        <td style="min-width:220px"><select data-cstat="${m.id}">${['aperto', 'avviato', 'completato', 'non avviato', 'sospeso'].map((x) => `<option ${m.status === x ? 'selected' : ''}>${x}</option>`).join('')}</select>
-          <input type="text" data-cnote="${m.id}" placeholder="evidenza o nota" value="${esc(m.status_note || '')}" style="margin-top:6px"><button class="sm ghost" data-csave="${m.id}" style="margin-top:6px">Salva</button></td></tr>`).join('')}
+        <td style="min-width:220px"><select data-cstat="${m.id}" aria-label="Stato del commitment di ${esc(m.company_name)} (${esc(m.session_title)})">${['aperto', 'avviato', 'completato', 'non avviato', 'sospeso'].map((x) => `<option ${m.status === x ? 'selected' : ''}>${x}</option>`).join('')}</select>
+          <label class="small" for="cn-${m.id}" style="display:block;margin-top:6px">Evidenza o nota</label><input type="text" id="cn-${m.id}" data-cnote="${m.id}" maxlength="1000" value="${esc(m.status_note || '')}"><button class="sm ghost" data-csave="${m.id}" style="margin-top:6px">Salva<span class="sr-only"> lo stato di ${esc(m.company_name)}</span></button></td></tr>`).join('')}
       </tbody></table></div>` : `<p class="muted" style="margin:0">${only ? 'Nessun commitment da seguire.' : 'Nessun commitment registrato.'}</p>`}</div>`;
   $$('[data-csave]').forEach((b) => b.onclick = async () => {
     const id = b.dataset.csave;
@@ -604,7 +650,7 @@ const FLOW = [
 const NEXT = {
   preparazione: { to: 'individuale', label: 'Apri le risposte individuali', what: 'I partecipanti registrati vedono le domande della sessione e i confronti a coppie. Chi arriva dopo può ancora registrarsi.' },
   individuale: { to: 'confronto', label: 'Chiudi le risposte e apri il confronto', what: 'Le risposte individuali si bloccano e non si potranno riaprire. Ogni tavolo vede la distribuzione anonima delle proprie risposte, il referente la vista di confronto.' },
-  confronto: { to: 'consolidamento', label: 'Apri il consolidamento', what: 'Il referente di ogni azienda registra livello e sotto-opzione ufficiali, poi priorità e commitment.' },
+  confronto: { to: 'consolidamento', label: 'Apri il consolidamento', what: 'Il facilitatore ELIS registra con ogni tavolo livello e sotto-opzione ufficiali, poi priorità e commitment; il referente può correggere dal suo link.' },
   consolidamento: { to: 'chiusa', label: 'Chiudi la sessione', what: 'I referenti non possono più modificare il consolidamento; il commitment resta modificabile. Da qui in poi le correzioni le fa ELIS, con motivazione nel registro.' },
 };
 const nextStepText = (phase) => ({ preparazione: 'Prossimo passo: aprire le risposte individuali', individuale: 'In corso: risposte individuali', confronto: 'In corso: confronto al tavolo',
@@ -755,7 +801,7 @@ async function viewControl(arg) {
       if (st !== 'todo') checks.push(ck('info', `Aziende al tavolo: <b>${inRoom.length}</b>. I referenti vedono la vista di confronto dal proprio link.`));
       extra = `<div class="row"><a class="btn sm ghost" href="/live/${s.id}" target="_blank">Apri la dashboard live</a></div>`;
     } else if (f.id === 'consolidamento') {
-      what = 'Il referente di ogni azienda registra la posizione ufficiale: livello, sotto-opzione e, se si scosta dalla mediana, la motivazione. Poi sceglie la priorità e il commitment.';
+      what = 'Il facilitatore ELIS registra con il tavolo la posizione ufficiale: livello, sotto-opzione e, se si scosta dalla mediana, la motivazione (il referente può correggere dal suo link). Poi si sceglie la priorità e il commitment.';
       if (st !== 'todo') {
         extra = meter(consolidated.length, inRoom.length || consolidated.length, 'aziende hanno consolidato');
         const missing = inRoom.filter((c) => !c.consolidated_at), noCommit = consolidated.filter((c) => !c.commitment);
@@ -769,7 +815,7 @@ async function viewControl(arg) {
       what = `Congelare salva una versione datata del benchmark: è quella che entra nei report e non cambia più. Entrano solo aziende REALI con consenso; sotto ${SC.benchmark.minN} aziende il confronto non si mostra.`;
       checks.push(frozen ? ck(benchDone ? 'ok' : 'warn', `Ultima versione: <b>${esc(frozen.label)}</b>, ${frozen.n_companies} aziende, ${fmtDate(frozen.created_at)}${benchDone ? '' : '. Ci sono consolidamenti successivi: congela di nuovo per includerli.'}`) : ck('warn', 'Nessuna versione congelata per questa sessione'));
       if (frozen && frozen.n_companies < SC.benchmark.minN) checks.push(ck('info', `Con ${frozen.n_companies} aziende il confronto non compare nei report: servono almeno ${SC.benchmark.minN}.`));
-      extra = `<div class="row"><button class="gold" id="freeze">Congela il benchmark ora</button><a class="btn ghost" href="/plenaria/${s.base}" target="_blank">Apri la plenaria</a><a class="btn ghost" href="/mappe/${s.base}" target="_blank">Mappe a quadranti</a><a class="btn ghost" href="/live/${s.id}" target="_blank">Dashboard live</a></div>`;
+      extra = `<div class="row"><button class="primary" id="freeze">Congela il benchmark ora</button><a class="btn ghost" href="/plenaria/${s.base}" target="_blank">Apri la plenaria</a><a class="btn ghost" href="/mappe/${s.base}" target="_blank">Mappe a quadranti</a><a class="btn ghost" href="/live/${s.id}" target="_blank">Dashboard live</a></div>`;
     } else if (f.id === 'report') {
       what = 'Rilasciare salva una copia del report che l\'azienda vede dal link del referente e che non cambierà più. Conviene congelare prima il benchmark, così il report contiene il confronto.';
       if (!benchDone) checks.push(ck('warn', 'Il benchmark non è aggiornato: <button class="link" data-goto="benchmark">congelalo prima</button>.'));
@@ -786,9 +832,11 @@ async function viewControl(arg) {
     // ---- azione di fase (solo sul passo in corso)
     let action = '';
     const nx = NEXT[s.phase];
-    if (f.phase === s.phase && nx && s.phase === 'preparazione' && !cos.length) {
+    // il giorno della sessione il team apre la scheda «In sala»: lì c'è anche il pulsante per aprire le risposte individuali
+    const here = f.phase === s.phase || (s.phase === 'preparazione' && f.id === 'individuale');
+    if (here && nx && s.phase === 'preparazione' && !cos.length) {
       action = `<div class="fp-action"><h4>Passo successivo</h4><p class="ink2">Per aprire le risposte individuali serve almeno un'azienda: <a href="#/aziende">aggiungila</a>.</p></div>`;
-    } else if (f.phase === s.phase && nx) {
+    } else if (here && nx) {
       const warnNow = s.phase === 'individuale' && totP > totS ? `<p class="small" style="color:var(--warn)">${totP - totS === 1 ? 'Un partecipante non ha' : `${totP - totS} partecipanti non hanno`} ancora premuto Invia: le risposte già date verranno considerate così come sono.</p>`
         : s.phase === 'consolidamento' && inRoom.some((c) => !c.consolidated_at) ? `<p class="small" style="color:var(--warn)">Alcune aziende non hanno consolidato: dopo la chiusura dovrai riaprire il consolidamento o correggere da ELIS.</p>`
         : s.phase === 'preparazione' && s.date && s.date > isoDay(new Date()) ? `<p class="small" style="color:var(--warn)">La sessione è il ${esc(longDate(s.date))}: apri le risposte individuali solo in sala, quando i partecipanti sono pronti.</p>` : '';
@@ -807,7 +855,9 @@ async function viewControl(arg) {
       <button class="sm ghost" id="goback" style="margin-top:8px">Torna indietro</button></details>`
       : (backFrom && idx >= 2 && idx - 1 <= 1 ? '<p class="small muted" style="margin-top:14px">Dopo il confronto non si torna alle risposte individuali. Per un\'azienda che deve rifare la rilevazione usa una sessione ad hoc.</p>' : '');
 
-    const tabState = (t) => { if (!t.steps.length) return ''; const st = t.steps.map((x) => state(FLOW.find((f2) => f2.id === x))); return st.every((x) => x === 'done') ? 'done' : st.includes('now') ? 'now' : ''; };
+    // una sola scheda «in corso»: quella della fase attuale (dopo la chiusura, il follow up)
+    const nowTab = TABS.find((t) => t.steps.includes(FLOW[Math.min(idx, 4)]?.id))?.id;
+    const tabState = (t) => { if (!t.steps.length) return ''; const st = t.steps.map((x) => state(FLOW.find((f2) => f2.id === x))); return st.every((x) => x === 'done') ? 'done' : st.includes('now') && (t.id === nowTab || idx >= 4) ? 'now' : ''; };
     const results = `<div class="grid c3">
         <div class="card"><h3>Dashboard live</h3><p class="small ink2">Il benchmark in tempo reale, da proiettare in sala mentre le aziende consolidano.</p><a class="btn sm" href="/live/${s.id}" target="_blank">Apri la dashboard</a></div>
         <div class="card"><h3>Plenaria</h3><p class="small ink2">Come si posiziona la community, con le mappe del bisogno e del peer matching. Solo dati aggregati.</p><a class="btn sm" href="/plenaria/${s.base}" target="_blank">Apri la plenaria</a></div>
@@ -854,7 +904,7 @@ async function viewControl(arg) {
     });
     const genQr = async (companyId) => {
       const msg = `${companyId ? 'Generare il QR di questa azienda?' : `Generare i QR di ${C.session.title} per tutte le aziende con referente?`} Da questo momento il referente non si potrà cambiare né il suo link rigenerare fino alla chiusura della sessione, se non come eccezione con un motivo scritto nel registro modifiche.`;
-      if (!confirm(msg)) return;
+      if (!await ask(msg)) return;
       try { const r = await api(`/api/admin/sessions/${id}/qr`, { method: 'POST', body: companyId ? { companyId } : {} }); toast(r.generated ? `QR generati: ${r.generated}` : 'Nessun QR nuovo da generare'); await reload(); }
       catch (e) { toast(e.message, true); }
     };
@@ -885,13 +935,13 @@ async function viewControl(arg) {
     if ($('#zipbtn')) $('#zipbtn').onclick = async () => {
       const url = `/api/admin/sessions/${s.id}/pdfs.zip`;
       const res = await fetch(url);
-      if (res.status === 409) { const e = await res.json(); if (confirm(`${e.error}\n\nScaricare comunque?`)) location.href = `${url}?force=1`; return; }
+      if (res.status === 409) { const e = await res.json(); if (await ask(`${e.error}\n\nScaricare comunque?`)) location.href = `${url}?force=1`; return; }
       if (!res.ok) { const e = await res.json().catch(() => ({})); toast(e.error || 'Errore', true); return; }
       const name = (res.headers.get('Content-Disposition') || '').match(/filename="([^"]+)"/)?.[1] || 'AITO_Map_report.zip';
       const a = document.createElement('a'); a.href = URL.createObjectURL(await res.blob()); a.download = name; a.click();
     };
     if ($('#freeze')) $('#freeze').onclick = async () => {
-      if (!confirm('Congelare una nuova versione del benchmark con i dati consolidati attuali? Le versioni già usate nei report non cambiano.')) return;
+      if (!await ask('Congelare una nuova versione del benchmark con i dati consolidati attuali? Le versioni già usate nei report non cambiano.')) return;
       try { const r = await api(`/api/admin/benchmark/${s.base}/freeze`, { method: 'POST' }); toast(`Congelata: ${r.label} (N=${r.n})`); await reload(); } catch (e) { toast(e.message, true); }
     };
     $$('[data-release]').forEach((b) => b.onclick = async () => { b.disabled = true; await releaseReport(s.id, Number(b.dataset.release)); await reload(); });
@@ -1025,10 +1075,10 @@ async function viewCompany(id) {
       <a class="btn sm ghost" href="/report/${c.id}" target="_blank">Report</a></div>
     ${journey}
     <details class="card"><summary>Dati dell'azienda</summary><div class="grid c4" style="margin-top:8px">
-      <div><label class="f">Nome</label><input type="text" id="e_name" value="${esc(c.name)}"></div>
+      <div><label class="f" for="e_name">Nome</label><input type="text" id="e_name" value="${esc(c.name)}"></div>
       ${pick('e_per', 'Perimetro', PERIMETERS, c.perimeter || '')}
       ${pick('e_sec', 'Settore', SECTORS, c.sector || '')}
-      <div><label class="f">Tipo</label><select id="e_kind" ${PROVA ? 'disabled' : ''}>${(c.kind === 'DEMO' ? ['DEMO'] : PROVA ? [c.kind] : ['REALE', 'TEST']).map((k) => `<option ${c.kind === k ? 'selected' : ''}>${k}</option>`).join('')}</select></div></div>
+      <div><label class="f" for="e_kind">Tipo</label><select id="e_kind" ${PROVA ? 'disabled' : ''}>${(c.kind === 'DEMO' ? ['DEMO'] : PROVA ? [c.kind] : ['REALE', 'TEST']).map((k) => `<option ${c.kind === k ? 'selected' : ''}>${k}</option>`).join('')}</select></div></div>
       <div style="margin-top:12px"><button id="e_save">Salva</button></div></details>
     <div class="grid c2">
       <div class="card"><h2>Consensi</h2><p class="small muted">Distinti e revocabili. Alla creazione dell'azienda sono tutti concessi: togli la spunta solo se l'azienda ne nega uno. Senza consenso al benchmark l'azienda riceve comunque il proprio report ma non entra nelle distribuzioni.</p>
@@ -1040,7 +1090,7 @@ async function viewCompany(id) {
           <div class="small muted">${esc(r.role || '')} ${esc(r.email || '')}</div>
           <div class="row" style="margin-top:6px"><input type="text" readonly value="${esc(NET.baseUrl)}/r/${esc(r.token)}" class="mono small"><button class="sm ghost" data-copy="${esc(NET.baseUrl)}/r/${esc(r.token)}">Copia link</button></div>
           <details><summary class="small">QR del link referente</summary>${qrImg(`${NET.baseUrl}/r/${r.token}`, 160)}</details></div>`).join('') || '<p class="muted">Nessun referente.</p>'}
-        <div class="grid c2"><input type="text" id="r_name" placeholder="Nome e cognome" aria-label="Nome e cognome del referente"><select id="r_func" aria-label="Funzione del referente"><option value="">— Funzione —</option>${INST.functions.map((f) => `<option value="${f.id}">${esc(f.label)}</option>`).join('')}</select><input type="text" id="r_role" placeholder="Ruolo (facoltativo)" aria-label="Ruolo del referente"><input type="email" id="r_email" placeholder="Email" aria-label="Email del referente"></div>
+        <div class="grid c2"><div><label class="f" for="r_name">Nome e cognome *</label><input type="text" id="r_name" maxlength="120"></div><div><label class="f" for="r_func">Funzione *</label><select id="r_func"><option value="">— Scegli —</option>${INST.functions.map((f) => `<option value="${f.id}">${esc(f.label)}</option>`).join('')}</select></div><div><label class="f" for="r_role">Ruolo (facoltativo)</label><input type="text" id="r_role" maxlength="120"></div><div><label class="f" for="r_email">Email</label><input type="email" id="r_email" maxlength="200"></div></div>
         <div style="margin-top:8px"><button class="sm" id="r_add">Aggiungi referente</button></div>
         <p class="small muted">Il referente entra anche tra le persone iscritte, con la sua funzione: in sala risponde come gli altri, scegliendo il suo nome. Il link è personale: chi lo possiede vede le domande, consolida per l'azienda e legge i report.</p></div>
     </div>
@@ -1048,13 +1098,13 @@ async function viewCompany(id) {
       <p class="small ink2">Chi partecipa alle sessioni per l'azienda, referente compreso se risponde anche lui. In sala, dopo il QR, ognuno sceglie il proprio nome da questo elenco; chi manca si aggiunge dal telefono. Solo nome e funzione.</p>
       ${c.roster.length ? `<table><tbody>${c.roster.map((r) => `<tr><td><b>${esc(r.name)}</b>${c.referents.some((x) => x.name.trim().toLowerCase() === r.name.trim().toLowerCase()) ? ' <span class="tag navy">referente</span>' : ''}</td>
         <td class="small muted">${esc(INST.functions.find((f) => f.id === r.func)?.label || r.func)}</td><td class="num"><button class="sm ghost" data-delroster="${r.id}" aria-label="Togli ${esc(r.name)} dall'elenco">Togli</button></td></tr>`).join('')}</tbody></table>` : '<p class="muted">Nessuna persona iscritta.</p>'}
-      <div class="grid c3" style="margin-top:12px"><input type="text" id="p_name" placeholder="Nome e cognome" aria-label="Nome e cognome della persona" maxlength="120">
-        <select id="p_func" aria-label="Funzione della persona"><option value="">— Funzione —</option>${INST.functions.map((f) => `<option value="${f.id}">${esc(f.label)}</option>`).join('')}</select>
+      <div class="grid c3" style="margin-top:12px;align-items:end"><div><label class="f" for="p_name">Nome e cognome</label><input type="text" id="p_name" maxlength="120"></div>
+        <div><label class="f" for="p_func">Funzione</label><select id="p_func"><option value="">— Scegli —</option>${INST.functions.map((f) => `<option value="${f.id}">${esc(f.label)}</option>`).join('')}</select></div>
         <div><button class="sm" id="p_add">Aggiungi persona</button></div></div></div>
     <div class="card"><h2>Commitment e verifica</h2><p class="small muted">Lo stato si aggiorna nella call con il leader e con l'item pulse della sessione successiva.</p><div id="commits"><p class="muted small">Caricamento…</p></div></div>
     <div class="card"><h2>Report rilasciati</h2><div id="snaps"><p class="muted small">Caricamento…</p></div></div>
     <div class="card"><h2>Valori consolidati correnti</h2>
-      ${R.items.length ? `<table><thead><tr><th>Item</th><th>Livello</th><th class="num">Score</th><th>Confidence</th><th></th></tr></thead><tbody>
+      ${R.items.length ? `<table><thead><tr><th>Item</th><th>Livello</th><th class="num">Score</th><th>Affidabilità del dato</th><th></th></tr></thead><tbody>
         ${R.items.map((it) => `<tr><td>${esc(it.itemId)} ${esc(it.title)}</td><td><b>${levelLabel(it.level, it.sub)}</b>${it.override ? ` <span class="tag warn" title="${esc(it.overrideReason || '')}">override</span>` : ''}</td><td class="num">${fmtScore(it.score)}</td><td class="small">${esc(it.confidence)}</td>
           <td><button class="sm ghost" data-fix="${it.itemId}">Correggi</button></td></tr>`).join('')}</tbody></table>
         <p class="small muted">Una correzione crea una nuova versione del valore e lascia traccia (autore, data, prima/dopo, motivo). I benchmark già congelati non cambiano.</p>
@@ -1073,27 +1123,27 @@ async function viewCompany(id) {
   bindPick();
   $('#e_save').onclick = async () => { try { await api(`/api/admin/companies/${id}`, { method: 'PUT', body: { name: $('#e_name').value, perimeter: pickValue('e_per'), sector: pickValue('e_sec'), kind: $('#e_kind').value } }); toast('Salvato'); } catch (e) { toast(e.message, true); } };
   $$('[data-consent]').forEach((b) => b.onchange = async () => {
-    const reason = prompt('Riferimento o motivo del cambio di consenso (es. "modulo firmato il 10/11", "revoca via email del 3/12")');
+    const reason = await askText('Riferimento o motivo del cambio di consenso (es. "modulo firmato il 10/11", "revoca via email del 3/12")', '', { label: 'Motivo (resta nel registro modifiche)', required: true, ok: 'Conferma' });
     if (!reason) { b.checked = !b.checked; return; }
     try { await api(`/api/admin/companies/${id}/consent`, { method: 'PUT', body: { type: b.dataset.consent, granted: b.checked, reason } }); toast('Consenso aggiornato'); }
     catch (e) { b.checked = !b.checked; toast(e.message, true); }
   });
   // durante il blocco ogni cambio del referente è un'eccezione: si chiede il motivo, che resta nel registro modifiche
-  const why = () => { if (!lock) return ''; const m = prompt('Il referente è bloccato dai QR della sessione. Motivo dell\'eccezione (resta nel registro modifiche):'); return m && m.trim() ? m.trim() : null; };
-  $('#r_add').onclick = async () => { const reason = why(); if (reason === null) return; try { await api(`/api/admin/companies/${id}/referents`, { method: 'POST', body: { name: $('#r_name').value, func: $('#r_func').value, role: $('#r_role').value, email: $('#r_email').value, reason } }); viewCompany(id); } catch (e) { toast(e.message, true); } };
+  const why = async () => { if (!lock) return ''; const m = await askText('Il referente è bloccato dai QR della sessione. Motivo dell\'eccezione (resta nel registro modifiche):', '', { label: 'Motivo (resta nel registro modifiche)', required: true, ok: 'Conferma' }); return m && m.trim() ? m.trim() : null; };
+  $('#r_add').onclick = async () => { const reason = await why(); if (reason === null) return; try { await api(`/api/admin/companies/${id}/referents`, { method: 'POST', body: { name: $('#r_name').value, func: $('#r_func').value, role: $('#r_role').value, email: $('#r_email').value, reason } }); viewCompany(id); } catch (e) { toast(e.message, true); } };
   $('#p_add').onclick = async () => { try { await api(`/api/admin/companies/${id}/roster`, { method: 'POST', body: { name: $('#p_name').value, func: $('#p_func').value } }); viewCompany(id); } catch (e) { toast(e.message, true); } };
-  $$('[data-delroster]').forEach((b) => b.onclick = async () => { const m = prompt('Togliere questa persona dall\'elenco? Le risposte già date restano. Motivo (resta nel registro modifiche):'); if (!m || !m.trim()) return; try { await api(`/api/admin/roster/${b.dataset.delroster}`, { method: 'DELETE', body: { reason: m.trim() } }); viewCompany(id); } catch (e) { toast(e.message, true); } });
-  $$('[data-email]').forEach((b) => b.onclick = async () => { const v = prompt('Email del referente (un solo indirizzo):', b.dataset.cur); if (v === null) return; try { await api(`/api/admin/referents/${b.dataset.email}/email`, { method: 'PUT', body: { email: v.trim() } }); viewCompany(id); } catch (e) { toast(e.message, true); } });
-  if ($('#undoqr')) $('#undoqr').onclick = async () => { const m = prompt(`Annullare il QR di ${lock.title}? Si può solo se nessuno si è ancora registrato. Motivo (resta nel registro modifiche):`); if (!m || !m.trim()) return; try { await api(`/api/admin/sessions/${lock.id}/companies/${id}/qr`, { method: 'DELETE', body: { reason: m.trim() } }); toast('QR annullato: il referente si può di nuovo cambiare'); viewCompany(id); } catch (e) { toast(e.message, true); } };
-  $$('[data-regen]').forEach((b) => b.onclick = async () => { if (!confirm('Il link attuale smetterà di funzionare. Creare un nuovo link per questo referente?')) return; const reason = why(); if (reason === null) return; try { await api(`/api/admin/referents/${b.dataset.regen}/regenerate`, { method: 'POST', body: { reason } }); viewCompany(id); } catch (e) { toast(e.message, true); } });
-  $$('[data-delref]').forEach((b) => b.onclick = async () => { if (!confirm('Eliminare il referente? Il suo link smetterà di funzionare.')) return; const reason = why(); if (reason === null) return; try { await api(`/api/admin/referents/${b.dataset.delref}`, { method: 'DELETE', body: { reason } }); viewCompany(id); } catch (e) { toast(e.message, true); } });
-  $$('[data-copy]').forEach((b) => b.onclick = async () => { try { await navigator.clipboard.writeText(b.dataset.copy); toast('Link copiato'); } catch { prompt('Copia il link', b.dataset.copy); } });
+  $$('[data-delroster]').forEach((b) => b.onclick = async () => { const m = await askText('Togliere questa persona dall\'elenco? Le risposte già date restano. Motivo (resta nel registro modifiche):', '', { label: 'Motivo (resta nel registro modifiche)', required: true, ok: 'Conferma' }); if (!m || !m.trim()) return; try { await api(`/api/admin/roster/${b.dataset.delroster}`, { method: 'DELETE', body: { reason: m.trim() } }); viewCompany(id); } catch (e) { toast(e.message, true); } });
+  $$('[data-email]').forEach((b) => b.onclick = async () => { const v = await askText('Un solo indirizzo: il referente riceve qui il suo link personale.', b.dataset.cur, { label: 'Email del referente', ok: 'Salva' }); if (v === null) return; try { await api(`/api/admin/referents/${b.dataset.email}/email`, { method: 'PUT', body: { email: v.trim() } }); viewCompany(id); } catch (e) { toast(e.message, true); } });
+  if ($('#undoqr')) $('#undoqr').onclick = async () => { const m = await askText(`Annullare il QR di ${lock.title}? Si può solo se nessuno si è ancora registrato. Motivo (resta nel registro modifiche):`, '', { label: 'Motivo (resta nel registro modifiche)', required: true, ok: 'Conferma' }); if (!m || !m.trim()) return; try { await api(`/api/admin/sessions/${lock.id}/companies/${id}/qr`, { method: 'DELETE', body: { reason: m.trim() } }); toast('QR annullato: il referente si può di nuovo cambiare'); viewCompany(id); } catch (e) { toast(e.message, true); } };
+  $$('[data-regen]').forEach((b) => b.onclick = async () => { if (!await ask('Il link attuale smetterà di funzionare. Creare un nuovo link per questo referente?')) return; const reason = await why(); if (reason === null) return; try { await api(`/api/admin/referents/${b.dataset.regen}/regenerate`, { method: 'POST', body: { reason } }); viewCompany(id); } catch (e) { toast(e.message, true); } });
+  $$('[data-delref]').forEach((b) => b.onclick = async () => { if (!await ask('Eliminare il referente? Il suo link smetterà di funzionare.')) return; const reason = await why(); if (reason === null) return; try { await api(`/api/admin/referents/${b.dataset.delref}`, { method: 'DELETE', body: { reason } }); viewCompany(id); } catch (e) { toast(e.message, true); } });
+  $$('[data-copy]').forEach((b) => b.onclick = async () => { try { await navigator.clipboard.writeText(b.dataset.copy); toast('Link copiato'); } catch { await askText('Seleziona il testo e copialo.', b.dataset.copy, { label: 'Link', ok: 'Chiudi' }); } });
   $$('[data-fix]').forEach((b) => b.onclick = async () => {
     const it = b.dataset.fix;
-    const lv = prompt(`${it}: nuovo livello (1–5, vuoto = N.D.)`); if (lv === null) return;
+    const lv = await askText('Scrivi un numero da 1 a 5; lascia vuoto per N.D. Il valore precedente resta nello storico.', '', { label: `${it}: nuovo livello`, ok: 'Avanti' }); if (lv === null) return;
     const subs = lv ? INST.items[it].levels.find((l) => l.level === Number(lv))?.sub : null;
-    const sub = subs ? prompt(`Sotto-opzione (${subs.map((s) => s.key).join('/')})`, subs[0].key) : null;
-    const reason = prompt('Motivo della correzione (obbligatorio)'); if (!reason) return;
+    const sub = subs ? await askText(`Sotto-opzioni possibili: ${subs.map((s) => s.key).join(', ')}.`, subs[0].key, { label: 'Sotto-opzione', ok: 'Avanti' }) : null;
+    const reason = await askText('Motivo della correzione (obbligatorio)', '', { label: 'Motivo (resta nel registro modifiche)', required: true, ok: 'Conferma' }); if (!reason) return;
     try { await api('/api/admin/correct', { method: 'POST', body: { companyId: Number(id), itemId: it, level: lv || null, sub, reason } }); toast('Valore corretto'); viewCompany(id); } catch (e) { toast(e.message, true); }
   });
 }
@@ -1103,11 +1153,11 @@ async function viewBenchmark() {
   const vs = await api('/api/admin/benchmark');
   app.innerHTML = `<h1>Benchmark</h1>
     <div class="card"><p class="ink2">Ogni sessione produce una versione datata del benchmark che non cambia più. Un'azienda recuperata con una sessione ad hoc entra nella versione successiva. Mediana come centro, Q1–Q3 come fascia centrale, N sempre visibile: sotto ${SC.benchmark.minN} aziende non si mostra, tra ${SC.benchmark.minN} e ${SC.benchmark.stableN - 1} è "indicativo".</p>
-      <div class="row">${INST.sessions.map((s) => `<button class="sm gold" data-freeze="${s.id}">Congela ${esc(s.name)}</button><a class="btn sm ghost" href="/plenaria/${s.id}" target="_blank">Plenaria ${esc(s.name)}</a>`).join('')}</div></div>
+      <div class="row">${INST.sessions.map((s) => `<button class="sm" data-freeze="${s.id}">Congela ${esc(s.name)}</button><a class="btn sm ghost" href="/plenaria/${s.id}" target="_blank">Plenaria ${esc(s.name)}</a>`).join('')}</div></div>
     <div class="card"><table><thead><tr><th>Versione</th><th class="num">N aziende</th><th>Strumento</th><th>Scoring</th><th>Creata</th></tr></thead><tbody>
       ${vs.map((v) => `<tr><td>${esc(v.label)}</td><td class="num">${v.n_companies}</td><td>${esc(v.instrument_version)}</td><td>${esc(v.scoring_version)}</td><td>${fmtDate(v.created_at)}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Nessuna versione.</td></tr>'}
     </tbody></table></div>`;
-  $$('[data-freeze]').forEach((b) => b.onclick = async () => { if (!confirm('Congelare una nuova versione?')) return; const r = await api(`/api/admin/benchmark/${b.dataset.freeze}/freeze`, { method: 'POST' }); toast(`${r.label} · N=${r.n}`); viewBenchmark(); });
+  $$('[data-freeze]').forEach((b) => b.onclick = async () => { if (!await ask('Congelare una nuova versione?')) return; const r = await api(`/api/admin/benchmark/${b.dataset.freeze}/freeze`, { method: 'POST' }); toast(`${r.label} · N=${r.n}`); viewBenchmark(); });
 }
 
 // ---------- Mappe a quadranti ----------
@@ -1156,7 +1206,7 @@ async function viewSettings() {
       <p>Indirizzo usato nei QR: <b class="mono">${esc(NET.baseUrl)}</b></p>
       <p class="small ink2">I telefoni devono raggiungere questo indirizzo. In locale devono essere sulla stessa rete Wi-Fi del computer: se il computer ha più indirizzi, scegli quello della rete della sala. Alcune reti aziendali o per ospiti isolano i dispositivi: in quel caso usa l'hotspot del telefono o un router dedicato.</p>
       <table><tbody>${NET.addresses.map((a) => `<tr><td class="mono">http://${esc(a.address)}:${NET.port}</td><td class="small muted">${esc(a.name)}</td><td><button class="sm ghost" data-url="http://${esc(a.address)}:${NET.port}">Usa questo</button></td></tr>`).join('') || '<tr><td class="muted">Nessuna rete trovata</td></tr>'}</tbody></table>
-      <div class="row" style="margin-top:10px"><input type="text" id="custom" placeholder="oppure un indirizzo manuale, es. http://192.168.1.20:3000" value="${esc(NET.custom || '')}" style="max-width:420px"><button class="sm" id="savecustom">Salva</button><button class="sm ghost" id="auto">Automatico</button></div></div>
+      <div class="row" style="margin-top:10px"><label class="f" for="custom" style="flex-basis:100%;margin:0">Oppure un indirizzo manuale</label><input type="text" id="custom" placeholder="es. http://192.168.1.20:3000" value="${esc(NET.custom || '')}" style="max-width:420px"><button class="sm" id="savecustom">Salva</button><button class="sm ghost" id="auto">Automatico</button></div></div>
     <div class="card"><h3>Registrazione dei partecipanti</h3>
       <label class="f" for="o_mode">Come il partecipante indica la sua azienda</label>
       <select id="o_mode" style="max-width:560px"><option value="codice">Con il codice azienda (QR del tavolo o codice comunicato), consigliato</option><option value="elenco">Scegliendo dall'elenco delle aziende (chiunque abbia il QR di sala vede l'elenco)</option></select>
@@ -1169,7 +1219,7 @@ async function viewSettings() {
       <div class="card"><h3>Dati ed export</h3><p class="small">Database: <span class="mono">${esc(NET.db)}</span>. Per un backup basta copiare la cartella dei dati a server fermo. L'export contiene solo i dati di produzione.</p>
         <a class="btn sm" href="/api/admin/export.xlsx">Scarica export Excel</a></div>
       <div class="card"><h3>Ambiente DEMO</h3><p class="small ink2">I dati dimostrativi vivono in un ambiente separato. Per vederli, caricarli o cancellarli scegli <b>DEMO</b> nel selettore in alto; per tornare ai dati reali scegli <b>Produzione</b>.</p></div>
-      <div class="card"><h3>Password admin</h3><div class="row"><input type="password" id="pw1" placeholder="Nuova password (min. 8)" style="max-width:280px"><button class="sm" id="pwgo">Cambia</button></div></div>
+      <div class="card"><h3>Password admin</h3><div class="row"><label class="f" for="pw1" style="flex-basis:100%;margin:0">Nuova password (almeno 8 caratteri)</label><input type="password" id="pw1" autocomplete="new-password" style="max-width:280px"><button class="sm" id="pwgo">Cambia</button></div></div>
       <div class="card"><h3>Versioni</h3><p class="small" style="margin:0">Strumento <b>${esc(INST.version)}</b> (${esc(INST.status)}) · Scoring <b>${esc(SC.version)}</b></p></div></div>`;
   const O = await api('/api/admin/options');
   $('#o_mode').value = O.joinMode; $('#o_priv').value = O.privacyUrl;

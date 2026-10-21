@@ -14,7 +14,7 @@ La piattaforma copre il ciclo completo di una sessione e il lavoro dopo la sessi
 | Referente (scheda pre-sessione, confronto, consolidamento con sotto-opzioni, commitment, report) | Completo |
 | Console ELIS: Programma, sessioni con schede Prima/In sala/Mappe/Follow up, report e call, commitment, aziende | Completa, riorganizzata il 19/10 |
 | Ambiente DEMO separato dalla Produzione (cookie `aito_mode`, dati `seeded = 1`, registro modifiche per ambiente) | Completo |
-| Allineamento finale (§14.1): revisione delle 16 capacità con evidenza, spostamenti, tre priorità finali, vista d'insieme, report unificato web e PDF (`server/alignment.js`, `public/js/align.js`) | Completo, 8 test; manca il benchmark ricalcolato sui valori allineati |
+| Allineamento finale (§14.1): revisione delle 16 capacità con evidenza, spostamenti, tre priorità finali, vista d'insieme, report unificato web e PDF (`server/alignment.js`, `public/js/align.js`) | Completo, 9 test; manca il benchmark ricalcolato sui valori allineati |
 | Percorso guidato DEMO: azienda fittizia dalla preparazione al report, vista admin e telefono, data simulata, reset (`server/demo.js`, dati in `server/demo/percorso-guidato.json`) | Completo, 10 test |
 | Dashboard live, plenaria, mappe a quadranti §10.2–10.4 | Complete |
 | Report web e PDF per azienda, con versioni rilasciate immutabili; zip di tutti i PDF | Completi |
@@ -68,7 +68,7 @@ Dal README §6: item pulse (da Efficientare), ordinamento delle 8 dimensioni e t
 Limiti noti:
 - una sola password admin condivisa;
 - nessuna cancellazione o export per singola persona (diritti dell'interessato) e nessuna anonimizzazione automatica a fine conservazione;
-- alcune azioni usano le finestre del browser (`prompt`/`confirm`): annotazione della call, correzione di un valore, consensi;
+- la correzione di un valore consolidato dalla scheda dell'azienda chiede livello e sotto-opzione con tre finestre di seguito (nella pagina, non più del browser): andrebbe un modulo unico;
 - generare lo zip dei PDF occupa il server per alcuni secondi: durante una sessione in corso la piattaforma chiede conferma.
 
 ## Come riprendere
@@ -76,7 +76,7 @@ Limiti noti:
 ```
 git clone https://github.com/EIHaistrategy/IntelligeUnit.git && cd IntelligeUnit
 npm install
-npm test                                   # 36 test (17 motore + 11 DEMO + 8 allineamento)
+npm test                                   # 37 test (17 motore + 11 DEMO + 9 allineamento e protezioni)
 ADMIN_PASSWORD=una-password npm start      # console su http://localhost:3000/admin
 ```
 

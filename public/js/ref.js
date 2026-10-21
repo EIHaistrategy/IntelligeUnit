@@ -1,4 +1,4 @@
-import { api, esc, $, $$, toast, poll, distBars, confTag, phaseChips, qrImg, fmtScore, fmtDate, bandTag, levelLabel, alt, icon, demoBar } from './ui.js';
+import { api, esc, $, $$, toast, ask, askText, poll, distBars, confTag, phaseChips, qrImg, fmtScore, fmtDate, bandTag, levelLabel, alt, icon, demoBar } from './ui.js';
 import { renderAlignment } from './align.js';
 
 const T = location.pathname.split('/').pop();
@@ -49,26 +49,31 @@ async function renderHome() {
   // Prima della sessione il referente vede solo le domande, in sola lettura, e le inoltra ai colleghi:
   // la compilazione è in presenza, il giorno della sessione.
   const prep = active.find((s) => s.mode === 'workshop' && s.phase === 'preparazione');
-  if (!FAC && prep && active.every((s) => s.phase === 'preparazione')) return renderQuestions(prep.base);
+  // ... ma solo prima della prima sessione: dopo, il referente entra soprattutto per il report e il commitment appena fatti
+  const between = !FAC && prep && active.every((s) => s.phase === 'preparazione') && (done.length || me.reports.length);
+  if (!FAC && prep && active.every((s) => s.phase === 'preparazione') && !between) return renderQuestions(prep.base);
   const finished = !active.length && done.length;
   const activeTitle = finished ? 'Programma' : !active.length || active.every((s) => s.phase === 'preparazione') ? 'Prossima sessione' : 'Sessione in corso';
   const A = me.alignment || {};
-  const activeNote = finished ? (A.open ? 'Le sessioni del programma sono concluse: resta l\'allineamento finale, qui sotto.' : 'Le sessioni del programma sono concluse. ELIS vi contatterà per l\'allineamento finale di settembre 2027.')
+  const activeNote = finished ? (A.open ? 'Le sessioni del programma sono concluse: resta l\'allineamento finale, qui sopra.' : 'Le sessioni del programma sono concluse. ELIS vi contatterà per l\'allineamento finale di settembre 2027.')
     : !active.length ? 'Nessuna sessione in programma in questo momento.' : later ? 'Le sessioni successive del programma compariranno qui quando saranno le prossime.' : '';
   // al telefono la sessione attiva viene subito dopo l'intestazione; report e sessioni concluse sotto
   app.innerHTML = `${FAC ? `<a class="back" href="/admin">${icon('back')} Console ELIS</a>` : ''}
     <div class="pagehead"><div><h1>${esc(me.referent.company)}</h1>
       <p>Perimetro valutato: <b>${esc(me.referent.perimeter || 'non indicato')}</b></p></div></div>
     ${A.open || A.reviewed ? alignCard(A) : ''}
-    ${sessionsCard(activeTitle, active, activeNote, true)}
+    ${between ? `${reportsCard()}${sessionsCard('Ultima sessione', done.slice(-1), 'Da qui leggete il report e completate il commitment, se manca.', true)}
+      ${sessionsCard(activeTitle, active, 'Prima della sessione potete consultare le domande e inoltrarle ai colleghi: si risponde in sala.', true)}
+      ${done.length > 1 ? sessionsCard('Sessioni concluse', done.slice(0, -1), '', false) : ''}`
+    : `${sessionsCard(activeTitle, active, activeNote, true)}
     ${reportsCard()}
-    ${done.length ? sessionsCard('Sessioni concluse', done, '', false) : ''}`;
+    ${done.length ? sessionsCard('Sessioni concluse', done, '', false) : ''}`}`;
 }
 
 // allineamento finale (§14.1): in alto quando è aperto
 const alignCard = (A) => `<div class="card al-card"><div class="row between"><h2 style="margin:0">Allineamento finale</h2>
     <span class="tag ${A.confirmedAt ? 'ok' : A.reviewed ? 'navy' : 'warn'}">${A.confirmedAt ? 'confermato' : A.reviewed ? 'in corso' : 'da fare'}</span></div>
-  <p class="small ink2">${A.confirmedAt ? `Confermato il ${esc(dOnly(A.confirmedAt))}: ELIS rilascerà il report unificato con tutte le sessioni e gli spostamenti.`
+  <p class="small ink2">${A.confirmedAt ? `Confermato il ${esc(dOnly(A.confirmedAt))}. ${me.reports.some((r) => r.kind === 'finale') ? 'Il report unificato è disponibile tra i report riservati, qui sotto.' : 'ELIS rilascerà il report unificato con tutte le sessioni e gli spostamenti.'}`
     : 'Rivedete le 16 capacità delle quattro sessioni (confermate o modificate con un\'evidenza) e scegliete le tre priorità finali.'}</p>
   <p class="small"><b>${A.reviewed} di ${A.total}</b> capacità riviste · ${A.changed} ${A.changed === 1 ? 'modificata' : 'modificate'}</p>
   <a class="btn ${A.confirmedAt ? 'ghost' : 'primary'}" href="#/allineamento">${A.confirmedAt ? 'Rivedi l\'allineamento' : A.reviewed ? 'Continua l\'allineamento' : 'Inizia l\'allineamento'}</a></div>`;
@@ -118,12 +123,12 @@ function phases(s) {
 function steps(s) {
   const { az, elis } = phases(s);
   const li = (x) => {
-    const state = x.done ? 'fatto' : x.todo ? 'tocca a voi' : 'non ancora';
-    const body = `${x.label}<span class="sr-only">: ${state}${x.detail ? ',' : ''}</span>${x.detail ? `<small>${esc(x.detail)}</small>` : ''}${!x.done && x.todo ? '<small class="todo-t" aria-hidden="true">tocca a voi</small>' : ''}`;
+    const state = x.done ? 'fatto' : x.todo ? (FAC ? 'da fare ora' : 'tocca a voi') : 'non ancora';
+    const body = `${x.label}<span class="sr-only">: ${state}${x.detail ? ',' : ''}</span>${x.detail ? `<small>${esc(x.detail)}</small>` : ''}${!x.done && x.todo ? `<small class="todo-t" aria-hidden="true">${FAC ? 'da fare ora' : 'tocca a voi'}`+'</small>' : ''}`;
     return `<li class="${x.done ? 'ok' : x.todo ? 'todo' : ''}"><span class="si" aria-hidden="true">${x.done ? icon('check') : x.todo ? icon('dot') : ''}</span>
       <span>${x.href ? `<a href="${x.href}" target="_blank">${body}<span class="sr-only"> (apri il report in una nuova scheda)</span></a>` : body}</span></li>`;
   };
-  return `<div class="steps6"><div class="sg"><span class="sgl" id="sga-${s.id}">La vostra azienda</span><ol role="list" aria-labelledby="sga-${s.id}">${az.map(li).join('')}</ol></div>
+  return `<div class="steps6"><div class="sg"><span class="sgl" id="sga-${s.id}">${FAC ? 'L\'azienda' : 'La vostra azienda'}</span><ol role="list" aria-labelledby="sga-${s.id}">${az.map(li).join('')}</ol></div>
     <div class="sg elis"><span class="sgl" id="sge-${s.id}">ELIS</span><ol role="list" aria-labelledby="sge-${s.id}">${elis.map(li).join('')}</ol></div></div>`;
 }
 
@@ -141,7 +146,7 @@ function sessionsCard(title, list, note, open) {
   // righe a blocchi invece di una tabella: sul telefono del referente tutto resta visibile senza scorrere di lato.
   // Le sessioni concluse sono compatte (riepilogo), la striscia completa si apre con un clic.
   const row = (s) => {
-    const head = `<h3 class="sr-title">${esc(s.title)}</h3>${s.mode === 'adhoc' ? ' <span class="tag gold">ad hoc</span>' : ''}
+    const head = `<h3 class="sr-title">${esc(s.title)}</h3>${s.mode === 'adhoc' ? ' <span class="tag">ad hoc</span>' : ''}
       <span class="tag ${['chiusa', 'preparazione'].includes(s.phase) ? '' : 'navy'}">${s.phase === 'preparazione' ? 'In preparazione' : esc(s.phase.charAt(0).toUpperCase() + s.phase.slice(1))}</span>`;
     if (open) return `<section class="sessrow" aria-label="${esc(s.title)}"><div class="sr-main">${head}</div>${steps(s)}<div class="sr-act row">${actions(s)}</div></section>`;
     const all = phases(s).all, n = all.filter((x) => x.done).length, miss = all.filter((x) => !x.done).map((x) => x.label.replace('&#8209;', '-').toLowerCase());
@@ -179,7 +184,7 @@ async function renderQuestions(base) {
       <h3 id="q-${id}" class="qtitle">${esc(it.title)}</h3><p class="statement">${esc(it.statement)}</p>
       <ol class="preview-levels">${it.levels.map((l) => `<li><span class="n" aria-hidden="true">${l.level}${alt(l.level)}</span><span><span class="sr-only">Livello ${l.level}: </span>${esc(l.descriptor)}</span></li>`).join('')}</ol>
       ${byItem[id] ? `<div class="rq-facts"><h4>In sala vi chiederemo anche</h4>${byItem[id].map((f) => `<div class="rq-fact"><p>${esc(f.q)}</p>${factAnswer(f)}</div>`).join('')}</div>` : ''}</section>`; }).join('')}
-    ${(S.pairs || []).length ? `<section class="card"><h3 class="qtitle">Confronti a coppie</h3><p class="small ink2">Dopo le domande: tra due temi della sessione, quale è più avanti nella vostra azienda?</p>
+    ${(S.pairs || []).length ? `<section class="card"><h3 class="qtitle">Confronti a coppie</h3><p class="small ink2">Dopo le domande: tra due temi della sessione, quale è più avanti ${FAC ? 'nell\'azienda' : 'nella vostra azienda'}?</p>
       <ul>${S.pairs.map(([a, b]) => `<li>${INST.pairQuestion.replace('{a}', `<b>${esc(INST.items[a].pairLabel || INST.items[a].title)}</b>`).replace('{b}', `<b>${esc(INST.items[b].pairLabel || INST.items[b].title)}</b>`)}</li>`).join('')}</ul></section>` : ''}
     ${r.fields.profile.length ? `<section class="card"><h3 class="qtitle">Profilo di approccio</h3><p class="small muted">Domande fuori punteggio: descrivono come l'azienda si trasforma, non quanto è avanti.</p>
       ${r.fields.profile.map((p) => `<div class="rq-fact"><p>${esc(p.q)}</p>${p.type === 'percent' ? '<p class="small muted" style="margin:4px 0 0">Una percentuale</p>' : opts(p.options)}</div>`).join('')}</section>` : ''}
@@ -289,7 +294,7 @@ function drawParticipants() {
   };
   $$('[data-rm]').forEach((b) => b.onclick = async () => {
     const after = sess.consolidation?.consolidatedAt ? ' Il consolidamento è già confermato: dopo la rimozione rivedete i valori e confermatelo di nuovo.' : '';
-    if (!confirm(`Rimuovere questa registrazione? Le sue risposte non verranno considerate.${after}`)) return;
+    if (!await ask(`Rimuovere questa registrazione? Le sue risposte non verranno considerate.${after}`)) return;
     try { await api(`${API}/session/${sess.session.id}/participant/${b.dataset.rm}`, { method: 'DELETE', body: { reason: 'Registrazione errata' } }); applyUpdate(await api(`${API}/session/${sess.session.id}`)); }
     catch (e) { toast(e.message, true); }
   });
@@ -337,22 +342,39 @@ function drawConsolidation() {
   }
   $('#body').innerHTML = `
     ${done ? `<div class="banner ok">Consolidamento confermato il ${fmtDate(C.consolidatedAt)}. ${editable ? 'Finché la fase è aperta potete correggerlo e confermare di nuovo: la versione precedente resta nello storico.' : ''}</div>` : ''}
-    ${!editable && !done ? '<div class="banner warn">Il consolidamento non è stato completato. Contattate il facilitatore ELIS.</div>' : ''}
+    ${!editable && !done ? `<div class="banner warn">Il consolidamento non è stato completato. ${FAC ? 'Riapri il consolidamento dalla control room per completarlo.' : 'Contattate il facilitatore ELIS.'}</div>` : ''}
     <details class="card"><summary>Rivedi la vista di confronto</summary><div style="margin-top:12px" id="cmpview">${comparisonHtml(C.comparison)}</div></details>
     <div id="items"></div>
-    ${editable ? '<div class="card"><div id="errs" role="alert"></div>' + (done ? '<label class="f" for="chg">Motivo della modifica (il consolidamento era già confermato) *</label><input type="text" id="chg" maxlength="1000" style="margin-bottom:10px">' : '') + '<button class="big" id="confirm">Conferma il consolidamento</button><p class="small muted" style="margin-top:8px">Livello ufficiale e sotto-opzione diventano il dato dell\'azienda per questa sessione.</p></div>' : ''}
+    ${editable ? '<div class="card"><div id="errs" role="alert"></div>' + (done ? '<label class="f" for="chg">Motivo della modifica: il consolidamento era già confermato (vale anche come motivazione dei livelli diversi dalla mediana) *</label><input type="text" id="chg" maxlength="1000" style="margin-bottom:10px">' : '') + '<button class="big" id="confirm">Conferma il consolidamento</button><p class="small muted" style="margin-top:8px">Livello ufficiale e sotto-opzione diventano il dato dell\'azienda per questa sessione.</p></div>' : ''}
     <div id="summary"></div><div id="commit"></div>`;
   C.items.forEach((it) => drawItem(it, editable));
   const btn = $('#confirm');
   if (btn) btn.onclick = async () => {
+    // un solo motivo: dopo la conferma il «motivo della modifica» vale anche per gli override nuovi, e viceversa
+    const chg = ($('#chg')?.value || '').trim();
+    const items = Object.fromEntries(Object.entries(form).map(([k, f]) => [k, { ...f }]));
+    const changed = done ? C.items.filter((it) => isChanged(it.itemId)).map((it) => it.itemId) : [];
+    for (const k of changed) if (!String(items[k].overrideReason || '').trim() && chg) items[k].overrideReason = chg;
+    const changeReason = chg || (changed.map((k) => items[k].overrideReason).find((x) => String(x || '').trim()) || '');
+    // riepilogo prima di registrare la posizione ufficiale (in sala si conferma una volta sola)
+    const notSent = sess.participants.filter((p) => !p.submitted).length;
+    const ovr = C.items.filter((it) => it.summary.medianIsInteger && form[it.itemId].level != null && form[it.itemId].level !== it.summary.median).length;
+    const msg = `${C.items.length} capacità: ${C.items.map((it) => `${it.itemId} ${form[it.itemId].level == null ? 'N.D.' : `${form[it.itemId].level}${form[it.itemId].sub || ''}`}`).join(', ')}.`
+      + (ovr ? `\n${ovr} ${ovr === 1 ? 'livello diverso' : 'livelli diversi'} dalla mediana, con motivazione.` : '')
+      + (notSent ? `\nAttenzione: ${notSent} ${notSent === 1 ? 'partecipante non ha' : 'partecipanti non hanno'} ancora premuto Invia.` : '')
+      + (done ? `\nModifiche rispetto alla conferma precedente: ${changed.join(', ') || 'nessuna'}. La versione precedente resta nello storico.` : '');
+    if (!await ask(msg, { title: done ? 'Confermare la correzione?' : 'Confermare il consolidamento?', ok: 'Conferma' })) return;
     btn.disabled = true;
     try {
-      await api(`${API}/session/${sess.session.id}/confirm`, { method: 'POST', body: { items: form, changeReason: $('#chg')?.value || '', baseConsolidatedAt: C.consolidatedAt || null } });
+      await api(`${API}/session/${sess.session.id}/confirm`, { method: 'POST', body: { items, changeReason, baseConsolidatedAt: C.consolidatedAt || null } });
       toast('Consolidamento confermato');
       sess = await api(`${API}/session/${sess.session.id}`); drawConsolidation(); $('#summary').scrollIntoView({ behavior: 'smooth' });
     } catch (e) {
       if (e.status === 409) { toast(e.message, true); sess = await api(`${API}/session/${sess.session.id}`); drawConsolidation(); return; }
-      $('#errs').innerHTML = `<div class="banner risk">${esc(e.message)}</div>`; btn.disabled = false;
+      $('#errs').innerHTML = `<div class="banner risk"><b>Non salvato.</b> ${esc(e.message)}</div>`; btn.disabled = false;
+      toast('Consolidamento non salvato: correggi e conferma di nuovo', true);
+      // l'errore compare anche sulla capacità interessata
+      for (const m of e.message.matchAll(/\b(Q\d+): ([^·]+)/g)) { const el = document.getElementById(`it-${m[1]}`); if (el) { let x = el.querySelector('.field-err'); if (!x) { x = document.createElement('p'); x.className = 'field-err'; el.prepend(x); } x.textContent = m[2].trim(); } }
       const first = (e.message.match(/\b(Q\d+)\b/) || [])[1];
       const target = first && document.getElementById(`it-${first}`);
       if (target) { target.scrollIntoView({ behavior: 'smooth', block: 'start' }); const f = target.querySelector('textarea, button.level'); if (f) setTimeout(() => f.focus({ preventScroll: true }), 400); }
@@ -361,6 +383,11 @@ function drawConsolidation() {
   if (done) { drawSummary(); drawCommitment(editable || sess.session.phase === 'chiusa'); }
 }
 
+// dopo la conferma: la capacità è stata cambiata qui ma non ancora riconfermata?
+function isChanged(itemId) {
+  const cur = sess.consolidation.current[itemId], f = form[itemId];
+  return !!(sess.consolidation.consolidatedAt && cur && f && (f.level !== cur.level || (f.sub || null) !== (cur.sub || null)));
+}
 function drawItem(it, editable) {
   let host = $(`#it-${it.itemId}`);
   if (!host) { host = document.createElement('div'); host.id = `it-${it.itemId}`; host.className = 'card'; $('#items').appendChild(host); }
@@ -373,7 +400,7 @@ function drawItem(it, editable) {
   const override = s.medianIsInteger && f.level != null && f.level !== s.median;
   const score = itemScore(it.itemId, f.level, f.sub);
   const dis = editable ? '' : 'aria-disabled="true" style="pointer-events:none"';
-  host.innerHTML = `<div class="row between" style="align-items:flex-start"><div><span class="tag navy">${esc(it.itemId)}</span><h2 style="margin-top:6px">${esc(it.title)}</h2></div><div class="kpi" style="text-align:right">${s.valid === 0 ? 'N.D.' : fmtScore(score)}<small> /100</small></div></div>
+  host.innerHTML = `${isChanged(it.itemId) ? '<div class="banner warn" role="status"><b>Modifica non ancora confermata.</b> Il risultato ufficiale resta quello di prima finché non premi «Conferma il consolidamento» in fondo.</div>' : ''}<div class="row between" style="align-items:flex-start"><div><span class="tag navy">${esc(it.itemId)}</span><h2 style="margin-top:6px">${esc(it.title)}</h2></div><div class="kpi" style="text-align:right">${s.valid === 0 ? 'N.D.' : fmtScore(score)}<small> /100</small></div></div>
     <p class="statement">${esc(it.statement)}</p>
     <div class="row" style="margin-bottom:12px"><span class="small ink2">Mediana <b>${s.median ?? '—'}</b>, range ${s.range ?? '—'}, ${s.valid} risposte valide, ${s.nd} N.D.</span>${confTag(it.confidence)}</div>
     ${s.valid === 0 ? '<div class="banner warn">Nessun partecipante ha visibilità su questo item: il risultato ufficiale resta N.D. e non entra nel benchmark.</div>' : `
@@ -395,7 +422,7 @@ function drawItem(it, editable) {
 function drawSummary() {
   const C = sess.consolidation;
   $('#summary').innerHTML = `<div class="card"><h2>Risultato consolidato</h2>
-    <div class="tablewrap"><table><thead><tr><th>Item</th><th>Livello</th><th class="num">Score</th><th>Confidence</th></tr></thead><tbody>
+    <div class="tablewrap"><table><thead><tr><th>Item</th><th>Livello</th><th class="num">Score</th><th>Affidabilità del dato</th></tr></thead><tbody>
     ${C.def.items.map((id) => { const c = C.current[id]; return `<tr><td>${esc(id)} ${esc(INST.items[id].title)}</td><td><b>${levelLabel(c?.level, c?.sub)}</b>${c?.override ? ' <span class="tag warn">override</span>' : ''}</td><td class="num">${fmtScore(c?.score)}</td><td>${esc(c?.confidence_label || '')}</td></tr>`; }).join('')}
     </tbody></table></div>
     <h3 style="margin-top:14px">Dimensioni</h3>

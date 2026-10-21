@@ -20,14 +20,63 @@ export async function api(url, opts = {}) {
   return data;
 }
 
+// Messaggi temporanei: il riquadro visibile e, a parte, due regioni "live" che esistono già prima del messaggio,
+// così i lettori di schermo lo annunciano sempre (status per le conferme, alert per gli errori).
 let toastTimer;
+const liveRegion = (role) => {
+  let r = document.querySelector(`.sr-live[role=${role}]`);
+  if (!r) { r = document.createElement('div'); r.className = 'sr-only sr-live'; r.setAttribute('role', role); document.body.appendChild(r); }
+  return r;
+};
+if (typeof document !== 'undefined' && document.body) { liveRegion('status'); liveRegion('alert'); }
 export function toast(msg, err = false) {
-  let t = $('.toast');
-  if (!t) { t = document.createElement('div'); t.className = 'toast'; document.body.appendChild(t); }
-  t.setAttribute('role', err ? 'alert' : 'status');
+  // con una finestra di dialogo aperta il messaggio va dentro la finestra: fuori sarebbe coperto e inerte
+  const host = document.querySelector('dialog[open]') || document.body;
+  let t = $('.toast', host);
+  if (!t) { t = document.createElement('div'); t.className = 'toast'; t.setAttribute('aria-hidden', 'true'); host.appendChild(t); }
   t.textContent = msg; t.classList.toggle('err', err); t.classList.remove('hidden');
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.add('hidden'), err ? 6000 : 2500);
+  const r = liveRegion(err ? 'alert' : 'status');
+  r.textContent = ''; setTimeout(() => { r.textContent = msg; }, 50);
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.add('hidden'), err ? 8000 : 3000);
 }
+
+// Conferma dentro la pagina, al posto delle finestre del browser: testo leggibile, pulsanti che dicono cosa succede,
+// campo per il motivo quando serve. ask() → true/false; askText() → testo scritto oppure null se si annulla.
+let askN = 0;
+export function ask(message, opts = {}) {
+  return new Promise((resolve) => {
+    const id = `ask${++askN}`;
+    const d = document.createElement('dialog');
+    d.className = 'askbox'; d.setAttribute('aria-labelledby', `${id}-t`);
+    d.innerHTML = `<form method="dialog">
+      ${opts.title ? `<h2 class="ask-title">${esc(opts.title)}</h2>` : ''}
+      <p id="${id}-t" class="ask-msg">${esc(message)}</p>
+      ${opts.input ? `<label class="f" for="${id}-i">${esc(opts.label || 'Scrivi qui')}${opts.required ? ' *' : ''}</label>
+        <textarea id="${id}-i" rows="${opts.rows || 3}" maxlength="${opts.max || 1000}" ${opts.required ? 'aria-required="true"' : ''} aria-describedby="${id}-e">${esc(opts.value || '')}</textarea>
+        <p id="${id}-e" class="ask-err" hidden></p>` : ''}
+      <div class="row ask-act"><button type="button" class="ghost" data-x>${esc(opts.cancel || 'Annulla')}</button>
+        <button type="submit" class="${opts.danger ? 'danger' : 'primary'}">${esc(opts.ok || 'Conferma')}</button></div></form>`;
+    document.body.appendChild(d);
+    const back = document.activeElement;
+    const done = (v) => { d.close(); d.remove(); if (back && back.isConnected) back.focus(); resolve(v); };
+    const no = () => done(opts.input ? null : false);
+    d.querySelector('[data-x]').onclick = no;
+    d.addEventListener('cancel', (e) => { e.preventDefault(); no(); });
+    d.querySelector('form').onsubmit = (e) => {
+      e.preventDefault();
+      if (!opts.input) return done(true);
+      const ta = d.querySelector('textarea'), v = ta.value.trim();
+      if (opts.required && !v) {
+        const er = d.querySelector('.ask-err'); er.hidden = false; er.textContent = opts.requiredMsg || 'Questo campo è obbligatorio.';
+        ta.setAttribute('aria-invalid', 'true'); ta.focus(); return;
+      }
+      done(v);
+    };
+    d.showModal();
+    (d.querySelector('textarea') || d.querySelector('[type=submit]')).focus();
+  });
+}
+export const askText = (message, value = '', opts = {}) => ask(message, { input: true, value, ...opts });
 
 export const fmtScore = (x) => (x == null ? 'N.D.' : (Math.round(x * 10) / 10).toLocaleString('it-IT', { minimumFractionDigits: 1, maximumFractionDigits: 1 }));
 export const fmtNum = (x, d = 1) => (x == null ? '—' : (Math.round(x * 10 ** d) / 10 ** d).toLocaleString('it-IT'));
@@ -70,7 +119,7 @@ export function distBars(summary) {
 
 export function confTag(conf) {
   const cls = { ALTA: 'ok', MEDIA: 'navy', BASSA: 'warn', DA_VALIDARE: 'risk', ND: '' }[conf.code] ?? '';
-  return `<span class="tag ${cls}" title="${esc(conf.reason || '')}">Confidence: ${esc(conf.label)}</span>`;
+  return `<span class="tag ${cls}" title="${esc(conf.reason || '')}">Affidabilità del dato: ${esc(conf.label)}</span>`;
 }
 
 // Icone disegnate (SVG nel codice, nessuna risorsa esterna): stesso tratto e allineamento ovunque, al posto di ✓ ! ← scritti come caratteri.

@@ -1,7 +1,8 @@
 // Grafici SVG senza librerie esterne.
 import { esc } from './ui.js';
 
-const NAVY = '#005172', TEAL = '#1FB5B8', GOLD = '#C9A84C', GRID = '#DDE3EA', INK3 = '#7B8798';
+// colori dai token di app.css: notte per l'azienda, turchese scuro per i peer, inchiostro per soglie e assi (l'oro resta alla DEMO)
+const NAVY = '#101D35', TEAL = '#0F766E', GOLD = '#3B4A63', GRID = '#C9D3E0', INK3 = '#56647A';
 
 // Radar sulle 8 dimensioni: azienda vs mediana peer. Le dimensioni N.D. non sono tracciate come zero (§10.1).
 export function radar(dims, { size = 380 } = {}) {
@@ -65,7 +66,7 @@ export function benchStrip(stats, own, { w = 220, h = 26 } = {}) {
     g += `<line x1="${X(stats.median)}" y1="${h / 2 - 8}" x2="${X(stats.median)}" y2="${h / 2 + 8}" stroke="${TEAL}" stroke-width="3"/>`;
   }
   if (own != null) g += `<circle cx="${X(own)}" cy="${h / 2}" r="6" fill="${NAVY}" stroke="#fff" stroke-width="2"/>`;
-  return `<svg viewBox="0 0 ${w} ${h}" style="max-width:${w}px">${g}</svg>`;
+  return `<svg viewBox="0 0 ${w} ${h}" style="max-width:${w}px" aria-hidden="true" focusable="false">${g}</svg>`;
 }
 
 // Mappa a quattro quadranti generica (§10.2–10.4).
@@ -100,8 +101,8 @@ export function quadrantMap({ points, x, y, quads, w = 600, h = 440, labels = fa
     : qn('TL', m.l + 10, m.t + 20, 'start') + qn('TR', m.l + pw - 10, m.t + 20, 'end') + qn('BL', m.l + 10, ty + 22, 'start') + qn('BR', m.l + pw - 10, ty + 22, 'end');
   // assi
   const fs = compact ? 9.5 : 11;
-  for (const v of [x.min, x.t, x.max]) g += `<text x="${X(v)}" y="${m.t + ph + (compact ? 12 : 16)}" font-size="${fs}" text-anchor="middle" fill="${v === x.t ? '#6F5718' : INK3}" font-weight="${v === x.t ? 700 : 400}">${esc(fx(v))}</text>`;
-  for (const v of [y.min, y.t, y.max]) g += `<text x="${m.l - (compact ? 4 : 8)}" y="${Y(v) + 4}" font-size="${fs}" text-anchor="end" fill="${v === y.t ? '#6F5718' : INK3}" font-weight="${v === y.t ? 700 : 400}">${esc(fy(v))}</text>`;
+  for (const v of [x.min, x.t, x.max]) g += `<text x="${X(v)}" y="${m.t + ph + (compact ? 12 : 16)}" font-size="${fs}" text-anchor="middle" fill="${v === x.t ? '#17253E' : INK3}" font-weight="${v === x.t ? 700 : 400}">${esc(fx(v))}</text>`;
+  for (const v of [y.min, y.t, y.max]) g += `<text x="${m.l - (compact ? 4 : 8)}" y="${Y(v) + 4}" font-size="${fs}" text-anchor="end" fill="${v === y.t ? '#17253E' : INK3}" font-weight="${v === y.t ? 700 : 400}">${esc(fy(v))}</text>`;
   if (!compact) {
     g += `<text x="${m.l + pw / 2}" y="${h - 8}" font-size="12" text-anchor="middle" fill="#44505F">${esc(x.label)}</text>`;
     g += `<text x="14" y="${m.t + ph / 2}" font-size="12" text-anchor="middle" fill="#44505F" transform="rotate(-90 14 ${m.t + ph / 2})">${esc(y.label)}</text>`;
@@ -109,14 +110,19 @@ export function quadrantMap({ points, x, y, quads, w = 600, h = 440, labels = fa
   // punti, raggruppati per coordinate uguali
   const groups = new Map();
   for (const p of points) { const k = `${Math.round(X(p.x))}:${Math.round(Y(p.y))}:${p.tone || 'main'}:${p.letter || ''}`; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(p); }
+  const placed = [];
   const sorted = [...groups.values()].sort((a, b) => (a[0].tone === 'muted' ? -1 : 1) - (b[0].tone === 'muted' ? -1 : 1));
   for (const grp of sorted) {
-    const p = grp[0], cx = X(p.x), cy = Y(p.y), muted = p.tone === 'muted';
-    const fill = muted ? '#B5BFCB' : NAVY;
+    const p = grp[0], cx = X(p.x), muted = p.tone === 'muted';
+    let cy = Y(p.y);
+    // punti con lettera troppo vicini: si spostano di poco in verticale, così nessuno copre l'altro
+    if (p.letter) { const rr0 = compact ? 11 : 15; for (let k = 0; k < 6 && placed.some((z) => Math.hypot(z[0] - cx, z[1] - cy) < rr0 * 1.9); k++) cy += (k % 2 ? -1 : 1) * rr0 * 1.9 * (k + 1); placed.push([cx, cy]); }
+    // le dimensioni delle sessioni precedenti: cerchio bianco con contorno e lettera scura (contrasto AA)
+    const fill = muted ? '#FFFFFF' : NAVY;
     const title = grp.map((z) => z.title || z.label).join('\n');
     if (p.letter) {
       const rr = compact ? 11 : 15;
-      g += `<g><title>${esc(title)}</title><circle cx="${cx}" cy="${cy}" r="${rr}" fill="${fill}" stroke="#fff" stroke-width="2"/><text x="${cx}" y="${cy}" font-size="${compact ? 11 : 13}" fill="#fff" text-anchor="middle" dominant-baseline="central" font-weight="700">${esc(p.letter)}</text></g>`;
+      g += `<g><title>${esc(title)}</title><circle cx="${cx}" cy="${cy}" r="${rr}" fill="${fill}" stroke="${muted ? INK3 : '#fff'}" stroke-width="2"/><text x="${cx}" y="${cy}" font-size="${compact ? 11 : 13}" fill="${muted ? INK3 : '#fff'}" text-anchor="middle" dominant-baseline="central" font-weight="700">${esc(p.letter)}</text></g>`;
     } else {
       const r = grp.length > 1 ? 9 + Math.min(6, grp.length) : 7;
       g += `<g><title>${esc(title)}</title><circle cx="${cx}" cy="${cy}" r="${r}" fill="${fill}" fill-opacity=".88" stroke="#fff" stroke-width="1.5"/>${grp.length > 1 ? `<text x="${cx}" y="${cy}" font-size="10.5" fill="#fff" text-anchor="middle" dominant-baseline="central" font-weight="700">${grp.length}</text>` : ''}</g>`;

@@ -37,7 +37,7 @@
 </head>
 <body>
 <div class="topbar"><span class="brand"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="1.5" y="1.5" width="29" height="29" rx="7" fill="none" stroke="#fff" stroke-opacity=".4" stroke-width="1.5"/><path d="M16 5v22M5 16h22" stroke="#fff" stroke-opacity=".25" stroke-width="1.2"/><circle cx="9.5" cy="21.5" r="2" fill="#fff" fill-opacity=".6"/><circle cx="11.5" cy="10.5" r="2" fill="#fff" fill-opacity=".6"/><circle cx="21" cy="22" r="2" fill="#fff" fill-opacity=".6"/><circle cx="19" cy="13.5" r="1.6" fill="#fff" fill-opacity=".6"/><circle cx="23.5" cy="9" r="3.2" fill="#35D4C0"/></svg><span class="bname">AITO Map<small>AI Transformation &amp; Adoption Map</small></span></span><span class="sub" id="ttl">Mappe a quadranti</span></div>
-<div class="wrap" id="app"><p class="muted">Caricamento…</p></div>
+<main class="wrap" id="app"><p class="muted">Caricamento…</p></main>
 <script type="module">
 import { api, esc, $, fmtScore, demoBar } from '/static/js/ui.js';
 import { quadrantMap } from '/static/js/charts.js';
@@ -52,7 +52,7 @@ const keep = () => history.replaceState(null, '', `?${params}`);
 
 let M;
 try { M = await api(`/api/admin/maps/${base}`); }
-catch (e) { $('#app').innerHTML = `<div class="card"><p>${esc(e.message)}. Accedi prima dalla <a href="/admin">console ELIS</a>.</p></div>`; throw e; }
+catch (e) { $('#app').innerHTML = `<div class="card"><p>${esc(e.message)}.</p><p>${e.status === 401 ? 'Accedi prima dalla <a href="/admin">console ELIS</a>.' : 'Torna alla <a href="/admin">console ELIS</a> e apri le mappe da una sessione.'}</p></div>`; throw e; }
 document.title = `${M.def.name} · mappe a quadranti`;
 
 const DECIDE = { HH: 'Scalare pratiche, documentare evidenze e contribuire alla community.', HL: 'Migliorare selettivamente usando pratiche dei peer, senza sovrainvestire.',

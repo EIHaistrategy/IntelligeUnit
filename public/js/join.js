@@ -1,4 +1,6 @@
-import { api, esc, $, $$, toast, poll, distBars, confTag, phaseChips, alt, demoBar } from './ui.js';
+import { api, esc, $, $$, toast, ask, askText, poll, distBars, confTag, phaseChips, alt, demoBar } from './ui.js';
+// il messaggio d'errore si mostra prima vuoto e poi si scrive: così i lettori di schermo lo annunciano sempre
+const showErr = (el, msg) => { el.textContent = ''; el.classList.remove('hidden'); setTimeout(() => { el.textContent = msg; }, 30); };
 
 const code = location.pathname.split('/').pop();
 const preCompany = (new URLSearchParams(location.search).get('c') || '').toUpperCase();
@@ -50,7 +52,7 @@ async function renderJoin(cc = preCompany, codeError = false, notice = '') {
   if (info.session.demo) demoBar();
   // Dopo la fase individuale non ci si registra più (§2): lo si dice subito, non dopo aver compilato il modulo.
   if (!['preparazione', 'individuale'].includes(info.session.phase)) {
-    const next = { confronto: 'Segui il confronto con i colleghi del tuo tavolo.', consolidamento: 'Il referente della tua azienda sta registrando la posizione ufficiale.', chiusa: 'La sessione è conclusa.' }[info.session.phase] || '';
+    const next = { confronto: 'Segui il confronto con i colleghi del tuo tavolo.', consolidamento: 'Il facilitatore ELIS sta registrando con il tavolo la posizione ufficiale della tua azienda.', chiusa: 'La sessione è conclusa.' }[info.session.phase] || '';
     app.innerHTML = `<div class="card waitcard">${alt(1)}<h2>Registrazioni chiuse</h2><p>La fase delle risposte individuali di questa sessione è terminata, quindi non è più possibile registrarsi. ${next}</p></div>`;
     focusTitle();
     return;
@@ -68,9 +70,9 @@ async function renderJoin(cc = preCompany, codeError = false, notice = '') {
       <button class="big" id="next">Continua</button></div>`;
     const go = async () => {
       const err = $('#joinerr'); const v = $('#ccode').value.trim().toUpperCase();
-      if (!v) { err.textContent = 'Inserire il codice azienda'; err.classList.remove('hidden'); return; }
+      if (!v) { showErr(err, 'Inserire il codice azienda'); return; }
       try { const r = await api(`/api/join/${code}?c=${encodeURIComponent(v)}`); renderJoin(v, !r.preselected); }
-      catch (e) { err.textContent = e.message; err.classList.remove('hidden'); } // rete assente o troppi tentativi: non è un codice sbagliato
+      catch (e) { showErr(err, e.message); } // rete assente o troppi tentativi: non è un codice sbagliato
     };
     $('#next').onclick = go; $('#ccode').onkeydown = (e) => { if (e.key === 'Enter') go(); };
     if (codeError) $('#ccode').focus();
@@ -89,7 +91,7 @@ async function renderJoin(cc = preCompany, codeError = false, notice = '') {
   const who = roster.length ? `<h2 class="f" id="who-t" style="margin-top:18px">Chi sei?</h2>
       <p class="small ink2" style="margin:0 0 8px">Tocca il tuo nome. Se non c'è, tocca l'ultima voce.</p>
       <div class="levels" role="group" aria-labelledby="who-t">${ordered.map((r) => `<button type="button" class="level person" data-r="${r.id}" data-n="${esc(r.name)}" aria-pressed="false" ${r.taken ? 'disabled' : ''}>
-        <span class="ava" aria-hidden="true">${esc(initials(r.name))}</span><span><b>${esc(r.name)}</b>${r.referent ? ' <span class="tag gold">referente</span>' : ''}<span class="small muted fn">${esc(fn(r.func))}</span>${r.taken ? '<span class="small muted fn">già registrato su un altro telefono. Sei tu? Chiedi al referente di toccare «Rimuovi» accanto al tuo nome, poi ricarica la pagina.</span>' : ''}</span></button>`).join('')}
+        <span class="ava" aria-hidden="true">${esc(initials(r.name))}</span><span><b>${esc(r.name)}</b>${r.referent ? ' <span class="tag navy">referente</span>' : ''}<span class="small muted fn">${esc(fn(r.func))}</span>${r.taken ? '<span class="small muted fn">già registrato su un altro telefono. Sei tu? Chiedi al referente di toccare «Rimuovi» accanto al tuo nome, poi ricarica la pagina.</span>' : ''}</span></button>`).join('')}
         <button type="button" class="level nd" data-r="new" aria-pressed="false">Non sono nell'elenco</button></div>` : '';
   const newPerson = `<div id="newp" class="${roster.length ? 'hidden' : ''}">
       <label class="f" for="name">Nome e cognome</label><input type="text" id="name" autocomplete="name" maxlength="120">
@@ -129,7 +131,7 @@ async function renderJoin(cc = preCompany, codeError = false, notice = '') {
       const r = await api(`/api/join/${code}`, { method: 'POST', body });
       saveTok(r.token); state = await api(`/api/p/${tok}`); renderPhase();
     } catch (e) {
-      err.textContent = e.message; err.classList.remove('hidden'); err.scrollIntoView({ block: 'center' });
+      showErr(err, e.message); err.scrollIntoView({ block: 'center' });
       if (e.status === 409) renderJoin(pre?.code || cc, false, e.message); // nome appena preso: elenco aggiornato, messaggio che resta
     }
   };
@@ -141,7 +143,7 @@ function header() {
   return `<div class="who"><b>${esc(state.company)}</b><span>${esc(state.participant.name)}${canLeave ? ` · <button type="button" class="link small" id="leave">Non sei ${esc(state.participant.name)}? Cambia nome</button>` : ''}</span></div>${phaseChips(state.session.phase)}<div style="height:18px"></div>`;
 }
 async function leave() {
-  if (!confirm(`Annullare la registrazione come ${state.participant.name}? Il nome torna libero e potrai sceglierne un altro.`)) return;
+  if (!await ask(`Annullare la registrazione come ${state.participant.name}? Il nome torna libero e potrai sceglierne un altro.`)) return;
   try { await api(`/api/p/${tok}/leave`, { method: 'POST' }); saveTok(null); state = null; step = 0; renderJoin(); }
   catch (e) { toast(e.message, true); }
 }
@@ -225,7 +227,7 @@ function renderIndividual() {
     const missing = missingItems.length + missingPairs;
     app.innerHTML = `${header()}${bar}<div class="card"><h2>Riepilogo</h2>
       <table><tbody>${state.items.map((i) => `<tr><td>${esc(i.id)} ${esc(i.title)}</td><td class="num"><b>${state.answered.includes(i.id) ? (state.answers[i.id] ?? 'N.D.') : '—'}</b></td></tr>`).join('')}
-      ${state.pairs.map(([a, b]) => { const v = state.pairAnswers.find((x) => x.item_a === a && x.item_b === b)?.answer; return `<tr><td>Più avanti: ${esc(a)} o ${esc(b)}?</td><td class="num"><b>${v === 'A' ? a : v === 'B' ? b : v === 'ND' ? 'N.D.' : '—'}</b></td></tr>`; }).join('')}</tbody></table>
+      ${state.pairs.map(([a, b]) => { const v = state.pairAnswers.find((x) => x.item_a === a && x.item_b === b)?.answer; const tt = (id) => state.items.find((x) => x.id === id)?.title || id; return `<tr><td>Più avanti: ${esc(tt(a))} o ${esc(tt(b))}?</td><td><b>${v === 'A' ? esc(tt(a)) : v === 'B' ? esc(tt(b)) : v === 'ND' ? 'N.D.' : '—'}</b></td></tr>`; }).join('')}</tbody></table>
       ${state.participant.submitted_at ? '<div class="banner ok" role="status" style="margin-top:12px">Risposte inviate. Finché la fase individuale è aperta puoi ancora modificarle: ogni modifica si salva da sola.</div>' : '<p class="small muted" style="margin-top:12px">Le risposte sono già salvate: con <b>Invia</b> confermi di aver finito.</p>'}
       ${missing ? `<div class="banner warn" style="margin-top:12px">Mancano ${missing} risposte: ${missingItems.map(({ it, i }) => `<button class="link" data-goto="${i}">${esc(it.id)}</button>`).join(', ')}${missingPairs ? `${missingItems.length ? ', ' : ''}<button class="link" data-goto="${state.items.length}">confronti a coppie</button>` : ''}</div>` : ''}</div>
       <div class="sticky-foot"><button class="ghost" id="prev">Modifica</button>${state.participant.submitted_at ? '' : `<button id="submit" ${missing ? 'disabled' : ''}>Invia le risposte</button>`}</div>`;
@@ -254,7 +256,7 @@ function renderComparison() {
     <div class="card"><h2>Le risposte della vostra azienda</h2><p class="small muted" style="margin:0">Vista anonima: ${c.participants} partecipanti, ${c.submitted} ${c.submitted === 1 ? 'ha' : 'hanno'} inviato, ${c.functions.length} ${c.functions.length === 1 ? 'funzione presente' : 'funzioni presenti'}.</p></div>
     ${c.items.map((it) => `<div class="card"><div class="cardhead"><h3>${esc(it.itemId)} · ${esc(it.title)}</h3>${confTag(it.confidence)}</div>
       ${it.summary.hidden ? '<p class="small muted">Meno di 3 risposte valide: per proteggere l\'anonimato si mostrano solo mediana e range.</p>' : distBars(it.summary)}
-      <p class="small" style="margin-top:8px">La tua risposta: <b>${mine(it.itemId)}</b> · Mediana: <b>${it.summary.median ?? '—'}</b> · Range: <b>${it.summary.range ?? '—'}</b> · N.D.: <b>${it.summary.nd}</b></p>
+      <p class="small" style="margin-top:8px">La tua risposta: <b>${mine(it.itemId)}</b> · Valore centrale (mediana): <b>${it.summary.median ?? '—'}</b> · Distanza tra la risposta più bassa e la più alta: <b>${it.summary.range ?? '—'}</b> · Senza visibilità (N.D.): <b>${it.summary.nd}</b></p>
       ${it.summary.divergent ? '<div class="banner warn">Divergenza di due o più livelli: discussione necessaria.</div>' : ''}</div>`).join('')}
     <div class="card"><h3>Confronti a coppie</h3>${c.pairs.map((p) => p.hidden ? `<p><b>${esc(p.a)}</b> vs <b>${esc(p.b)}</b>: meno di 3 risposte valide, per proteggere l'anonimato non si mostra.</p>` : `<p><b>${esc(p.a)}</b> ${p.counts.A} · <b>${esc(p.b)}</b> ${p.counts.B} · N.D. ${p.counts.ND}
       </p>${p.discordant ? `<p class="note risk">${p.discordant} ${p.discordant === 1 ? 'risposta' : 'risposte'} in contrasto con i livelli scelti dalla stessa persona</p>` : ''}`).join('')}</div>`;
