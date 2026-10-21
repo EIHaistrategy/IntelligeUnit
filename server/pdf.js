@@ -221,8 +221,8 @@ export function buildCompanyPdf(R) {
     const y0 = doc.y;
     doc.moveTo(X0, y0).lineTo(X0 + W, y0).lineWidth(0.5).strokeColor(C.line).stroke();
     doc.font('Bold').fontSize(9).fillColor(C.ink).text(`${it.itemId} ${it.title}`, X0, y0 + 5, { width: 120 });
-    doc.font('Body').fontSize(7.6).fillColor(C.ink3).text(`Dim. ${it.dimension} · ${it.confidence || ''}`, X0, doc.y + 1, { width: 120 });
-    doc.text(`${it.validN} ${it.validN === 1 ? 'risposta valida' : 'risposte valide'} · ${it.ndN} N.D.`, X0, doc.y, { width: 120 });
+    doc.font('Body').fontSize(7.6).fillColor(C.ink3).text(`Dim. ${it.dimension} · ${it.kind === 'allineato' ? 'modificato nell\'allineamento finale' : it.confidence || ''}`, X0, doc.y + 1, { width: 120 });
+    if (it.kind !== 'allineato') doc.text(`${it.validN} ${it.validN === 1 ? 'risposta valida' : 'risposte valide'} · ${it.ndN} N.D.`, X0, doc.y, { width: 120 });
     if (it.valoriale) tag('valoriale', '#F5EDD3', X0, doc.y + 2, C.goldInk);
     doc.font('Display').fontSize(15).fillColor(C.deep).text(lvl(it.level, it.sub), X0 + 126, y0 + 3, { width: 36 });
     doc.font('Body').fontSize(8).fillColor(C.ink2).text(n1(it.score), X0 + 126, y0 + 22, { width: 36 });

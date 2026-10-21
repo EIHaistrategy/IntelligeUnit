@@ -180,6 +180,14 @@ CREATE TABLE IF NOT EXISTS alignment (  -- stato dell'allineamento per azienda: 
   confirmed_at TEXT, confirmed_by TEXT, updated_at TEXT
 );
 
+CREATE TABLE IF NOT EXISTS alignment_priorities (  -- storico delle tre priorità finali (regola 1)
+  id INTEGER PRIMARY KEY,
+  company_id INTEGER NOT NULL REFERENCES companies(id),
+  priorities_json TEXT NOT NULL, note TEXT,
+  is_current INTEGER NOT NULL DEFAULT 1,
+  created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS roster (  -- persone iscritte da ELIS: solo nome e funzione (regola 9); in sala si scelgono dal telefono
   id INTEGER PRIMARY KEY,
   company_id INTEGER NOT NULL REFERENCES companies(id),

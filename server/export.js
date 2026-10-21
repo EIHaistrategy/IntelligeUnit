@@ -45,7 +45,13 @@ export async function buildExport() {
   }
   sheet(wb, 'Scheda pre-sessione', preRows);
   sheet(wb, 'Benchmark congelati', q.all('SELECT id, base, kind AS tipo, label AS versione, n_companies AS n_aziende, instrument_version, scoring_version, created_at FROM benchmark_versions'));
-  sheet(wb, 'Audit', q.all('SELECT id, ts, actor, entity, entity_id, action, before_json, after_json, reason FROM audit ORDER BY id'));
+  sheet(wb, 'Allineamento (storico)', q.all(`SELECT x.id, c.name AS azienda, x.item_id AS item, x.action AS scelta, x.level AS livello, x.sub AS sotto, x.score,
+    x.base_level AS livello_sessione, x.base_sub AS sotto_sessione, x.base_score AS score_sessione, x.evidence AS evidenza, x.is_current AS corrente, x.created_by AS autore, x.created_at
+    FROM alignment_items x JOIN companies c ON c.id = x.company_id WHERE c.seeded = 0 ORDER BY c.name, x.item_id, x.id`));
+  sheet(wb, 'Allineamento priorità', q.all(`SELECT p.id, c.name AS azienda, p.priorities_json AS priorita, p.note AS nota, p.is_current AS corrente, p.created_by AS autore, p.created_at,
+    a.confirmed_at AS confermato FROM alignment_priorities p JOIN companies c ON c.id = p.company_id LEFT JOIN alignment a ON a.company_id = p.company_id WHERE c.seeded = 0 ORDER BY c.name, p.id`));
+  // solo il registro di Produzione: le azioni fatte in DEMO restano fuori dall'export
+  sheet(wb, 'Audit', q.all('SELECT id, ts, actor, entity, entity_id, action, before_json, after_json, reason FROM audit WHERE seeded = 0 ORDER BY id'));
   sheet(wb, 'Strumento', Object.entries(I.items).flatMap(([id, it]) => it.levels.flatMap((l) => (l.sub || [{ key: '', text: '' }]).map((s) => ({
     item: id, titolo: it.title, dimensione: it.dimension, livello: l.level, descrittore: l.descriptor, sotto_opzione: s.key, testo: s.text, valoriale: l.valoriale ? 'sì' : '' })))));
   return wb.xlsx.writeBuffer();

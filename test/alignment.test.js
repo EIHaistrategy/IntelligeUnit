@@ -95,3 +95,40 @@ test('isolamento: in Produzione la vista d\'insieme non vede le aziende DEMO e l
   const r = await fetch(`${base}/api/admin/alignment/${g}/reopen`, { method: 'POST', headers: { ...H(), Cookie: cookie }, body: JSON.stringify({ reason: 'x' }) });
   assert.equal(r.status, 404, 'dalla Produzione un\'azienda DEMO non si tocca');
 });
+
+test('una capacità confermata segue la correzione della sessione; una modificata segnala che va ricontrollata', () => {
+  AL.reopen(g, 'prova correzione', 'test');
+  const before = q.get("SELECT level FROM consolidated WHERE company_id = ? AND item_id = 'Q1' AND is_current = 1", g).level;
+  const nl = before === 1 ? 2 : before - 1;
+  L.adminCorrect(g, 'Q1', nl, null, 'correzione ELIS', 'admin');
+  const s = AL.alignmentState(g, 1);
+  const q1 = s.items.find((i) => i.itemId === 'Q1');
+  assert.equal(q1.current.action, 'conferma'); assert.equal(q1.current.level, nl); assert.equal(q1.shift, 0);
+  L.adminCorrect(g, 'Q13', 2, null, 'correzione ELIS', 'admin');
+  assert.equal(AL.alignmentState(g, 1).items.find((i) => i.itemId === 'Q13').current.baseChanged, true);
+  // nel report unificato le capacità confermate valgono quanto la sessione corretta
+  assert.equal(L.companyReport(g, { final: true }).items.find((i) => i.itemId === 'Q1').level, nl);
+});
+
+test('dopo il report unificato: la versione di sessione resta progressiva e lo zip prende il report di sessione', async () => {
+  AL.confirm(g, 1, 'test');
+  L.releaseFinalReport(g, 'test');
+  const sc = D.tourState().sessions[3];
+  const r = L.releaseReport(sc.id, g, 'test');
+  assert.equal(r.version, 2, 'seconda versione del report di Scalare');
+  const list = L.listSnapshots(g);
+  assert.deepEqual(list.filter((x) => x.kind === 'finale').map((x) => x.version).sort(), [1, 2]);
+  const z = await fetch(`${base}/api/admin/sessions/${sc.id}/pdfs.zip`, { headers: { Cookie: `${cookie}; aito_mode=prova` } });
+  assert.equal(z.status, 200);
+  const top = q.get("SELECT kind FROM report_snapshots WHERE session_id = ? AND company_id = ? AND kind = 'sessione' ORDER BY version DESC LIMIT 1", sc.id, g);
+  assert.equal(top.kind, 'sessione');
+});
+
+test('facilitatore: niente accesso all\'allineamento di un\'azienda dell\'altro ambiente; aggregati senza aziende TEST', async () => {
+  const r = await fetch(`${base}/api/f/${g}/alignment`, { headers: { Cookie: cookie } });
+  assert.equal(r.status, 404);
+  const o = AL.overview(1);
+  assert.ok(o.testExcluded >= 1, 'l\'azienda del percorso (TEST) resta fuori dalle medie');
+  const r2 = await fetch(`${base}/api/admin/alignment/open`, { method: 'POST', headers: { ...H(), Cookie: cookie }, body: JSON.stringify({ open: true, env: 1 }) });
+  assert.equal(r2.status, 409, 'pagina caricata in DEMO, cookie di Produzione');
+});

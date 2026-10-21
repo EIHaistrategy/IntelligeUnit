@@ -31,12 +31,16 @@ export function alignmentState(companyId, seeded) {
   const items = ITEMS.map((k) => {
     const b = base[k], a = al[k], s = sessOf(k);
     const lv = (l) => (l == null ? null : E.levelDef(k, l));
+    // "confermo" vale sempre il valore corrente della sessione: se ELIS lo corregge dopo, la conferma lo segue
+    const cur = a && (a.action === 'conferma' && b ? { ...a, level: b.level, sub: b.sub, score: b.score } : a);
     return {
       itemId: k, title: I.items[k].title, statement: I.items[k].statement, dimension: I.items[k].dimension, session: s.id, sessionName: s.name, preJuly: preJuly(k),
       levels: I.items[k].levels.map((l) => ({ level: l.level, descriptor: l.descriptor, sub: l.sub || [] })),
       base: b ? { level: b.level, sub: b.sub, score: b.score, sessionTitle: b.session_title, descriptor: lv(b.level)?.descriptor || null } : null,
-      current: a ? { action: a.action, level: a.level, sub: a.sub, score: a.score, evidence: a.evidence, by: a.created_by, at: a.created_at } : null,
-      shift: a && b && a.score != null && b.score != null ? Math.round((a.score - b.score) * 10) / 10 : null,
+      current: cur ? { action: cur.action, level: cur.level, sub: cur.sub, score: cur.score, evidence: cur.evidence, by: cur.created_by, at: cur.created_at,
+        // la sessione è stata corretta dopo la modifica: lo spostamento si calcola sul valore corrente, ma va ricontrollato
+        baseChanged: cur.action === 'modifica' && b != null && cur.base_score !== b.score } : null,
+      shift: cur && b && cur.score != null && b.score != null ? Math.round((cur.score - b.score) * 10) / 10 : null,
     };
   });
   const before = dimScores(Object.fromEntries(items.map((i) => [i.itemId, i.base?.score])));
@@ -93,6 +97,8 @@ export function savePriorities(companyId, list, note, actor) {
   if (h?.confirmed_at) return { ok: false, errors: ['L\'allineamento è già confermato'] };
   const ids = [...new Set((Array.isArray(list) ? list : []).filter((x) => I.dimensions.some((d) => d.id === x)))].slice(0, 3);
   note = String(note || '').trim().slice(0, 2000);
+  q.run('UPDATE alignment_priorities SET is_current = 0 WHERE company_id = ? AND is_current = 1', companyId);
+  q.run('INSERT INTO alignment_priorities (company_id, priorities_json, note, created_by) VALUES (?,?,?,?)', companyId, JSON.stringify(ids), note, actor);
   q.run(`INSERT INTO alignment (company_id, priorities_json, priorities_note, updated_at) VALUES (?,?,?,datetime('now'))
          ON CONFLICT(company_id) DO UPDATE SET priorities_json = excluded.priorities_json, priorities_note = excluded.priorities_note, updated_at = excluded.updated_at`,
     companyId, JSON.stringify(ids), note);
@@ -123,7 +129,7 @@ export function reopen(companyId, reason, actor) {
 }
 
 // Valori allineati, per il report unificato: sopra i valori della sessione, senza modificarli
-export function alignedOverlay(companyId) { return alignRows(companyId); }
+export function alignedOverlay(companyId) { return Object.fromEntries(Object.entries(alignRows(companyId)).filter(([, a]) => a.action === 'modifica')); }
 export const headerOf = header;
 
 // Vista d'insieme per il team ELIS: avanzamento per azienda e spostamenti medi per dimensione
@@ -135,14 +141,16 @@ export function overview(seeded) {
     return { id: c.id, name: c.name, kind: c.kind, reviewed: st.reviewed, total: st.total, changed: st.changed, confirmedAt: st.confirmedAt,
       priorities: st.priorities, dims: st.dims, up: st.items.filter((i) => i.shift > 0).length, down: st.items.filter((i) => i.shift < 0).length, released: rel || null };
   }).filter((r) => r.total > 0);
+  // le aziende TEST (es. l'azienda amica) restano nell'elenco ma non entrano negli aggregati (regola 7)
+  const agg = rows.filter((r) => r.kind !== 'TEST');
   const dims = I.dimensions.map((d) => {
-    const pairs = rows.filter((r) => r.reviewed).map((r) => r.dims.find((x) => x.id === d.id)).filter((x) => x.before != null && x.after != null);
+    const pairs = agg.filter((r) => r.reviewed).map((r) => r.dims.find((x) => x.id === d.id)).filter((x) => x.before != null && x.after != null);
     const avg = (k) => (pairs.length ? Math.round((pairs.reduce((s, x) => s + x[k], 0) / pairs.length) * 10) / 10 : null);
     return { id: d.id, name: d.name, n: pairs.length, before: avg('before'), after: avg('after'), up: pairs.filter((x) => x.shift > 0).length, down: pairs.filter((x) => x.shift < 0).length,
       shift: pairs.length ? Math.round((avg('after') - avg('before')) * 10) / 10 : null };
   });
   const prio = {};
-  for (const r of rows.filter((x) => x.confirmedAt)) r.priorities.forEach((p) => { prio[p] = (prio[p] || 0) + 1; });
+  for (const r of agg.filter((x) => x.confirmedAt)) r.priorities.forEach((p) => { prio[p] = (prio[p] || 0) + 1; });
   return { open: isOpen(seeded), companies: rows, dims, priorityCount: prio,
-    confirmed: rows.filter((r) => r.confirmedAt).length, started: rows.filter((r) => r.reviewed).length };
+    confirmed: rows.filter((r) => r.confirmedAt).length, started: rows.filter((r) => r.reviewed).length, testExcluded: rows.length - agg.length };
 }

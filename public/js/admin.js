@@ -185,11 +185,9 @@ async function viewTour() {
     const st = i < D.s || D.done ? 'done' : i === D.s ? 'live' : 'prep';
     return `<li class="tstage st-${st}"><span class="stage-n" aria-hidden="true">${st === 'done' ? icon('check') : i + 1}</span><span><b>${esc(sname(x))}</b><small>${esc(longDate(x.date))}</small></span></li>`;
   };
-  const phoneHtml = D.done
-    ? `<iframe class="phone-frame" src="/r/${esc(D.referentToken)}#/allineamento" title="Vista azienda: allineamento finale"></iframe>`
-    : false ? `<div class="phone-static"><p class="eyebrow">Anteprima</p><h3>Allineamento finale · settembre 2027</h3><p>Il referente, con il leader, riceverà un modulo precompilato con livelli e sotto-opzioni dei 12 item misurati prima di luglio: per ognuno conferma o modifica, con un'evidenza. Poi la call con il leader conferma le tre priorità finali.</p><p class="small muted">Funzione non ancora disponibile nella piattaforma: questa è solo un'anteprima.</p></div>`
-    : /null|undefined/.test(phone.url) ? '<div class="phone-static"><p>Questa vista non è disponibile: il referente o il partecipante DEMO è stato rimosso dalla console. Con <b>Riparti da zero</b> il percorso si ricarica.</p></div>'
-    : `<iframe class="phone-frame" src="${esc(phone.url)}" title="Vista azienda: ${esc(step.label)}"></iframe>`;
+  const phoneUrl = D.done ? `/r/${D.referentToken}#/allineamento` : phone.url;
+  const phoneHtml = /null|undefined/.test(phoneUrl) ? '<div class="phone-static"><p>Questa vista non è disponibile: il referente o il partecipante DEMO è stato rimosso dalla console. Con <b>Riparti da zero</b> il percorso si ricarica.</p></div>'
+    : `<iframe class="phone-frame" src="${esc(phoneUrl)}" title="Vista azienda: ${D.done ? 'allineamento finale' : esc(step.label)}"></iframe>`;
   const realUrl = !D.done && phone.url.startsWith('/j/') ? `${NET.baseUrl}${phone.url.replace('&anteprima=1', '').replace(/&p=[^&#]*/, '')}` : null;
   app.innerHTML = `<div class="pagehead"><div><h1>Percorso guidato</h1><p>${esc(D.company.name)} · ${esc(D.company.sector || '')} · perimetro ${esc(D.company.perimeter || '')}. Dati inventati: nulla entra nei dati reali o nel benchmark ufficiale.</p></div>
       <div class="row"><button type="button" class="sm" id="tour_reset">Riparti da zero</button></div></div>
@@ -260,7 +258,7 @@ async function viewAlignment() {
   $('#al_open').onclick = async () => {
     const msg = O.open ? 'Chiudere l\'allineamento? I referenti non potranno più modificarlo dal loro link; quello che hanno già salvato resta.' : 'Aprire l\'allineamento finale alle aziende? I referenti lo vedranno dal loro link e potranno confermare o modificare le capacità.';
     if (!confirm(msg)) return;
-    try { await api('/api/admin/alignment/open', { method: 'POST', body: { open: !O.open } }); toast(O.open ? 'Allineamento chiuso' : 'Allineamento aperto'); route(); } catch (e) { toast(e.message, true); }
+    try { await api('/api/admin/alignment/open', { method: 'POST', body: { open: !O.open, env: PROVA ? 1 : 0 } }); toast(O.open ? 'Allineamento chiuso' : 'Allineamento aperto'); route(); } catch (e) { toast(e.message, true); }
   };
   $$('[data-rel]').forEach((b) => b.onclick = async () => {
     if (!confirm(`Rilasciare il report unificato di ${b.dataset.n}? Il referente lo vedrà dal suo link. Il report rilasciato non cambia più: eventuali correzioni diventano una nuova versione.`)) return;
@@ -269,7 +267,7 @@ async function viewAlignment() {
   $$('[data-reopen]').forEach((b) => b.onclick = async () => {
     const reason = prompt(`Riaprire l'allineamento di ${b.dataset.n}? Il referente potrà di nuovo modificarlo. Scrivi il motivo (resta nel registro):`);
     if (!reason || !reason.trim()) return;
-    try { await api(`/api/admin/alignment/${b.dataset.reopen}/reopen`, { method: 'POST', body: { reason } }); toast('Allineamento riaperto'); route(); } catch (e) { toast(e.message, true); }
+    try { const r = await api(`/api/admin/alignment/${b.dataset.reopen}/reopen`, { method: 'POST', body: { reason } }); toast(r.closed ? 'Riaperto: il referente potrà modificarlo quando apri l\'allineamento alle aziende (ora è chiuso)' : 'Allineamento riaperto'); route(); } catch (e) { toast(e.message, true); }
   });
 }
 

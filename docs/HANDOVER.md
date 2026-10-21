@@ -14,7 +14,7 @@ La piattaforma copre il ciclo completo di una sessione e il lavoro dopo la sessi
 | Referente (scheda pre-sessione, confronto, consolidamento con sotto-opzioni, commitment, report) | Completo |
 | Console ELIS: Programma, sessioni con schede Prima/In sala/Mappe/Follow up, report e call, commitment, aziende | Completa, riorganizzata il 19/10 |
 | Ambiente DEMO separato dalla Produzione (cookie `aito_mode`, dati `seeded = 1`, registro modifiche per ambiente) | Completo |
-| Allineamento finale (§14.1): revisione delle 16 capacità con evidenza, spostamenti, tre priorità finali, vista d'insieme, report unificato web e PDF (`server/alignment.js`, `public/js/align.js`) | Completo, 5 test; manca il benchmark ricalcolato sui valori allineati |
+| Allineamento finale (§14.1): revisione delle 16 capacità con evidenza, spostamenti, tre priorità finali, vista d'insieme, report unificato web e PDF (`server/alignment.js`, `public/js/align.js`) | Completo, 8 test; manca il benchmark ricalcolato sui valori allineati |
 | Percorso guidato DEMO: azienda fittizia dalla preparazione al report, vista admin e telefono, data simulata, reset (`server/demo.js`, dati in `server/demo/percorso-guidato.json`) | Completo, 10 test |
 | Dashboard live, plenaria, mappe a quadranti §10.2–10.4 | Complete |
 | Report web e PDF per azienda, con versioni rilasciate immutabili; zip di tutti i PDF | Completi |
@@ -76,7 +76,7 @@ Limiti noti:
 ```
 git clone https://github.com/EIHaistrategy/IntelligeUnit.git && cd IntelligeUnit
 npm install
-npm test                                   # 33 test (17 motore + 11 DEMO + 5 allineamento)
+npm test                                   # 36 test (17 motore + 11 DEMO + 8 allineamento)
 ADMIN_PASSWORD=una-password npm start      # console su http://localhost:3000/admin
 ```
 

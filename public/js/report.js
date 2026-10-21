@@ -83,13 +83,13 @@ async function boot() {
   </div>
 
   <div class="card pb"><h2><span class="secnum">3</span>Capacità per item</h2>
-    <div class="explain">Il livello è la scelta consolidata in sala; la lettera è la sotto-opzione scelta con una scelta forzata tra fatti osservabili. Lo stesso "2B" non vale lo stesso in tutti gli item (dipende da quante sotto-opzioni ha il livello), per questo è indicato anche il valore numerico.</div>
+    <div class="explain">Il livello è la scelta consolidata in sala${R.final ? ' o, dove indicato, quella modificata nell\'allineamento finale' : ''}; la lettera è la sotto-opzione scelta con una scelta forzata tra fatti osservabili. Lo stesso "2B" non vale lo stesso in tutti gli item (dipende da quante sotto-opzioni ha il livello), per questo è indicato anche il valore numerico.</div>
     <div class="tablewrap"><table><thead><tr><th>Item</th><th>Posizione</th><th class="num">Score</th><th>Qualità del dato</th>${anyItemBench ? `<th>Benchmark AITO${stab(R.items.map((i) => i.bench))}</th>` : ''}</tr></thead><tbody>
     ${R.items.map((it) => `<tr><td><b>${esc(it.itemId)}</b> ${esc(it.title)}<div class="small muted">Dim. ${it.dimension}</div></td>
       <td><b>${levelLabel(it.level, it.sub)}</b> ${it.valoriale ? '<span class="tag gold">valoriale</span>' : ''}<div class="small">${esc(it.descriptor || '')}${it.subText ? `<br><i>${esc(it.subText)}</i>` : ''}</div>
         ${it.override ? `<div class="small"><span class="tag warn">override</span> ${esc(it.overrideReason || '')}</div>` : ''}</td>
       <td class="num"><b>${fmtScore(it.score)}</b></td>
-      <td class="small">${esc(it.confidence || '')}<br><span class="muted">${it.validN} ${it.validN === 1 ? 'risposta valida' : 'risposte valide'} · ${it.ndN} N.D. · range ${it.range ?? '—'}</span></td>
+      <td class="small">${it.kind === 'allineato' ? `<b>Modificato nell'allineamento finale</b><br><span class="muted">${esc(it.confidenceReason || '')}</span>` : `${esc(it.confidence || '')}<br><span class="muted">${it.validN} ${it.validN === 1 ? 'risposta valida' : 'risposte valide'} · ${it.ndN} N.D. · range ${it.range ?? '—'}</span>`}</td>
       ${anyItemBench ? `<td class="small">${it.bench?.available ? `${benchStrip(it.bench, it.score)}<br>` : ''}${benchTxt(it.bench)}</td>` : ''}</tr>`).join('')}
     </tbody></table></div>
     ${anyItemBench ? '' : noBench('Confronto con il benchmark')}
@@ -141,7 +141,7 @@ async function boot() {
     ${R.calls.map((k) => `<h3>${esc(k.session_title)}${k.call_date ? ` · call del ${k.call_date.split('-').reverse().join('/')}` : ''}</h3><div class="transcript">${esc(k.transcript)}</div>`).join('')}</div>` : ''}`;
   try {
     const list = t ? (await api(`/api/r/${encodeURIComponent(t)}`)).reports : await api(`/api/admin/companies/${cid}/reports`);
-    if (list.length) $('#versions').innerHTML = `<p class="small">Versioni rilasciate: ${list.map((v) => `<a href="?${t ? `t=${encodeURIComponent(t)}&` : ''}snap=${v.id}">v${v.version} · ${esc(v.session_title)} · ${fmtDate(v.created_at)}</a>`).join(' · ')}${t ? '' : ` · <a href="?">bozza corrente</a>`}</p>`;
+    if (list.length) $('#versions').innerHTML = `<p class="small">Versioni rilasciate: ${list.map((v) => `<a href="?${t ? `t=${encodeURIComponent(t)}&` : ''}snap=${v.id}">v${v.version} · ${esc(v.session_title)} · ${fmtDate(v.created_at)}</a>`).join(' · ')}${t ? '' : ` · <a href="?${fin}">bozza corrente</a>`}</p>`;
   } catch { /* elenco non disponibile */ }
 }
 boot();

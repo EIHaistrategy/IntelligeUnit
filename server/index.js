@@ -420,7 +420,8 @@ app.get('/api/r/:t/report', wrap((req, res) => {
 }));
 
 // ---------- Allineamento finale (§14.1): referente dal suo link, facilitatore ELIS dal tavolo ----------
-const alignGate = (r, res) => { if (!AL.isOpen(r.company_seeded)) { bad(res, 'L\'allineamento finale non è ancora aperto', 403); return false; } return true; };
+// il facilitatore ELIS può preparare l'allineamento anche prima di aprirlo alle aziende
+const alignGate = (r, res) => { if (!r.facilitator && !AL.isOpen(r.company_seeded)) { bad(res, 'L\'allineamento finale non è ancora aperto', 403); return false; } return true; };
 app.get(['/api/r/:t/alignment', '/api/f/:c/alignment'], wrap((req, res) => {
   const r = referent(req, res); if (!r) return;
   return AL.alignmentState(r.company_id, r.company_seeded);
@@ -777,7 +778,7 @@ app.get('/api/admin/sessions/:sid/pdfs.zip', async (req, res) => {
     const zip = new JSZip();
     for (const c of comps) {
       // versione rilasciata per questa sessione se esiste, altrimenti bozza marcata come tale
-      const snap = q.get('SELECT id FROM report_snapshots WHERE session_id = ? AND company_id = ? ORDER BY version DESC LIMIT 1', s.id, c.company_id);
+      const snap = q.get("SELECT id FROM report_snapshots WHERE session_id = ? AND company_id = ? AND kind = 'sessione' ORDER BY version DESC LIMIT 1", s.id, c.company_id);
       const R = snap ? L.getSnapshot(c.company_id, snap.id) : { ...L.companyReport(c.company_id), draft: true };
       zip.file((snap ? '' : 'BOZZA_') + pdfFileName(R), await pdfBuffer(R));
       await new Promise((r) => setImmediate(r)); // lascia passare le altre richieste tra un PDF e l'altro
@@ -791,6 +792,7 @@ app.get('/api/admin/plenaria/:base', wrap((req) => L.plenaria(req.params.base, {
 app.get('/api/admin/maps/:base', wrap((req, res) => (I.sessions.some((x) => x.id === req.params.base) ? L.sessionMaps(req.params.base, { preview: isProva(req) }) : bad(res, 'Sessione non trovata', 404))));
 // Report per l'admin: una versione rilasciata (?snap=id) oppure la bozza corrente, marcata come tale.
 function reportFor(cid, req, admin) {
+  if (admin && !q.get('SELECT 1 FROM companies WHERE id = ? AND seeded = ?', cid, envOf(req))) return null;
   if (req.query.snap) { const R = L.getSnapshot(cid, Number(req.query.snap)); if (R) return R; }
   if (admin) return { ...L.companyReport(cid, { final: req.query.final === '1' }), draft: true };
   return L.getSnapshot(cid);
@@ -812,11 +814,13 @@ const envCompany = (req, res) => {
   return c;
 };
 app.get('/api/admin/alignment', wrap((req) => AL.overview(envOf(req))));
-app.post('/api/admin/alignment/open', wrap((req) => { AL.setOpen(envOf(req), !!req.body?.open, ADMIN, txt(req.body?.reason, 1000)); return AL.overview(envOf(req)); }));
+app.post('/api/admin/alignment/open', wrap((req, res) => {
+  if (req.body?.env != null && Number(req.body.env) !== envOf(req)) return bad(res, 'Hai cambiato ambiente (DEMO/Produzione) in un\'altra scheda: ricarica la pagina e riprova.', 409);
+  AL.setOpen(envOf(req), !!req.body?.open, ADMIN, txt(req.body?.reason, 1000)); return AL.overview(envOf(req)); }));
 app.post('/api/admin/alignment/:cid/reopen', wrap((req, res) => {
   const c = envCompany(req, res); if (!c) return;
   const out = AL.reopen(c.id, txt(req.body?.reason, 1000), ADMIN);
-  return out.ok ? out : bad(res, out.errors.join(' · '));
+  return out.ok ? { ...out, closed: !AL.isOpen(c.seeded) } : bad(res, out.errors.join(' · '));
 }));
 app.post('/api/admin/alignment/:cid/release', wrap((req, res) => {
   const c = envCompany(req, res); if (!c) return;

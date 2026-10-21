@@ -407,7 +407,8 @@ export function companyReport(companyId, { preview = false, final = false } = {}
   // report unificato: i valori allineati si mettono sopra quelli della sessione, che restano com'erano
   if (final) for (const [k, a] of Object.entries(A.alignedOverlay(companyId))) {
     const b = cur[k] || { item_id: k, confidence_label: null, confidence_reason: null, override: 0, override_reason: null, valid_n: 0, nd_n: 0, range_: null, median: null };
-    cur[k] = { ...b, level: a.level, sub: a.sub, score: a.score, kind: 'allineato', created_at: a.created_at };
+    cur[k] = { ...b, level: a.level, sub: a.sub, score: a.score, kind: 'allineato', created_at: a.created_at,
+      override: 0, override_reason: null, confidence_label: 'Allineamento finale', confidence_reason: a.evidence, evidence: a.evidence };
   }
   const itemScores = Object.fromEntries(Object.keys(I.items).map((k) => [k, cur[k]?.score ?? null]));
   const dimScores = E.allDimensionScores(itemScores);
@@ -493,7 +494,7 @@ export function releaseReport(sessionId, companyId, actor) {
   const session = getSession(sessionId);
   ensureSessionCompany(sessionId, companyId);
   const R = companyReport(companyId);
-  const version = (q.get('SELECT MAX(version) v FROM report_snapshots WHERE session_id = ? AND company_id = ?', sessionId, companyId).v || 0) + 1;
+  const version = (q.get("SELECT MAX(version) v FROM report_snapshots WHERE session_id = ? AND company_id = ? AND kind = 'sessione'", sessionId, companyId).v || 0) + 1;
   R.snapshot = { version, sessionId: Number(sessionId), sessionTitle: session.title, releasedAt: new Date().toISOString() };
   const r = q.run('INSERT INTO report_snapshots (session_id, company_id, version, data_json, created_by) VALUES (?,?,?,?,?)', sessionId, companyId, version, JSON.stringify(R), actor);
   q.run("UPDATE session_company SET report_released_at = datetime('now') WHERE session_id = ? AND company_id = ?", sessionId, companyId);
@@ -519,7 +520,8 @@ export function releaseFinalReport(companyId, actor) {
   if (!s) return { ok: false, errors: ['Nessuna sessione a cui collegare il report'] };
   const R = companyReport(companyId, { final: true });
   const n = q.get("SELECT COUNT(*) n FROM report_snapshots WHERE company_id = ? AND kind = 'finale'", companyId).n + 1;
-  const version = (q.get('SELECT MAX(version) v FROM report_snapshots WHERE session_id = ? AND company_id = ?', s.id, companyId).v || 0) + 1;
+  // nell'indice delle versioni il report unificato sta da 1001 in su: non toglie numeri ai report di sessione
+  const version = 1000 + n;
   R.snapshot = { version: n, sessionId: s.id, sessionTitle: 'Report unificato · allineamento finale', releasedAt: new Date().toISOString(), final: true };
   const r = q.run("INSERT INTO report_snapshots (session_id, company_id, version, kind, data_json, created_by) VALUES (?,?,?,'finale',?,?)", s.id, companyId, version, JSON.stringify(R), actor);
   audit(actor, 'report', `finale/${companyId}`, n > 1 ? 'release_new_version' : 'release', null, { version: n });
@@ -528,7 +530,7 @@ export function releaseFinalReport(companyId, actor) {
 export function getSnapshot(companyId, snapId = null) {
   const r = snapId
     ? q.get('SELECT * FROM report_snapshots WHERE id = ? AND company_id = ?', snapId, companyId)
-    : q.get('SELECT * FROM report_snapshots WHERE company_id = ? ORDER BY id DESC LIMIT 1', companyId);
+    : q.get("SELECT * FROM report_snapshots WHERE company_id = ? ORDER BY kind = 'finale' DESC, id DESC LIMIT 1", companyId);
   return r ? JSON.parse(r.data_json) : null;
 }
 export function setCommitmentStatus(id, status, note, actor) {
