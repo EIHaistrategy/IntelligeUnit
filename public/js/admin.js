@@ -71,7 +71,7 @@ function login() {
   $('#appshell').classList.add('solo');
   app.innerHTML = `<div class="login-brand" aria-hidden="true"><svg viewBox="0 0 32 32"><rect x="1.5" y="1.5" width="29" height="29" rx="7" fill="none" stroke="#101D35" stroke-opacity=".5" stroke-width="1.5"/><path d="M16 5v22M5 16h22" stroke="#101D35" stroke-opacity=".25" stroke-width="1.2"/><circle cx="9.5" cy="21.5" r="2" fill="#101D35" fill-opacity=".55"/><circle cx="11.5" cy="10.5" r="2" fill="#101D35" fill-opacity=".55"/><circle cx="21" cy="22" r="2" fill="#101D35" fill-opacity=".55"/><circle cx="19" cy="13.5" r="1.6" fill="#101D35" fill-opacity=".55"/><circle cx="23.5" cy="9" r="3.2" fill="#35D4C0"/></svg>
       <span class="bname"><b>Intelligence Unit</b><small>AI Transformation &amp; Adoption Map · ELIS</small></span></div>
-    <div class="card lift login"><h1>Console ELIS</h1><p class="ink2">Sessioni, aziende, benchmark e report del pilot AITO 3.</p>
+    <div class="card lift login"><h1>Console ELIS</h1><p class="ink2">Sessioni, aziende, benchmark e report del programma AITO 2026-27.</p>
     <label class="f" for="pw">Password</label><input type="password" id="pw" autocomplete="current-password" autofocus>
     <p class="small muted" style="margin-top:8px">La password la custodisce il team AI Strategy ELIS.</p>
     <button id="go" class="big">Entra</button></div>`;
@@ -400,7 +400,7 @@ async function viewProgram() {
     ${NET.baseUrl.includes('localhost') ? '<div class="banner risk">Non è stato trovato un indirizzo di rete: i telefoni non potranno collegarsi. Verifica in Impostazioni.</div>' : ''}
     <section class="hero" aria-labelledby="ph-t">
       <div class="hero-main">
-        <p class="eyebrow">${PROVA ? 'Ambiente DEMO · dati dimostrativi' : 'Pilot AITO 3 · ELIS Innovation Hub'}</p>
+        <p class="eyebrow">${PROVA ? 'Ambiente DEMO · dati dimostrativi' : 'AITO 2026-27 · ELIS Innovation Hub'}</p>
         <h1 id="ph-t">Programma AITO 2026-27</h1>
         <p class="hero-sub">Quattro sessioni in presenza per misurare come le aziende governano, adottano e scalano l'intelligenza artificiale, fino all'allineamento finale di settembre 2027.</p>
         ${cal.length ? `<div class="hero-prog"><div class="meter-bar" role="progressbar" aria-label="Avanzamento del programma" aria-valuemin="0" aria-valuemax="${cal.length}" aria-valuenow="${closed}" aria-valuetext="${closed} di ${cal.length} sessioni chiuse"><i style="width:${pct}%"></i></div><span aria-hidden="true"><b>${closed} di ${cal.length}</b> sessioni chiuse</span></div>` : ''}
@@ -939,7 +939,7 @@ async function viewCompanies() {
       ${pick('n_sec', 'Settore', SECTORS)}
       <div><label class="f" for="n_kind">Tipo</label><select id="n_kind" aria-describedby="n_kind_h" ${PROVA ? 'disabled' : ''}>${PROVA ? '<option value="TEST">TEST (ambiente DEMO)</option>' : '<option value="REALE">REALE</option><option value="TEST">TEST (prova del flusso, fuori benchmark)</option>'}</select></div></div>
       <div class="kind-help" id="n_kind_h">${PROVA ? '<p><span class="chip chip-off">TEST</span> In DEMO le aziende nuove sono sempre di prova: restano separate dalla Produzione e non entrano mai nel benchmark ufficiale.</p>'
-        : `<p><span class="chip chip-done">REALE</span> Un'azienda del programma AITO 3. Con il suo consenso, i suoi dati entrano nel benchmark della community.</p>
+        : `<p><span class="chip chip-done">REALE</span> Un'azienda del programma AITO 2026-27. Con il suo consenso, i suoi dati entrano nel benchmark della community.</p>
         <p><span class="chip chip-off">TEST</span> Un'azienda per provare il flusso (per esempio un'azienda amica). Usa le stesse pagine, ma non entra mai nel benchmark.</p>`}</div>
       <div style="margin-top:12px"><button id="n_go">Aggiungi</button></div></div>
     ${cs.length > 5 ? `<div class="tablesearch"><label class="sr-only" for="q_az">Cerca un'azienda</label><input type="search" id="q_az" placeholder="Cerca per nome, perimetro o referente"><span class="small muted" id="q_az_n" aria-live="polite">${cs.length} aziende</span></div>` : ''}

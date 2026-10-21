@@ -1,7 +1,7 @@
 {
   "name": "aito-map",
   "version": "0.1.0",
-  "description": "AITO — AI Transformation & Adoption Map (piattaforma locale per il pilot AITO 3)",
+  "description": "AITO — AI Transformation & Adoption Map (piattaforma locale per il programma AITO 2026-27)",
   "scripts": {
     "start": "node --no-warnings server/start.js",
     "test": "node --no-warnings --test test/*.test.js",
