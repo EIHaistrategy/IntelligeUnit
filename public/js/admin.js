@@ -36,6 +36,7 @@ async function boot() {
 function shell() {
   const shellEl = $('#appshell'), menuBtn = $('#menubtn'), collapse = $('#collapse'), scrim = $('#scrim');
   menuBtn.innerHTML = icon('menu');
+  $('#logout .ico-slot').innerHTML = icon('logout', 'thin');
   $('.ico-slot', collapse).innerHTML = icon('collapse');
   const setCollapsed = (on) => {
     shellEl.classList.toggle('collapsed', on); collapse.setAttribute('aria-expanded', String(!on));
@@ -47,11 +48,14 @@ function shell() {
   collapse.onclick = () => setCollapsed(!shellEl.classList.contains('collapsed'));
   const setOpen = (on) => {
     shellEl.classList.toggle('open', on); scrim.hidden = !on; menuBtn.setAttribute('aria-expanded', String(on));
+    // menu aperto sopra la pagina: il resto non si raggiunge con il Tab finché non si chiude
+    $('.appmain').inert = on;
     menuBtn.setAttribute('aria-label', on ? 'Chiudi il menu' : 'Apri il menu');
     if (on) $('#nav a')?.focus();
   };
   menuBtn.onclick = () => setOpen(!shellEl.classList.contains('open'));
-  scrim.onclick = () => setOpen(false);
+  scrim.onclick = () => { setOpen(false); menuBtn.focus(); };
+  matchMedia('(min-width: 1024px)').addEventListener('change', (e) => { if (e.matches) setOpen(false); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && shellEl.classList.contains('open')) { setOpen(false); menuBtn.focus(); } });
   $('#nav').addEventListener('click', (e) => { if (e.target.closest('a')) setOpen(false); });
 }
@@ -74,7 +78,8 @@ const calendar = () => SESSIONS.filter((s) => s.mode === 'workshop');
 const adhoc = () => SESSIONS.filter((s) => s.mode === 'adhoc');
 async function buildNav(view, arg) {
   SESSIONS = await api('/api/admin/sessions');
-  const link = (href, ic, label, active, extra = '') => `<a href="${href}" class="${active ? 'active' : ''} ${extra}" ${active ? 'aria-current="page"' : ''} title="${esc(label.replace(/<[^>]+>/g, ''))}">${ic}<span class="lbl">${label}</span></a>`;
+  // tip: testo semplice per il titolo (menu ridotto a icone)
+  const link = (href, ic, label, active, extra = '', tip = label) => `<a href="${href}" class="${active ? 'active' : ''} ${extra}" ${active ? 'aria-current="page"' : ''} title="${esc(tip)}">${ic}<span class="lbl">${label}</span></a>`;
   const ico = (n) => icon(n, 'thin');
   const sid = view === 'sessione' || view === 'tavoli' ? Number(String(arg || '').split('/')[0]) : null;
   const cur = SESSIONS.find((s) => s.id === sid);
@@ -85,11 +90,12 @@ async function buildNav(view, arg) {
     ${link('#/programma', ico('grid'), 'Programma', view === 'programma')}
     <div class="navsub" role="group" aria-label="Sessioni del programma">
     ${calendar().map((s, i) => link(`#/sessione/${s.id}`, `<span class="navnum ph-${s.phase}" aria-hidden="true">${s.phase === 'chiusa' ? icon('check') : i + 1}</span>`,
-      `${esc(sessName(s))}<small>${esc(shortDate(s.date))}${live(s) ? ' · in corso' : s.phase === 'chiusa' ? ' · chiusa' : ''}</small>`, sid === s.id, 'navsess')).join('')}
+      `${esc(sessName(s))}<small>${esc(shortDate(s.date))}${live(s) ? ' · in corso' : s.phase === 'chiusa' ? ' · chiusa' : ''}</small>`, sid === s.id, 'navsess',
+      `${sessName(s)} · ${shortDate(s.date)}${live(s) ? ' · in corso' : s.phase === 'chiusa' ? ' · chiusa' : ''}`)).join('')}
     </div>
     ${link('#/domande', ico('list'), 'Domande delle sessioni', view === 'domande')}
     <div class="navgroup">Operatività</div>
-    ${link('#/adhoc', ico('plus'), `Sessioni ad hoc${adhoc().length ? ` <span class="navcount">${adhoc().length}</span>` : ''}`, view === 'adhoc' || (cur && cur.mode === 'adhoc'))}
+    ${link('#/adhoc', ico('plus'), `Sessioni ad hoc${adhoc().length ? ` <span class="navcount">${adhoc().length}</span>` : ''}`, view === 'adhoc' || (cur && cur.mode === 'adhoc'), '', 'Sessioni ad hoc')}
     ${link('#/report', ico('file'), 'Report e call con i leader', view === 'report')}
     ${link('#/commitment', ico('target'), 'Commitment e verifica', view === 'commitment')}
     <div class="navgroup">Amministrazione</div>
@@ -221,20 +227,29 @@ async function viewProgram() {
     if (noRef.length) add('warn', `<b>${esc(INST.sessions.find((x) => x.id === next.base).name)}</b>: ${noRef.length} ${noRef.length === 1 ? 'azienda senza referente' : 'aziende senza referente'}.`, '#/aziende', 'Aggiungi i referenti');
     if (days >= 0 && days <= 10) add('info', `Mancano ${days} giorni a ${esc(next.title)}: stampa i QR delle aziende e provali sulla rete della sala.`, `#/tavoli/${next.id}`, 'QR delle aziende');
   }
+  // report e call: una riga per tipo di attività, con le sessioni interessate
+  const sn = (s) => INST.sessions.find((x) => x.id === s.base)?.name || s.title;
+  const toRelease = [], toCall = [];
   for (const s of SESSIONS.filter((x) => ['consolidamento', 'chiusa'].includes(x.phase))) {
     const C = byId[s.id];
     const cons = C.companies.filter((c) => c.consolidated_at), rel = cons.filter((c) => c.report_released_at), call = rel.filter((c) => !c.leader_call_note);
-    if (!PROVA && cons.length && !benchUpToDate(C)) add('warn', `<b>${esc(s.title)}</b>: benchmark ${C.benchmark.length ? 'da aggiornare' : 'da congelare'} prima di rilasciare i report.`, `#/sessione/${s.id}/dopo`, 'Congela');
-    if (cons.length > rel.length) add('warn', `<b>${esc(s.title)}</b>: ${cons.length - rel.length} ${cons.length - rel.length === 1 ? 'report da rilasciare' : 'report da rilasciare'}.`, '#/report', 'Rilascia');
-    if (call.length) add('info', `<b>${esc(s.title)}</b>: ${call.length} ${call.length === 1 ? 'call con il leader da annotare' : 'call con i leader da annotare'}.`, '#/report', 'Annota');
+    if (!PROVA && cons.length && !benchUpToDate(C)) add('warn', `<b>${esc(sn(s))}</b>: benchmark ${C.benchmark.length ? 'da aggiornare' : 'da congelare'} prima di rilasciare i report.`, `#/sessione/${s.id}/dopo`, 'Congela il benchmark');
+    if (cons.length > rel.length) toRelease.push([s, cons.length - rel.length]);
+    if (call.length) toCall.push([s, call.length]);
   }
+  const sum = (l) => l.reduce((n, [, k]) => n + k, 0), where = (l) => l.map(([s, k]) => `${esc(sn(s))} ${k}`).join(' · ');
+  if (toRelease.length) add('warn', `<b>${sum(toRelease)} ${sum(toRelease) === 1 ? 'report da rilasciare' : 'report da rilasciare'}</b> <span class="muted">(${where(toRelease)})</span>`, '#/report', 'Vai ai report');
+  if (toCall.length) add('info', `<b>${sum(toCall)} ${sum(toCall) === 1 ? 'call con il leader da annotare' : 'call con i leader da annotare'}</b> <span class="muted">(${where(toCall)})</span>`, '#/report', 'Vai alle call');
   const overdue = commits.filter((m) => ['aperto', 'avviato'].includes(m.status) && m.due_date && m.due_date < today);
   if (overdue.length) add('warn', `${overdue.length} ${overdue.length === 1 ? 'commitment scaduto' : 'commitment scaduti'} da verificare con l'azienda.`, '#/commitment', 'Verifica');
 
   // ---- indicatori: solo dati presenti nel sistema, nessuna stima
   const closed = cal.filter((s) => s.phase === 'chiusa').length;
   const open = commits.filter((m) => ['aperto', 'avviato'].includes(m.status));
-  const withRef = companies.filter((c) => c.referents.length).length;
+  // in Produzione contano le aziende REALI (le TEST, come l'azienda amica, restano a parte: regola 7)
+  const real = PROVA ? companies : companies.filter((c) => c.kind === 'REALE');
+  const tests = companies.length - real.length;
+  const withRef = real.filter((c) => c.referents.length).length;
   const daysTo = (d) => Math.round((new Date(`${d}T09:00:00`) - new Date(`${today}T09:00:00`)) / 864e5);
   const focus = live || next;
   const sname = (s) => INST.sessions.find((x) => x.id === s.base)?.name || s.title;
@@ -256,15 +271,17 @@ async function viewProgram() {
     const isFocus = focus && focus.id === s.id;
     return `<li class="stage st-${st} ${isFocus ? 'focus' : ''}">
       <div class="stage-top"><span class="stage-n" aria-hidden="true">${st === 'done' ? icon('check') : i + 1}</span><span class="chip chip-${st}">${st === 'live' ? icon('dot') : ''}${esc(stl)}</span></div>
-      <h3><a href="#/sessione/${s.id}">${esc(sname(s))}</a></h3>
+      <h3>${esc(sname(s))}</h3>
       <p class="stage-date">${icon('calendar', 'thin')}${esc(longDate(s.date))}</p>
       <p class="stage-desc">${dimNames(s.base).map(esc).join(' · ')}</p>
       <p class="stage-facts">${facts}</p>
-      <a class="stage-go" href="#/sessione/${s.id}">${isFocus ? 'Apri la sessione' : 'Dettagli'}${icon('arrow', 'thin')}</a></li>`;
+      <a class="stage-go" href="#/sessione/${s.id}">${isFocus ? 'Apri la sessione' : 'Apri'}<span class="sr-only"> ${esc(sname(s))}</span>${icon('arrow', 'thin')}</a></li>`;
   };
-  const relTot = SESSIONS.reduce((n, s) => n + byId[s.id].companies.filter((c) => c.report_released_at).length, 0);
-  const consTot = SESSIONS.reduce((n, s) => n + byId[s.id].companies.filter((c) => c.consolidated_at).length, 0);
-  const callTot = SESSIONS.reduce((n, s) => n + byId[s.id].companies.filter((c) => c.leader_call_note || c.transcript_chars).length, 0);
+  // contatori delle 4 sessioni del calendario; stesso criterio di "Da fare" per le call (esito annotato)
+  const relTot = cal.reduce((n, s) => n + byId[s.id].companies.filter((c) => c.report_released_at).length, 0);
+  const consTot = cal.reduce((n, s) => n + byId[s.id].companies.filter((c) => c.consolidated_at).length, 0);
+  const callTot = cal.reduce((n, s) => n + byId[s.id].companies.filter((c) => c.leader_call_note).length, 0);
+  const relTodo = consTot - relTot;
 
   app.innerHTML = `
     ${NET.baseUrl.includes('localhost') ? '<div class="banner risk">Non è stato trovato un indirizzo di rete: i telefoni non potranno collegarsi. Verifica in Impostazioni.</div>' : ''}
@@ -273,7 +290,7 @@ async function viewProgram() {
         <p class="eyebrow">${PROVA ? 'Ambiente DEMO · dati dimostrativi' : 'Pilot AITO 3 · ELIS Innovation Hub'}</p>
         <h1 id="ph-t">Programma AITO 3</h1>
         <p class="hero-sub">Quattro sessioni in presenza per misurare come le aziende governano, adottano e scalano l'intelligenza artificiale, fino all'allineamento finale di settembre 2027.</p>
-        <div class="hero-prog" aria-label="Avanzamento del programma"><div class="meter-bar"><i style="width:${pct}%"></i></div><span><b>${closed} di ${cal.length}</b> sessioni chiuse</span></div>
+        ${cal.length ? `<div class="hero-prog"><div class="meter-bar" role="progressbar" aria-label="Avanzamento del programma" aria-valuemin="0" aria-valuemax="${cal.length}" aria-valuenow="${closed}" aria-valuetext="${closed} di ${cal.length} sessioni chiuse"><i style="width:${pct}%"></i></div><span aria-hidden="true"><b>${closed} di ${cal.length}</b> sessioni chiuse</span></div>` : ''}
       </div>
       ${focus ? `<div class="hero-next">
         <span class="hn-l">${live ? 'In corso adesso' : 'Prossima sessione'}</span>
@@ -281,12 +298,16 @@ async function viewProgram() {
         <span class="hn-d">${esc(longDate(focus.date))}${!live && daysTo(focus.date) >= 0 ? ` · tra ${daysTo(focus.date)} ${daysTo(focus.date) === 1 ? 'giorno' : 'giorni'}` : ''}</span>
         <span class="chip chip-${status(focus)[0]}">${status(focus)[0] === 'live' ? icon('dot') : ''}${esc(status(focus)[1])}</span>
         <a class="btn primary" href="${primary.href}">${esc(primary.label)}${icon('arrow', 'thin')}</a></div>`
-      : `<div class="hero-next"><span class="hn-l">Sessioni</span><span class="hn-t">Tutte chiuse</span><a class="btn primary" href="${primary.href}">${esc(primary.label)}${icon('arrow', 'thin')}</a></div>`}
+      : cal.length ? `<div class="hero-next"><span class="hn-l">Prossima tappa</span><span class="hn-t">Allineamento finale</span><span class="hn-d">Inizio settembre 2027 · le 4 sessioni sono chiuse</span>
+          <span class="chip chip-prep">Non ancora disponibile nella piattaforma</span>
+          <a class="btn primary" href="#/report">${relTodo > 0 ? `Report e call · ${relTodo} da rilasciare` : 'Report e call con i leader'}${icon('arrow', 'thin')}</a></div>`
+      : `<div class="hero-next"><span class="hn-l">Calendario</span><span class="hn-t">Nessuna sessione</span><span class="hn-d">${PROVA ? 'Carica i dati DEMO per provare la piattaforma con il calendario di prova.' : 'Le sessioni del programma non sono ancora in calendario.'}</span>
+          ${PROVA ? '<button type="button" class="primary" id="godemo">Vai ai dati DEMO</button>' : '<a class="btn primary" href="#/adhoc">Sessioni ad hoc</a>'}</div>`}
     </section>
 
     <section class="kpis" aria-label="Indicatori del programma">
-      ${kpi('Sessioni chiuse', `${closed}<small>/${cal.length}</small>`, `${pct}% del calendario`)}
-      ${kpi('Aziende nel programma', companies.length, companies.length ? `${withRef} con referente` : 'nessuna azienda censita')}
+      ${cal.length ? kpi('Sessioni chiuse', `${closed}<small>/${cal.length}</small>`, `${pct}% del calendario`) : kpi('Sessioni chiuse', '—', 'nessuna sessione in calendario')}
+      ${kpi(PROVA ? 'Aziende DEMO' : 'Aziende reali', real.length, real.length ? `${withRef} con referente${tests ? ` · ${tests} TEST a parte` : ''}` : `nessuna azienda ${PROVA ? 'DEMO' : 'reale'} censita${tests ? ` · ${tests} TEST` : ''}`)}
       ${kpi('Commitment aperti', open.length, commits.length ? `su ${commits.length} registrati` : 'nessun commitment registrato')}
       ${kpi('Commitment scaduti', overdue.length, overdue.length ? 'scadenza superata: da verificare' : 'nessuna scadenza superata', overdue.length ? '<span class="kt-flag" aria-hidden="true"></span>' : '')}
     </section>
@@ -310,12 +331,13 @@ async function viewProgram() {
       <section class="panel" aria-labelledby="after-t">
         <div class="sechead"><h2 id="after-t">Dopo le sessioni</h2></div>
         <ul class="afterlist">
-          <li><a href="#/report">${icon('file', 'thin')}<span><b>Report e call con i leader</b><small>${consTot ? `${relTot} report rilasciati su ${consTot} consolidati · ${callTot} call annotate` : 'I report arrivano dopo il primo consolidamento'}</small></span>${icon('arrow', 'thin')}</a></li>
+          <li><a href="#/report">${icon('file', 'thin')}<span><b>Report e call con i leader</b><small>${consTot ? `Sessioni del calendario: ${relTot} report rilasciati su ${consTot} consolidati · ${callTot} call annotate` : 'I report arrivano dopo il primo consolidamento'}</small></span>${icon('arrow', 'thin')}</a></li>
           <li><a href="#/commitment">${icon('target', 'thin')}<span><b>Commitment e verifica</b><small>${commits.length ? `${open.length} aperti${overdue.length ? ` · ${overdue.length} scaduti` : ''}` : 'Nessun commitment registrato'}</small></span>${icon('arrow', 'thin')}</a></li>
           <li><div>${icon('clock', 'thin')}<span><b>Allineamento finale</b><small>Settembre 2027 · funzione non ancora disponibile</small></span></div></li>
         </ul>
       </section>
     </div>`;
+  if ($('#godemo')) $('#godemo').onclick = () => { $('#demo')?.scrollIntoView({ behavior: 'smooth' }); $('#demo button')?.focus({ preventScroll: true }); };
   if (PROVA) {
     const D = await api('/api/admin/demo');
     $('#demo').innerHTML = `<h2>Dati DEMO</h2>
@@ -800,7 +822,7 @@ async function viewCompanies() {
     ${cs.length > 5 ? `<div class="tablesearch"><label class="sr-only" for="q_az">Cerca un'azienda</label><input type="search" id="q_az" placeholder="Cerca per nome, perimetro o referente"><span class="small muted" id="q_az_n" aria-live="polite">${cs.length} aziende</span></div>` : ''}
     <div class="card"><div class="tablewrap"><table><thead><tr><th>Azienda</th><th>Tipo</th><th>Perimetro</th><th>Consensi</th><th>Referenti</th></tr></thead><tbody>
       ${cs.length ? '' : '<tr><td colspan="5" class="muted">Nessuna azienda: aggiungila qui sopra.</td></tr>'}
-      ${cs.map((c) => `<tr data-q="${esc(`${c.name} ${c.perimeter || ''} ${c.sector || ''} ${c.kind} ${c.referents.map((r) => r.name).join(' ')}`.toLowerCase())}"><td><a href="#/azienda/${c.id}"><b>${esc(c.name)}</b></a></td><td><span class="tag outline ${c.kind === 'REALE' ? 'ok' : 'warn'}">${esc(c.kind)}</span></td><td class="small">${esc(c.perimeter || '—')}</td>
+      ${cs.map((c) => `<tr data-q="${esc(`${c.name} ${c.perimeter || ''} ${c.sector || ''} ${c.kind} ${c.referents.map((r) => r.name).join(' ')} ${c.join_code || ''}`.toLowerCase())}"><td><a href="#/azienda/${c.id}"><b>${esc(c.name)}</b></a></td><td><span class="tag outline ${c.kind === 'REALE' ? 'ok' : 'warn'}">${esc(c.kind)}</span></td><td class="small">${esc(c.perimeter || '—')}</td>
         <td><div class="consents">${[['benchmark', 'Benchmark'], ['peer', 'Peer matching'], ['testimonianza', 'Testimonianza'], ['followup', 'Follow-up']].map(([k, l]) => `<span class="cdot ${c.consents[k]?.granted ? 'yes' : ''}" title="${l}: ${c.consents[k]?.granted ? 'sì' : 'no'}">${l.charAt(0)}<span class="sr-only">${l}: ${c.consents[k]?.granted ? 'sì' : 'no'}</span></span>`).join('')}</div></td>
         <td class="small">${c.referents.map((r) => esc(r.name)).join('<br>') || '<span class="muted">nessun referente</span>'}</td></tr>`).join('')}
     </tbody></table></div></div>`;
