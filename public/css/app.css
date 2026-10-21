@@ -1,6 +1,6 @@
 /* AI Transformation & Adoption Map · sistema visivo
    Caratteri: Fraunces (titoli, numeri) e Plus Jakarta Sans (testo), serviti dal server: nessuna richiesta esterna.
-   Marchio: quattro quadranti con il percorso dell'azienda verso l'alto a destra.
+   Marchio: una mappa di posizionamento a quadranti con le aziende come punti; in oro quella in alto a destra.
    Segno ricorrente dei livelli: i cinque gradini di maturità (.alt), nelle scelte e nei grafici. */
 
 @font-face { font-family: "AITO Sans"; src: url(/static/fonts/sans-400.woff2) format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
@@ -494,10 +494,15 @@ tr.muted td { color: var(--ink-3); }
 
 /* ---------- Console: ambiente, menu, programma ---------- */
 .envswitch { display: inline-flex; background: rgba(255,255,255,.1); border-radius: 999px; padding: 3px; gap: 2px; }
-.envswitch button { background: transparent; border: 0; color: #DCE3EE; padding: 5px 14px; border-radius: 999px; font-size: .86rem; font-weight: 600; }
+.envswitch button { background: transparent; border: 0; color: #DCE3EE; padding: 5px 14px; border-radius: 999px; font-size: .86rem; font-weight: 700; letter-spacing: .02em; }
+.envswitch button::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 7px; vertical-align: 1px; }
 .envswitch button:hover { background: rgba(255,255,255,.12); }
-.envswitch button.on { background: #fff; color: var(--navy-deep); }
-body.prova .envswitch button.on { background: var(--gold); color: #261E08; }
+/* due colori diversi: oro per DEMO (dati dimostrativi), turchese per Produzione (dati reali) */
+.envswitch button[data-env="prova"]::before { background: var(--gold); }
+.envswitch button[data-env="prod"]::before { background: var(--teal); }
+.envswitch button[data-env="prova"].on { background: var(--gold); color: #261E08; }
+.envswitch button[data-env="prod"].on { background: var(--teal); color: #0B2A33; }
+.envswitch button.on::before { background: currentColor; }
 .provabar { background: repeating-linear-gradient(-45deg, #FFF3D1 0 14px, #FBE9B5 14px 28px); color: #4E3A06; font-weight: 700; font-size: .92rem; text-align: center; padding: 8px 16px; position: sticky; top: 56px; z-index: 19; border-bottom: 1px solid #E7D08A; }
 body.prova .topbar { box-shadow: inset 0 -3px 0 #E8C766; }
 body.prova .sidenav { background: #FFFDF6; }
@@ -585,3 +590,11 @@ td.actions .btn + .btn { margin-left: 4px; }
 .rq-fact { margin-bottom: 12px; } .rq-fact p { margin: 0; color: var(--ink); }
 .opt-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .opt-list li { font-size: .88rem; color: var(--ink-2); background: var(--sunken); border: 1px solid var(--line-2); border-radius: 999px; padding: 3px 10px; }
+
+/* finestra della trascrizione Teams (console) */
+dialog.modal { border: 0; border-radius: var(--radius); padding: 24px; width: min(760px, calc(100vw - 32px)); max-height: calc(100vh - 48px); box-shadow: 0 24px 60px -20px rgba(22,32,45,.45); color: var(--ink); }
+dialog.modal::backdrop { background: rgba(16,24,40,.45); }
+dialog.modal textarea { min-height: 260px; font-size: .92rem; }
+/* appendice del report: trascrizione integrale della call */
+.transcript { white-space: pre-wrap; font-size: .86rem; line-height: 1.5; color: var(--ink-2); background: var(--sunken); border: 1px solid var(--line-2); border-radius: var(--radius-sm); padding: 14px 16px; max-height: 520px; overflow: auto; }
+@media print { .transcript { max-height: none; overflow: visible; } }

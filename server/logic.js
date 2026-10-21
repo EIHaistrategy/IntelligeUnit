@@ -446,6 +446,9 @@ export function companyReport(companyId, { preview = false } = {}) {
     for (const p of I.profile.filter((x) => x.session === s.id)) if (pre.data[p.id] != null && pre.data[p.id] !== '') profile[p.id] = { q: p.q, value: pre.data[p.id], session: s.id };
   }
   const commitments = q.all(`SELECT c.*, s.title session_title, s.base FROM commitments c JOIN sessions s ON s.id = c.session_id WHERE c.company_id = ? ORDER BY s.date`, companyId);
+  // trascrizioni delle call con il leader: appendice del report, integrale (decisione del 21/10/2026)
+  const calls = q.all(`SELECT s.title session_title, sc.leader_call_at call_date, sc.leader_call_transcript transcript FROM session_company sc JOIN sessions s ON s.id = sc.session_id
+                       WHERE sc.company_id = ? AND sc.leader_call_transcript IS NOT NULL AND sc.leader_call_transcript != '' ORDER BY s.date`, companyId);
   return {
     company, generatedAt: new Date().toISOString(), preview, instrumentVersion: I.version, scoringVersion: S.version,
     benchVersions: Object.fromEntries(Object.entries(bench).filter(([, v]) => v).map(([k, v]) => [k, v.label])),
@@ -454,7 +457,7 @@ export function companyReport(companyId, { preview = false } = {}) {
     usoDirezione: profile.P_USO && cur.Q1 && cur.Q1.level != null ? { uso: Number(profile.P_USO.value), q1: cur.Q1.level, q1Score: cur.Q1.score } : null,
     mapComplete: dims.every((d) => d.score != null),
     priorities: E.proposePriorities(itemScores, dimScores, peerMedians),
-    pairs, profile, commitments, sessions: sessionsDone,
+    pairs, profile, commitments, calls, sessions: sessionsDone,
   };
 }
 

@@ -4,7 +4,7 @@ const app = $('#app');
 let INST, SC, NET;
 let stopPoll = null;
 
-// ---------- Ambiente: Produzione o Prova (cookie del browser, letto anche dal server) ----------
+// ---------- Ambiente: Produzione o DEMO (cookie del browser, letto anche dal server) ----------
 const PROVA = /(?:^|;\s*)aito_mode=prova/.test(document.cookie);
 function setEnv(env) {
   document.cookie = `aito_mode=${env === 'prova' ? 'prova' : 'prod'}; Path=/; Max-Age=${60 * 60 * 24 * 30}; SameSite=Lax`;
@@ -34,7 +34,7 @@ async function boot() {
 function login() {
   $('#nav').classList.add('hidden'); $('#logout').classList.add('hidden');
   $('.layout').classList.add('solo');
-  app.innerHTML = `<div class="login-brand" aria-hidden="true"><svg viewBox="0 0 32 32"><rect x="1.5" y="1.5" width="29" height="29" rx="7" fill="none" stroke="#1F3864" stroke-opacity=".5" stroke-width="1.5"/><path d="M16 5v22M5 16h22" stroke="#1F3864" stroke-opacity=".25" stroke-width="1.2"/><path d="M7.5 24.5l5-5 5 1.5 6.5-11.5" fill="none" stroke="#C9A84C" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="24" cy="9.5" r="3" fill="#C9A84C"/></svg>
+  app.innerHTML = `<div class="login-brand" aria-hidden="true"><svg viewBox="0 0 32 32"><rect x="1.5" y="1.5" width="29" height="29" rx="7" fill="none" stroke="#1F3864" stroke-opacity=".5" stroke-width="1.5"/><path d="M16 5v22M5 16h22" stroke="#1F3864" stroke-opacity=".25" stroke-width="1.2"/><circle cx="9.5" cy="21.5" r="2" fill="#1F3864" fill-opacity=".55"/><circle cx="11.5" cy="10.5" r="2" fill="#1F3864" fill-opacity=".55"/><circle cx="21" cy="22" r="2" fill="#1F3864" fill-opacity=".55"/><circle cx="19" cy="13.5" r="1.6" fill="#1F3864" fill-opacity=".55"/><circle cx="23.5" cy="9" r="3.2" fill="#C9A84C"/></svg>
       <span>AI Transformation &amp; Adoption Map · ELIS</span></div>
     <div class="card lift login"><h1>Console ELIS</h1><p class="ink2">Sessioni, aziende, benchmark e report del pilot AITO 3.</p>
     <label class="f" for="pw">Password</label><input type="password" id="pw" autocomplete="current-password" autofocus>
@@ -96,6 +96,34 @@ async function noteCall(sid, c) {
   if (note == null) return false;
   await api(`/api/admin/sessions/${sid}/companies/${c.id}/note`, { method: 'PUT', body: { note } }); toast('Esito annotato'); return true;
 }
+// Trascrizione Teams della call: incollata qui, va integrale in appendice in una nuova versione del report (la vede anche il referente)
+function transcriptDialog(sid, c) {
+  return new Promise((done) => {
+    const d = document.createElement('dialog'); d.className = 'modal';
+    d.setAttribute('aria-labelledby', 'tr-t');
+    d.innerHTML = `<h2 id="tr-t">Trascrizione della call · ${esc(c.name)}</h2>
+      <p class="small ink2">Incolla il testo esportato da Teams. Salvando si rilascia una <b>nuova versione del report</b> con la trascrizione integrale in appendice: la vede anche il referente. Le versioni già rilasciate non cambiano.
+      ${c.transcript_chars ? '<br><b>Sostituisce la trascrizione attuale</b>, che resta nel registro modifiche.' : ''}</p>
+      <label class="f" for="tr-date">Data della call</label><input type="date" id="tr-date" value="${esc(c.transcript_date || isoDay(new Date()))}" style="max-width:220px">
+      <label class="f" for="tr-text">Trascrizione</label><textarea id="tr-text" rows="14" maxlength="300000" placeholder="Incolla qui la trascrizione di Teams"></textarea>
+      <p class="small muted" id="tr-n" aria-live="polite">0 caratteri</p>
+      <div class="row" style="justify-content:flex-end;margin-top:8px"><button class="ghost" id="tr-no" type="button">Annulla</button><button id="tr-ok" type="button">Salva e rilascia la nuova versione</button></div>`;
+    document.body.appendChild(d); d.showModal();
+    const close = (v) => { d.close(); d.remove(); done(v); };
+    d.addEventListener('cancel', () => close(false));
+    $('#tr-text', d).oninput = (e) => { $('#tr-n', d).textContent = `${e.target.value.length.toLocaleString('it-IT')} caratteri`; };
+    $('#tr-no', d).onclick = () => close(false);
+    $('#tr-ok', d).onclick = async (e) => {
+      const text = $('#tr-text', d).value.trim();
+      if (!text) { toast('Incolla la trascrizione della call', true); return; }
+      e.target.disabled = true;
+      try {
+        const r = await api(`/api/admin/sessions/${sid}/companies/${c.id}/transcript`, { method: 'PUT', body: { text, date: $('#tr-date', d).value } });
+        toast(`Trascrizione salvata: rilasciata la versione ${r.version} del report`); close(true);
+      } catch (err) { toast(err.message, true); e.target.disabled = false; }
+    };
+  });
+}
 const benchUpToDate = (C) => {
   const lastCons = C.companies.filter((c) => c.consolidated_at).map((c) => c.consolidated_at).sort().pop() || null;
   const frozen = C.benchmark[0] || null;
@@ -145,7 +173,7 @@ async function viewProgram() {
   const overdue = commits.filter((m) => ['aperto', 'avviato'].includes(m.status) && m.due_date && m.due_date < today);
   if (overdue.length) add('warn', `${overdue.length} ${overdue.length === 1 ? 'commitment scaduto' : 'commitment scaduti'} da verificare con l'azienda.`, '#/commitment', 'Verifica');
 
-  app.innerHTML = `<div class="pagehead"><div><h1>${PROVA ? 'Programma · ambiente di prova' : 'Programma AITO 3'}</h1>
+  app.innerHTML = `<div class="pagehead"><div><h1>${PROVA ? 'Programma · ambiente DEMO' : 'Programma AITO 3'}</h1>
       <p>${PROVA ? 'Qui si prova la piattaforma con dati dimostrativi: nulla di quello che fai entra nei dati reali o nel benchmark ufficiale.' : 'Le quattro sessioni del pilot e quello che resta da fare.'}</p></div></div>
     ${NET.baseUrl.includes('localhost') ? '<div class="banner risk">Non è stato trovato un indirizzo di rete: i telefoni non potranno collegarsi. Verifica in Impostazioni.</div>' : ''}
     ${cal.length ? `<div class="card">${timeline}</div>` : ''}
@@ -155,11 +183,11 @@ async function viewProgram() {
         : `<p class="muted" style="margin:0">Nessuna attività in sospeso.${next ? ` Prossima sessione: ${esc(next.title)}.` : ''}</p>`}</div>`;
   if (PROVA) {
     const D = await api('/api/admin/demo');
-    $('#demo').innerHTML = `<h2>Dati di prova</h2>
-      <p class="ink2">${D.present ? 'Sono caricate 14 aziende dimostrative e un\'azienda vetrina (TEST) con tutto il flusso, distribuite sulle quattro sessioni di prova. Le aziende e le sessioni che crei in questo ambiente sono anch\'esse di prova.' : 'Non ci sono dati di prova. Caricali per vedere dashboard, plenaria, mappe e report pieni.'}</p>
-      <div class="row">${D.present ? `${D.vetrina ? `<a class="btn sm ghost" href="/report/${D.vetrina}" target="_blank">Report della vetrina</a>` : ''}<button class="sm danger" id="demo_rm">Cancella tutti i dati di prova</button>` : '<button class="sm" id="demo_add">Carica i dati di prova</button>'}</div>`;
-    if ($('#demo_add')) $('#demo_add').onclick = async () => { try { await api('/api/admin/demo', { method: 'POST' }); toast('Dati di prova caricati'); route(); } catch (e) { toast(e.message, true); } };
-    if ($('#demo_rm')) $('#demo_rm').onclick = async () => { if (!confirm('Cancellare tutti i dati di prova (aziende, sessioni, risposte e report di prova)? I dati reali non vengono toccati.')) return; await api('/api/admin/demo', { method: 'DELETE' }); toast('Dati di prova cancellati'); route(); };
+    $('#demo').innerHTML = `<h2>Dati DEMO</h2>
+      <p class="ink2">${D.present ? 'Sono caricate 14 aziende dimostrative e un\'azienda vetrina (TEST) con tutto il flusso, distribuite sulle quattro sessioni DEMO. Le aziende e le sessioni che crei in questo ambiente sono anch\'esse di prova.' : 'Non ci sono dati DEMO. Caricali per vedere dashboard, plenaria, mappe e report pieni.'}</p>
+      <div class="row">${D.present ? `${D.vetrina ? `<a class="btn sm ghost" href="/report/${D.vetrina}" target="_blank">Report della vetrina</a>` : ''}<button class="sm danger" id="demo_rm">Cancella tutti i dati DEMO</button>` : '<button class="sm" id="demo_add">Carica i dati DEMO</button>'}</div>`;
+    if ($('#demo_add')) $('#demo_add').onclick = async () => { try { await api('/api/admin/demo', { method: 'POST' }); toast('Dati DEMO caricati'); route(); } catch (e) { toast(e.message, true); } };
+    if ($('#demo_rm')) $('#demo_rm').onclick = async () => { if (!confirm('Cancellare tutti i dati DEMO (aziende, sessioni, risposte e report DEMO)? I dati reali non vengono toccati.')) return; await api('/api/admin/demo', { method: 'DELETE' }); toast('Dati DEMO cancellati'); route(); };
   }
 }
 
@@ -196,14 +224,16 @@ async function viewReports() {
         <td><div class="row">${c.report_released_at ? `<span class="tag ok">Rilasciato ${fmtDate(c.report_released_at)}</span>` : '<span class="tag">Bozza</span>'}
           <a class="small" href="/report/${c.id}" target="_blank">apri</a><a class="small" href="/api/admin/pdf/${c.id}">PDF</a>
           <button class="sm ${c.report_released_at ? 'ghost' : ''}" data-rel="${C.session.id}:${c.id}">${c.report_released_at ? 'Nuova versione' : 'Rilascia'}</button></div></td>
-        <td>${c.report_released_at ? `<div class="row"><span class="small ${c.leader_call_note ? 'ink2' : 'muted'}" style="max-width:360px">${c.leader_call_note ? esc(c.leader_call_note) : 'Esito non annotato'}</span><button class="sm ghost" data-call="${C.session.id}:${c.id}">${c.leader_call_note ? 'Modifica' : 'Annota esito'}</button></div>` : '<span class="small muted">dopo il rilascio del report</span>'}</td></tr>`).join('')}
+        <td>${c.report_released_at ? `<div class="row"><span class="small ${c.leader_call_note ? 'ink2' : 'muted'}" style="max-width:360px">${c.leader_call_note ? esc(c.leader_call_note) : 'Esito non annotato'}</span><button class="sm ghost" data-call="${C.session.id}:${c.id}">${c.leader_call_note ? 'Modifica' : 'Annota esito'}</button>
+          <button class="sm ghost" data-trs="${C.session.id}:${c.id}">${c.transcript_chars ? 'Sostituisci trascrizione' : 'Incolla trascrizione Teams'}</button>${c.transcript_chars ? '<span class="tag ok">trascrizione nel report</span>' : ''}</div>` : '<span class="small muted">dopo il rilascio del report</span>'}</td></tr>`).join('')}
       </tbody></table></div></div>`;
   }).join('');
-  app.innerHTML = `<div class="pagehead"><div><h1>Report e call con i leader</h1><p>Rilasciare salva una copia del report che l'azienda vede dal link del referente e che non cambia più. Dopo il rilascio, la call con il leader discute il report: annota l'esito qui.</p></div></div>
+  app.innerHTML = `<div class="pagehead"><div><h1>Report e call con i leader</h1><p>Rilasciare salva una copia del report che l'azienda vede dal link del referente e che non cambia più. Dopo il rilascio, la call con il leader discute il report: annota l'esito qui e incolla la trascrizione di Teams, che va integrale in appendice a una nuova versione del report.</p></div></div>
     ${blocks || '<div class="card"><p class="muted" style="margin:0">Nessuna azienda ha ancora consolidato: i report compaiono qui dopo il consolidamento in sala.</p></div>'}`;
   const find = (v) => { const [sid, cid] = v.split(':').map(Number); return { sid, c: ctrl.find((C) => C.session.id === sid).companies.find((x) => x.id === cid) }; };
   $$('[data-rel]').forEach((b) => b.onclick = async () => { const { sid, c } = find(b.dataset.rel); b.disabled = true; if (await releaseReport(sid, c.id)) route(); else b.disabled = false; });
   $$('[data-call]').forEach((b) => b.onclick = async () => { const { sid, c } = find(b.dataset.call); if (await noteCall(sid, c)) route(); });
+  $$('[data-trs]').forEach((b) => b.onclick = async () => { const { sid, c } = find(b.dataset.trs); if (await transcriptDialog(sid, c)) route(); });
 }
 
 // ---------- Dopo le sessioni: commitment e verifica ----------
@@ -337,7 +367,7 @@ async function viewControl(arg) {
       individuale: totP ? `${totS} di ${totP} hanno inviato` : 'nessun partecipante ancora',
       confronto: `${inRoom.length} ${inRoom.length === 1 ? 'azienda' : 'aziende'} al tavolo`,
       consolidamento: `${consolidated.length} di ${inRoom.length || consolidated.length} consolidate`,
-      benchmark: PROVA ? 'calcolato sui dati di prova' : frozen ? `${frozen.label} · N=${frozen.n_companies}${benchDone ? '' : ' · da aggiornare'}` : 'non ancora congelato',
+      benchmark: PROVA ? 'calcolato sui dati DEMO' : frozen ? `${frozen.label} · N=${frozen.n_companies}${benchDone ? '' : ' · da aggiornare'}` : 'non ancora congelato',
       report: `${released.length} di ${consolidated.length} rilasciati`,
       call: `${called.length} di ${released.length} annotate`,
     };
@@ -361,8 +391,8 @@ async function viewControl(arg) {
       const noRef = cos.filter((c) => !c.referents.length);
       const invited = withRef.filter((c) => c.invited_at), withQr = withRef.filter((c) => c.qr_generated_at);
       const adhoc = s.mode !== 'workshop';
-      checks.push(cos.length ? ck('ok', `<b>1 · Aziende:</b> ${cos.length} ${cos.length === 1 ? 'azienda' : 'aziende'} ${PROVA ? 'di prova' : 'nel programma'}. <a href="#/aziende">Aggiungine altre</a>`)
-        : ck('warn', `<b>1 · Aziende:</b> nessuna azienda ${PROVA ? 'di prova' : 'in Produzione'}. <a href="#/aziende">Aggiungi le aziende</a>`));
+      checks.push(cos.length ? ck('ok', `<b>1 · Aziende:</b> ${cos.length} ${cos.length === 1 ? 'azienda' : 'aziende'} ${PROVA ? 'DEMO' : 'nel programma'}. <a href="#/aziende">Aggiungine altre</a>`)
+        : ck('warn', `<b>1 · Aziende:</b> nessuna azienda ${PROVA ? 'DEMO' : 'in Produzione'}. <a href="#/aziende">Aggiungi le aziende</a>`));
       checks.push(!cos.length ? ck('info', '<b>2 · Referenti:</b> dopo le aziende, indica per ognuna il referente (nome ed email).')
         : noRef.length ? ck('warn', `<b>2 · Referenti:</b> ${noRef.length} di ${cos.length} ${cos.length === 1 ? 'azienda' : 'aziende'} senza referente: ${names(noRef)}. <a href="#/aziende">Indica il referente</a>`)
         : ck('ok', `<b>2 · Referenti:</b> ${cos.length === 1 ? 'l\'azienda ha' : `tutte le ${cos.length} aziende hanno`} un referente`));
@@ -403,7 +433,7 @@ async function viewControl(arg) {
         if (consolidated.length) checks.push(noCommit.length ? ck('info', `Commitment ancora da registrare: ${names(noCommit)}. Si può completare anche dopo la sessione.`) : ck('ok', 'Tutte le aziende consolidate hanno registrato il commitment'));
       }
     } else if (f.id === 'benchmark' && PROVA) {
-      what = 'Nell\'ambiente di prova il benchmark si calcola sempre sui dati di prova e non si congela: dashboard, plenaria, mappe e report lo usano così com\'è. In produzione qui si congela la versione ufficiale.';
+      what = 'Nell\'ambiente DEMO il benchmark si calcola sempre sui dati DEMO e non si congela: dashboard, plenaria, mappe e report lo usano così com\'è. In produzione qui si congela la versione ufficiale.';
       extra = `<div class="row"><a class="btn ghost" href="/plenaria/${s.base}" target="_blank">Apri la plenaria</a><a class="btn ghost" href="/mappe/${s.base}" target="_blank">Mappe a quadranti</a></div>`;
     } else if (f.id === 'benchmark') {
       what = `Congelare salva una versione datata del benchmark: è quella che entra nei report e non cambia più. Entrano solo aziende REALI con consenso; sotto ${SC.benchmark.minN} aziende il confronto non si mostra.`;
@@ -419,7 +449,8 @@ async function viewControl(arg) {
     } else {
       what = 'Nella call il leader dell\'azienda discute il report, a partire dalle regole di coerenza da esaminare. Annota l\'esito: resta nella scheda dell\'azienda.';
       extra = released.length ? `<ul class="todo">${released.map((c) => `<li><div><b>${esc(c.name)}</b>${c.leader_call_note ? `<div class="small ink2">${esc(c.leader_call_note)}</div>` : '<div class="small muted">Esito non ancora annotato</div>'}</div>
-          <button class="sm ${c.leader_call_note ? 'ghost' : ''}" data-note="${c.id}">${c.leader_call_note ? 'Modifica esito' : 'Annota esito'}</button></li>`).join('')}</ul>` : '<p class="muted">Le call si fanno dopo il rilascio dei report.</p>';
+          <div class="row">${c.transcript_chars ? '<span class="tag ok">trascrizione nel report</span>' : ''}<button class="sm ghost" data-transcript="${c.id}">${c.transcript_chars ? 'Sostituisci trascrizione' : 'Incolla trascrizione Teams'}</button>
+          <button class="sm ${c.leader_call_note ? 'ghost' : ''}" data-note="${c.id}">${c.leader_call_note ? 'Modifica esito' : 'Annota esito'}</button></div></li>`).join('')}</ul>` : '<p class="muted">Le call si fanno dopo il rilascio dei report.</p>';
     }
 
     // ---- azione di fase (solo sul passo in corso)
@@ -451,7 +482,7 @@ async function viewControl(arg) {
         <div class="card"><h3>Dashboard live</h3><p class="small ink2">Il benchmark in tempo reale, da proiettare in sala mentre le aziende consolidano.</p><a class="btn sm" href="/live/${s.id}" target="_blank">Apri la dashboard</a></div>
         <div class="card"><h3>Plenaria</h3><p class="small ink2">Come si posiziona la community, con le mappe del bisogno e del peer matching. Solo dati aggregati.</p><a class="btn sm" href="/plenaria/${s.base}" target="_blank">Apri la plenaria</a></div>
         <div class="card"><h3>Mappe a quadranti</h3><p class="small ink2">Le tre mappe della nota, compresa la vista azienda per azienda. Nomi nascosti finché non li mostri.</p><a class="btn sm" href="/mappe/${s.base}" target="_blank">Apri le mappe</a></div></div>
-      <div class="card"><h2>Versioni del benchmark</h2>${PROVA ? '<p class="muted" style="margin:0">Nell\'ambiente di prova il benchmark si calcola sui dati di prova e non si congela.</p>'
+      <div class="card"><h2>Versioni del benchmark</h2>${PROVA ? '<p class="muted" style="margin:0">Nell\'ambiente DEMO il benchmark si calcola sui dati DEMO e non si congela.</p>'
         : C.benchmark.length ? `<table><thead><tr><th>Versione</th><th class="num">Aziende</th><th>Creata</th></tr></thead><tbody>${C.benchmark.map((v) => `<tr><td>${esc(v.label)}</td><td class="num">${v.n_companies}</td><td>${fmtDate(v.created_at)}</td></tr>`).join('')}</tbody></table>`
         : '<p class="muted" style="margin:0">Nessuna versione congelata: si congela nella scheda Dopo.</p>'}</div>`;
     const T2 = TABS.find((t) => t.id === tab);
@@ -520,6 +551,7 @@ async function viewControl(arg) {
     };
     $$('[data-release]').forEach((b) => b.onclick = async () => { b.disabled = true; await releaseReport(s.id, Number(b.dataset.release)); await reload(); });
     $$('[data-note]').forEach((b) => b.onclick = async () => { if (await noteCall(s.id, C.companies.find((x) => x.id === Number(b.dataset.note)))) await reload(); });
+    $$('[data-transcript]').forEach((b) => b.onclick = async () => { if (await transcriptDialog(s.id, C.companies.find((x) => x.id === Number(b.dataset.transcript)))) await reload(); });
   };
   // una riga per azienda: segni compatti (data nel titolo), azioni raggruppate a fine riga
   const yes = (when) => `<span class="tag ok" title="${when ? `Fatto il ${esc(fmtDate(when))}` : 'Fatto'}">${icon('check')}<span class="sr-only">sì</span></span>`;
@@ -591,7 +623,7 @@ async function viewTableCard(arg) {
 }
 
 // ---------- Aziende ----------
-// Elenchi per perimetro e settore; "Altro" apre un campo libero. I nomi dei settori sono quelli dei dati di prova.
+// Elenchi per perimetro e settore; "Altro" apre un campo libero. I nomi dei settori sono quelli dei dati DEMO.
 const PERIMETERS = ['Gruppo', 'Società', 'Business unit / divisione'];
 const SECTORS = ['Assicurazioni', 'Banche', 'Consulenza', 'Difesa', 'Energia', 'Farmaceutico', 'ICT e digitale', 'Infrastrutture', 'Logistica',
   'Manifattura', 'Media', 'Pubblica amministrazione', 'Retail', 'Sanità', 'Servizi', 'Telecomunicazioni', 'Trasporti', 'Utility'];
@@ -608,12 +640,12 @@ const bindPick = () => $$('[data-pick]').forEach((sel) => sel.onchange = () => {
 
 async function viewCompanies() {
   const cs = await api('/api/admin/companies');
-  app.innerHTML = `<div class="pagehead"><div><h1>Aziende e referenti</h1><p>${PROVA ? 'Aziende dell\'ambiente di prova: le nuove aziende create qui sono di tipo TEST e si cancellano con i dati di prova.' : 'Le aziende del programma. Le aziende TEST seguono il flusso vero ma restano sempre fuori dal benchmark.'}</p></div></div>
+  app.innerHTML = `<div class="pagehead"><div><h1>Aziende e referenti</h1><p>${PROVA ? 'Aziende dell\'ambiente DEMO: le nuove aziende create qui sono di tipo TEST e si cancellano con i dati DEMO.' : 'Le aziende del programma. Le aziende TEST seguono il flusso vero ma restano sempre fuori dal benchmark.'}</p></div></div>
     <div class="card"><h2>Nuova azienda</h2><div class="grid c4">
       <div><label class="f" for="n_name">Nome *</label><input type="text" id="n_name"></div>
       ${pick('n_per', 'Perimetro valutato', PERIMETERS)}
       ${pick('n_sec', 'Settore', SECTORS)}
-      <div><label class="f">Tipo</label><select id="n_kind" ${PROVA ? 'disabled' : ''}>${PROVA ? '<option value="TEST">TEST (ambiente di prova)</option>' : '<option value="REALE">REALE</option><option value="TEST">TEST (prova del flusso, fuori benchmark)</option>'}</select></div></div>
+      <div><label class="f">Tipo</label><select id="n_kind" ${PROVA ? 'disabled' : ''}>${PROVA ? '<option value="TEST">TEST (ambiente DEMO)</option>' : '<option value="REALE">REALE</option><option value="TEST">TEST (prova del flusso, fuori benchmark)</option>'}</select></div></div>
       <div style="margin-top:12px"><button id="n_go">Aggiungi</button></div></div>
     <div class="card"><div class="tablewrap"><table><thead><tr><th>Azienda</th><th>Tipo</th><th>Perimetro</th><th>Consensi</th><th>Referenti</th></tr></thead><tbody>
       ${cs.map((c) => `<tr><td><a href="#/azienda/${c.id}"><b>${esc(c.name)}</b></a></td><td><span class="tag outline ${c.kind === 'REALE' ? 'ok' : 'warn'}">${esc(c.kind)}</span></td><td class="small">${esc(c.perimeter || '—')}</td>
@@ -731,7 +763,7 @@ async function viewBenchmark() {
 async function viewMaps() {
   const vs = await api('/api/admin/benchmark');
   app.innerHTML = `<h1>Mappe a quadranti</h1>
-    <p class="lede" style="margin-bottom:20px">Una pagina per sessione con le tre mappe della nota (§10.2–10.4): dove intervenire, se il bisogno è individuale o condiviso, con chi accelerare. Usano l'ultima versione congelata del benchmark (nell'ambiente di prova, i dati dimostrativi). I nomi delle aziende sono nascosti finché non li mostri.</p>
+    <p class="lede" style="margin-bottom:20px">Una pagina per sessione con le tre mappe della nota (§10.2–10.4): dove intervenire, se il bisogno è individuale o condiviso, con chi accelerare. Usano l'ultima versione congelata del benchmark (nell'ambiente DEMO, i dati dimostrativi). I nomi delle aziende sono nascosti finché non li mostri.</p>
     <div class="grid c2">${INST.sessions.map((s) => { const v = vs.find((x) => x.base === s.id); const dims = s.dimensions.map((d) => INST.dimensions.find((x) => x.id === d));
       return `<div class="card sesscard"><h2 style="margin:0">${esc(s.name)}</h2>
         <p class="small muted" style="margin:4px 0 12px">${dims.map((d) => `${d.id} ${esc(d.name)}`).join(' · ')}</p>
@@ -769,7 +801,7 @@ async function viewSettings() {
     <div class="grid c2">
       <div class="card"><h3>Dati ed export</h3><p class="small">Database: <span class="mono">${esc(NET.db)}</span>. Per un backup basta copiare la cartella dei dati a server fermo. L'export contiene solo i dati di produzione.</p>
         <a class="btn sm" href="/api/admin/export.xlsx">Scarica export Excel</a></div>
-      <div class="card"><h3>Ambiente di prova</h3><p class="small ink2">I dati dimostrativi vivono in un ambiente separato. Per vederli, caricarli o cancellarli scegli <b>Prova</b> nel selettore in alto; per tornare ai dati reali scegli <b>Produzione</b>.</p></div>
+      <div class="card"><h3>Ambiente DEMO</h3><p class="small ink2">I dati dimostrativi vivono in un ambiente separato. Per vederli, caricarli o cancellarli scegli <b>DEMO</b> nel selettore in alto; per tornare ai dati reali scegli <b>Produzione</b>.</p></div>
       <div class="card"><h3>Password admin</h3><div class="row"><input type="password" id="pw1" placeholder="Nuova password (min. 8)" style="max-width:280px"><button class="sm" id="pwgo">Cambia</button></div></div>
       <div class="card"><h3>Versioni</h3><p class="small" style="margin:0">Strumento <b>${esc(INST.version)}</b> (${esc(INST.status)}) · Scoring <b>${esc(SC.version)}</b></p></div></div>`;
   const O = await api('/api/admin/options');

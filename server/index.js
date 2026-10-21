@@ -74,7 +74,9 @@ app.use((req, res, next) => {
 });
 app.use(compression());
 app.get('/healthz', (req, res) => res.send('ok'));
-app.use(express.json({ limit: '200kb' }));
+// la trascrizione di una call Teams può essere lunga: solo quella rotta accetta fino a 1 MB
+const jsonSmall = express.json({ limit: '200kb' }), jsonBig = express.json({ limit: '1mb' });
+app.use((req, res, next) => (/^\/api\/admin\/sessions\/\d+\/companies\/\d+\/transcript$/.test(req.path) ? jsonBig : jsonSmall)(req, res, next));
 // Protezione CSRF: le richieste che modificano dati devono arrivare da questo stesso sito.
 app.use('/api', (req, res, next) => {
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
@@ -651,7 +653,7 @@ app.get('/api/admin/sessions/:id/control', wrap((req, res) => {
       answered, expected: parts.length * def.items.length, functions: [...new Set(parts.map((p) => p.func))],
       presession: pre.updated_at, consolidated_at: sc?.consolidated_at || null, report_released_at: sc?.report_released_at || null,
       commitment: !!q.get('SELECT 1 FROM commitments WHERE session_id = ? AND company_id = ?', s.id, c.id),
-      referents: q.all('SELECT id, name, email, token FROM referents WHERE company_id = ?', c.id), leader_call_note: sc?.leader_call_note || '',
+      referents: q.all('SELECT id, name, email, token FROM referents WHERE company_id = ?', c.id), leader_call_note: sc?.leader_call_note || '', transcript_chars: sc?.leader_call_transcript?.length || 0, transcript_date: sc?.leader_call_at || null,
       invited_at: sc?.invited_at || null, qr_generated_at: sc?.qr_generated_at || null,
       roster: q.all('SELECT name, func FROM roster WHERE company_id = ? ORDER BY name', c.id) };
   });
@@ -679,6 +681,23 @@ app.put('/api/admin/sessions/:sid/companies/:cid/note', wrap((req) => {
   q.run('UPDATE session_company SET leader_call_note = ? WHERE session_id = ? AND company_id = ?', txt(req.body?.note, 4000), req.params.sid, req.params.cid);
   audit(ADMIN, 'leader_call', `${req.params.sid}/${req.params.cid}`, 'note', null, { note: req.body?.note });
   return { ok: true };
+}));
+
+// Trascrizione Teams della call con il leader: si salva e si rilascia subito una nuova versione del report con l'appendice.
+// Le versioni già rilasciate non cambiano (regola 2); il testo precedente resta nel registro modifiche (regola 1).
+app.put('/api/admin/sessions/:sid/companies/:cid/transcript', wrap((req, res) => {
+  const s = L.getSession(req.params.sid);
+  const c = q.get('SELECT * FROM companies WHERE id = ? AND seeded = ?', req.params.cid, envOf(req));
+  if (!s || !c || (s.seeded ? 1 : 0) !== c.seeded) return bad(res, 'Sessione o azienda non trovata', 404);
+  const sc = q.get('SELECT * FROM session_company WHERE session_id = ? AND company_id = ?', s.id, c.id);
+  if (!sc?.report_released_at) return bad(res, 'Rilascia prima il report: la call con il leader lo discute', 409);
+  const text = String(req.body?.text ?? '').replace(/\r\n?/g, '\n').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').trim().slice(0, 300000);
+  if (!text) return bad(res, 'Incolla la trascrizione della call');
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(req.body?.date || '') ? req.body.date : null;
+  q.run('UPDATE session_company SET leader_call_transcript = ?, leader_call_at = ? WHERE session_id = ? AND company_id = ?', text, date, s.id, c.id);
+  audit(ADMIN, 'leader_call', `${s.id}/${c.id}`, sc.leader_call_transcript ? 'transcript_update' : 'transcript',
+    sc.leader_call_transcript ? { date: sc.leader_call_at, transcript: sc.leader_call_transcript } : null, { date, chars: text.length }, req.body?.reason || null);
+  return { ok: true, ...L.releaseReport(s.id, c.id, ADMIN) };
 }));
 
 // Benchmark, plenaria, report
@@ -748,7 +767,7 @@ app.get('/api/admin/companies/:cid/journey', wrap((req) => {
     const parts = L.activeParticipants(s.id, c.id);
     return { id: s.id, title: s.title, base: s.base, date: s.date, mode: s.mode, phase: s.phase,
       presession: L.getPresession(c.id, s.base).updated_at || null, participants: parts.length, submitted: parts.filter((p) => p.submitted_at).length,
-      consolidated_at: sc?.consolidated_at || null, report_released_at: sc?.report_released_at || null, leader_call_note: sc?.leader_call_note || '',
+      consolidated_at: sc?.consolidated_at || null, report_released_at: sc?.report_released_at || null, leader_call_note: sc?.leader_call_note || '', transcript_chars: sc?.leader_call_transcript?.length || 0, transcript_date: sc?.leader_call_at || null,
       qr_generated_at: sc?.qr_generated_at || null,
       commitment: q.get('SELECT priority_item, status FROM commitments WHERE session_id = ? AND company_id = ?', s.id, c.id) || null };
   });

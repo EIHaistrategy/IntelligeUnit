@@ -176,7 +176,9 @@ for (const sql of ["ALTER TABLE commitments ADD COLUMN status_note TEXT", "ALTER
   "CREATE UNIQUE INDEX IF NOT EXISTS ux_snap_version ON report_snapshots(session_id, company_id, version)",
   // flusso di preparazione: invito al referente e QR della sessione (dal QR il referente è bloccato fino alla chiusura)
   "ALTER TABLE session_company ADD COLUMN invited_at TEXT", "ALTER TABLE session_company ADD COLUMN qr_generated_at TEXT",
-  "ALTER TABLE participants ADD COLUMN roster_id INTEGER"]) {
+  "ALTER TABLE participants ADD COLUMN roster_id INTEGER",
+  // trascrizione della call con il leader (Teams), allegata al report in una nuova versione
+  "ALTER TABLE session_company ADD COLUMN leader_call_transcript TEXT", "ALTER TABLE session_company ADD COLUMN leader_call_at TEXT"]) {
   try { db.exec(sql); } catch { /* colonna già presente */ }
 }
 

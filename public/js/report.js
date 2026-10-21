@@ -31,7 +31,7 @@ async function boot() {
   const dDate = (s) => (s ? `<span class="nowrap">${new Date(s).toLocaleDateString('it-IT')}</span>` : '—');
 
   app.innerHTML = `
-  ${R.preview || R.draft ? `<div class="banner ${R.preview ? 'preview' : 'warn'} noprint">${[R.preview ? 'Ambiente di prova: confronto calcolato sui dati dimostrativi, non è un report ufficiale.' : '', R.draft ? '<b>Bozza</b>: versione calcolata ora, non ancora rilasciata; l\'azienda vede solo le versioni rilasciate, che non cambiano più.' : ''].filter(Boolean).join(' ')}</div>` : ''}
+  ${R.preview || R.draft ? `<div class="banner ${R.preview ? 'preview' : 'warn'} noprint">${[R.preview ? 'Ambiente DEMO: confronto calcolato sui dati dimostrativi, non è un report ufficiale.' : '', R.draft ? '<b>Bozza</b>: versione calcolata ora, non ancora rilasciata; l\'azienda vede solo le versioni rilasciate, che non cambiano più.' : ''].filter(Boolean).join(' ')}</div>` : ''}
   ${R.snapshot ? `<div class="banner ok">Versione rilasciata v${R.snapshot.version} · ${esc(R.snapshot.sessionTitle)} · ${fmtDate(R.snapshot.releasedAt)}</div>` : ''}
   <div id="versions" class="noprint"></div>
   <div class="cover"><div class="eyebrow">AI Transformation &amp; Adoption Map · report riservato</div>
@@ -114,7 +114,10 @@ async function boot() {
 
   <div class="card"><h2>Note metodologiche e limiti</h2>
     <p class="small ink2">Autovalutazione strutturata e consolidamento aziendale, non audit né certificazione. Il benchmark è "indicativo" sotto le ${SC.benchmark.stableN} aziende e non è mostrato sotto le ${SC.benchmark.minN}; nel report l'azienda è esclusa dal proprio benchmark quando il campione residuo resta di almeno ${SC.benchmark.looMinResidual} aziende. Le soglie (fasce 44/70, coerenza ${SC.coherenceThreshold} punti, quadranti) e i nomi dei quadranti sono quelli in uso nel pilot. Le regole di coerenza che confrontano sessioni diverse si discutono nella call con il leader. Le dimensioni misurate in sessioni diverse possono riflettere partecipanti diversi; a settembre 2027 l'allineamento finale le riporta a una data unica.</p>
-  </div>`;
+  </div>
+  ${(R.calls || []).length ? `<div class="card"><h2>Appendice · Call con il leader</h2>
+    <p class="small ink2">Trascrizione integrale della call in cui il leader dell'azienda ha discusso il report, così come esportata da Teams.</p>
+    ${R.calls.map((k) => `<h3>${esc(k.session_title)}${k.call_date ? ` · call del ${k.call_date.split('-').reverse().join('/')}` : ''}</h3><div class="transcript">${esc(k.transcript)}</div>`).join('')}</div>` : ''}`;
   try {
     const list = t ? (await api(`/api/r/${encodeURIComponent(t)}`)).reports : await api(`/api/admin/companies/${cid}/reports`);
     if (list.length) $('#versions').innerHTML = `<p class="small">Versioni rilasciate: ${list.map((v) => `<a href="?${t ? `t=${encodeURIComponent(t)}&` : ''}snap=${v.id}">v${v.version} · ${esc(v.session_title)} · ${fmtDate(v.created_at)}</a>`).join(' · ')}${t ? '' : ` · <a href="?">bozza corrente</a>`}</p>`;

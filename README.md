@@ -27,7 +27,7 @@ La console ELIS è su `http://localhost:3000/admin`. La finestra mostra anche l'
 
 ## Console ELIS: come è organizzata
 
-- **Produzione | Prova** (selettore in alto). In *Produzione* si vedono solo le aziende reali (e quelle TEST, come l'azienda amica, sempre fuori dal benchmark) e le sessioni del calendario. In *Prova* la barra diventa a strisce oro e si vedono solo i dati dimostrativi: 4 sessioni di prova, 14 aziende DEMO e l'azienda vetrina. Le aziende e le sessioni create in Prova sono di prova e si cancellano con *Cancella tutti i dati di prova*. Il benchmark ufficiale, l'export e le versioni congelate riguardano solo la Produzione. La scelta vale per il browser in uso.
+- **DEMO | Produzione** (selettore in alto). In *Produzione* si vedono solo le aziende reali (e quelle TEST, come l'azienda amica, sempre fuori dal benchmark) e le sessioni del calendario. In *Prova* la barra diventa a strisce oro e si vedono solo i dati dimostrativi: 4 sessioni di prova, 14 aziende DEMO e l'azienda vetrina. Le aziende e le sessioni create in Prova sono di prova e si cancellano con *Cancella tutti i dati di prova*. Il benchmark ufficiale, l'export e le versioni congelate riguardano solo la Produzione. La scelta vale per il browser in uso.
 - **Programma** (pagina iniziale): la linea del tempo delle 4 sessioni fino all'allineamento finale di settembre 2027 e l'elenco *Da fare*, calcolato dai dati (referenti mancanti, schede pre-sessione, cartoncini, benchmark da congelare, report da rilasciare, call da annotare, commitment scaduti).
 - **Sessioni**: le 4 sessioni in ordine di calendario, più le sessioni ad hoc. Ogni sessione ha quattro schede: *Prima* (preparazione), *In sala* (risposte individuali, confronto, consolidamento), *Dopo* (benchmark, report, call con i leader), *Risultati* (dashboard live, plenaria, mappe, versioni del benchmark).
 - **Dopo le sessioni**: *Report e call con i leader* (tutte le sessioni in una pagina) e *Commitment e verifica* (stato di ogni commitment, scadenze superate evidenziate).
@@ -48,7 +48,7 @@ La control room segue la sessione in sette passi: **Prima della sessione** (Prep
 
 Il pulsante *Tavolo* apre, in una nuova scheda, la pagina dell'azienda per il facilitatore: chi si è registrato e chi ha inviato, il confronto, il consolidamento. Da lì, in ogni fase della sessione aperta, il facilitatore corregge nome o funzione di un partecipante o rimuove una registrazione sbagliata (resta nel registro).
 
-Dopo la sessione: *Rilascia* il report al referente (lo vede dal suo link), registra l'esito della *call con il leader*.
+Dopo la sessione: *Rilascia* il report al referente (lo vede dal suo link), registra l'esito della *call con il leader* e incolla la **trascrizione di Teams**: salvandola si rilascia una nuova versione del report con la trascrizione integrale in appendice.
 
 ## 4. Dashboard live, report e PDF
 

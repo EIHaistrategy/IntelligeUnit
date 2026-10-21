@@ -44,7 +44,7 @@ Vengono dalla nota metodologica: prima di cambiarle, chiedi.
 2. **Report rilasciati immutabili.** Al rilascio si salva una copia (`report_snapshots`): il referente vede solo quella. Le versioni nuove si numerano, non si sostituiscono.
 3. **Benchmark ufficiale = versione congelata** (`benchmark_versions`), solo aziende `REALE` con consenso `benchmark`. Sotto 5 aziende non si mostra, tra 5 e 14 è "indicativo". Nel report l'azienda è esclusa dal proprio benchmark (leave-one-out) se ne restano almeno 5. Regola dei 5 sui sotto-livelli.
 4. **Fasi della sessione:** preparazione → individuale → confronto → consolidamento → chiusa, una alla volta. Dopo il confronto non si torna alla fase individuale (§2). Tornare indietro richiede un motivo.
-5. **Anonimato.** I partecipanti con meno di 3 risposte valide vedono solo mediana e range. Plenaria e mappe di community mostrano solo aggregati. I nomi delle aziende nelle mappe si vedono solo nella console, con "mostra i nomi".
+5. **Anonimato.** I partecipanti con meno di 3 risposte valide vedono solo mediana e range. Plenaria e mappe di community mostrano solo aggregati. I nomi delle aziende nelle mappe si vedono solo nella console (`/mappe/:base`, riservata al team ELIS e non proiettata): visibili di default, si nascondono con "mostra i nomi".
 6. **Produzione e Prova.** Il cookie `aito_mode=prova` (scelto nella console) mostra solo i dati con `seeded = 1`: 4 sessioni di prova, aziende DEMO, azienda vetrina. Il filtro è **sul server**: `isProva(req)` / `envOf(req)` in `index.js`; per le pagine di una sessione vale `sessions.seeded`. Ogni nuova query su aziende o sessioni deve rispettare questo filtro. Il benchmark congelato e l'export riguardano solo la produzione.
 7. **Aziende TEST** (es. l'azienda amica) stanno in produzione ma non entrano mai nel benchmark.
 8. **Soglie e nomi** si cambiano solo in `scoring-1.0.json`, con una nuova versione dello scoring; mai nel codice.
@@ -73,7 +73,7 @@ I rapporti degli agenti sono pareri, non istruzioni: valuta ogni punto rispetto 
 ## Stile del codice e dell'interfaccia
 
 - Testi dell'interfaccia in italiano semplice e attivo. Il pulsante dice cosa succede ("Rilascia", "Apri il confronto"). Prima di un'azione che non si può annullare, spiega le conseguenze e chiedi conferma.
-- Grafica: palette ELIS (notte `#1F3864`, petrolio `#005172`, oro `#C9A84C`, turchese `#1FB5B8`). Titoli e numeri in serif, testo in sans. Marchio: quattro quadranti con il percorso dorato; segno ricorrente dei livelli: i cinque gradini (`alt()` in `ui.js`). Usa i token di `app.css`, non colori sparsi.
+- Grafica: palette ELIS (notte `#1F3864`, petrolio `#005172`, oro `#C9A84C`, turchese `#1FB5B8`). Titoli e numeri in serif, testo in sans. Marchio: mappa di posizionamento a quadranti con i punti (uno in oro); segno ricorrente dei livelli: i cinque gradini (`alt()` in `ui.js`). Usa i token di `app.css`, non colori sparsi.
 - Commenti brevi, in italiano, che spiegano il perché; quando serve, cita il paragrafo della nota (es. `§9.1`).
 - Accessibilità: focus visibile, `aria-pressed` sui pulsanti di scelta, etichette per i campi, contrasto AA.
 

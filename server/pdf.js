@@ -27,13 +27,14 @@ export function buildCompanyPdf(R) {
   doc.registerFont('Bold', path.join(FONT_DIR, 'sans-700.woff'));
   doc.registerFont('Serif', path.join(FONT_DIR, 'serif-600.woff'));
   doc.registerFont('Display', path.join(FONT_DIR, 'serif-600.woff'));
-  // logo della Map: quattro quadranti e il percorso dell'azienda verso l'alto a destra (lo stesso del sito)
+  // logo della Map: una mappa di posizionamento a quadranti, con le aziende come punti (lo stesso del sito)
   const logo = (x, y, size, frame) => {
     doc.save().translate(x, y).scale(size / 32);
     doc.roundedRect(1.5, 1.5, 29, 29, 7).lineWidth(1.5).strokeColor(frame).strokeOpacity(0.45).stroke();
     doc.moveTo(16, 5).lineTo(16, 27).moveTo(5, 16).lineTo(27, 16).lineWidth(1.2).strokeOpacity(0.3).stroke();
-    doc.strokeOpacity(1).moveTo(7.5, 24.5).lineTo(12.5, 19.5).lineTo(17.5, 21).lineTo(24, 9.5).lineWidth(2.2).lineCap('round').lineJoin('round').strokeColor(C.gold).stroke();
-    doc.circle(24, 9.5, 3).fill(C.gold);
+    doc.strokeOpacity(1);
+    for (const [x0, y0, r] of [[9.5, 21.5, 2], [11.5, 10.5, 2], [21, 22, 2], [19, 13.5, 1.6]]) doc.circle(x0, y0, r).fillOpacity(0.6).fill(frame);
+    doc.fillOpacity(1).circle(23.5, 9, 3.2).fill(C.gold);
     doc.restore();
   };
   const W = doc.page.width - 96, X0 = 48;
@@ -269,6 +270,15 @@ export function buildCompanyPdf(R) {
   // ---------- Note ----------
   h2('Note metodologiche e limiti');
   para(`Autovalutazione strutturata e consolidamento aziendale: non è un audit né una certificazione. Il benchmark è "indicativo" sotto le ${SC.benchmark.stableN} aziende e non è mostrato sotto le ${SC.benchmark.minN}; i sotto-livelli si mostrano solo con almeno ${SC.benchmark.subLevelMinN} aziende per categoria. Le soglie (fasce 44/70, coerenza ${SC.coherenceThreshold} punti, quadranti) e i nomi dei quadranti sono quelli in uso nel pilot. Le regole di coerenza che confrontano sessioni diverse si discutono nella call con il leader. Le dimensioni misurate in sessioni diverse possono riflettere partecipanti diversi; a settembre 2027 l'allineamento finale le riporta a una data unica. Il benchmark usato è una versione congelata: i report consegnati non cambiano.`, { size: 8, color: C.ink2 });
+
+  // ---------- Appendice: trascrizione integrale della call con il leader ----------
+  for (const k of R.calls || []) {
+    doc.addPage();
+    h2(`Appendice · Call con il leader · ${k.session_title}`);
+    para(`Trascrizione integrale${k.call_date ? ` della call del ${k.call_date.split('-').reverse().join('/')}` : ''}, così come esportata da Teams.`, { size: 8, color: C.ink3 });
+    doc.moveDown(0.4);
+    para(k.transcript, { size: 8, color: C.ink2 });
+  }
 
   // ---------- Piè di pagina ----------
   const range = doc.bufferedPageRange();

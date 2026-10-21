@@ -199,6 +199,16 @@ console.log('PDF referente:', pdf.status(), (await pdf.body()).length, 'byte');
 fs.writeFileSync(`${OUT}/report-referente.pdf`, await pdf.body());
 const zip = await admin.request.get(`${BASE}/api/admin/sessions/1/pdfs.zip`);
 console.log('zip:', zip.status(), (await zip.body()).length, 'byte');
+// call con il leader: la trascrizione Teams incollata rilascia una nuova versione con l'appendice; la v1 non cambia
+await admin.goto(`${BASE}/admin#/report`); await admin.waitForSelector('[data-trs]');
+await admin.click('[data-trs]'); await admin.fill('#tr-text', 'Mario Rossi 0:01\nBuongiorno, partiamo dal mandato esecutivo.\nLeader 0:15\nIl comitato AI è stato deliberato a settembre.');
+await shot(admin, '23-trascrizione');
+await admin.click('#tr-ok'); await admin.waitForSelector('text=rilasciata la versione 2');
+const v2 = await (await ref.request.get(`${BASE}/api/r/${refToken}/report`)).json();
+const v1 = await (await ref.request.get(`${BASE}/api/r/${refToken}/report?snap=${rel.id}`)).json();
+if (v2.snapshot?.version !== 2 || !v2.calls?.[0]?.transcript.includes('comitato AI') || (v1.calls || []).length) errors.push('trascrizione: nuova versione o appendice non corrette');
+const pdf2 = await ref.request.get(`${BASE}/api/report/${company.id}/pdf?t=${refToken}`);
+fs.writeFileSync(`${OUT}/report-con-trascrizione.pdf`, await pdf2.body());
 const rep = await (await admin.request.get(`${BASE}/api/admin/report/${company.id}`)).json();
 console.log('override error:', errText.trim());
 console.log('items:', rep.items.map((i) => `${i.itemId}=${i.level}${i.sub || ''} ${i.score?.toFixed?.(1)} [${i.confidence}]`).join(' | '));
