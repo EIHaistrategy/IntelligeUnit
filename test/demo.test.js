@@ -138,3 +138,15 @@ test('aziende create a mano in DEMO non confondono il percorso; la fase non torn
   assert.equal(q.get('SELECT phase FROM sessions WHERE id = ?', st.sessions[0].id).phase, 'confronto');
   assert.equal(prod().companies, 1);
 });
+
+test('«Carica i dati DEMO» mostra il programma concluso; «Riparti da zero» torna all\'inizio', async () => {
+  D.removeDemo();
+  const C = { ...H(), Cookie: `${cookie}; aito_mode=prova` };
+  const st = await (await fetch(`${base}/api/admin/demo`, { method: 'POST', headers: C, body: '{}' })).json();
+  assert.equal(st.done, true);
+  assert.ok(st.sessions.every((s) => s.phase === 'chiusa'));
+  assert.equal(q.get('SELECT COUNT(*) n FROM report_snapshots WHERE company_id = ?', st.company.id).n, 4);
+  const z = await (await fetch(`${base}/api/admin/demo/reset`, { method: 'POST', headers: C, body: '{}' })).json();
+  assert.equal(z.done, false); assert.ok(z.sessions.every((s) => s.phase === 'preparazione'));
+  assert.equal(prod().companies, 1);
+});

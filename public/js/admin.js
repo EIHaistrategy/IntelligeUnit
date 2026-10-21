@@ -151,9 +151,11 @@ async function viewTour() {
   const act = async (url, body, msg) => { $$('[id^=tour_]').forEach((b) => { b.disabled = true; }); try { await api(url, { method: 'POST', body: body || {} }); toast(msg); await refreshSimDay(); route(); } catch (e) { toast(e.message, true); $$('[id^=tour_]').forEach((b) => { b.disabled = false; }); } };
   if (!D.present) {
     app.innerHTML = `<div class="pagehead"><div><h1>Percorso guidato</h1><p>Il programma dall'inizio alla fine con un'azienda fittizia, per mostrarlo a stakeholder e clienti senza dati reali.</p></div></div>
-      <div class="card"><p>I dati DEMO non sono caricati. Il caricamento crea l'azienda del percorso guidato, i suoi referenti, la community di 14 aziende e le quattro sessioni DEMO in preparazione.</p>
-      <button type="button" id="tour_load">Carica il percorso guidato</button></div>`;
-    $('#tour_load').onclick = () => act('/api/admin/demo', {}, 'Percorso guidato caricato');
+      <div class="card"><p>I dati DEMO non sono caricati. Puoi caricarli in due modi:</p>
+      <ul class="small ink2"><li><b>Programma concluso</b>: le quattro sessioni chiuse, con mappe, report, call e commitment da mostrare.</li><li><b>Dall'inizio</b>: tutte le sessioni in preparazione, per seguire il processo passo per passo con «Avanza».</li></ul>
+      <div class="row"><button type="button" class="primary" id="tour_load">Carica il programma concluso</button><button type="button" class="ghost" id="tour_start">Parti dall'inizio</button></div></div>`;
+    $('#tour_load').onclick = () => act('/api/admin/demo', {}, 'Dati DEMO caricati: programma concluso');
+    $('#tour_start').onclick = () => act('/api/admin/demo/reset', {}, 'Percorso guidato all\'inizio');
     return;
   }
   const S = D.sessions, cur = D.done ? null : S[D.s], step = D.done ? null : D.steps[D.k], cid = D.company.id;
@@ -184,11 +186,11 @@ async function viewTour() {
   };
   const phoneHtml = D.done
     ? `<div class="phone-static"><p class="eyebrow">Anteprima</p><h3>Allineamento finale · settembre 2027</h3><p>Il referente, con il leader, riceverà un modulo precompilato con livelli e sotto-opzioni dei 12 item misurati prima di luglio: per ognuno conferma o modifica, con un'evidenza. Poi la call con il leader conferma le tre priorità finali.</p><p class="small muted">Funzione non ancora disponibile nella piattaforma: questa è solo un'anteprima.</p></div>`
-    : /null|undefined/.test(phone.url) ? '<div class="phone-static"><p>Questa vista non è disponibile: il referente o il partecipante DEMO è stato rimosso dalla console. Con <b>Reset demo</b> il percorso si ricarica.</p></div>'
+    : /null|undefined/.test(phone.url) ? '<div class="phone-static"><p>Questa vista non è disponibile: il referente o il partecipante DEMO è stato rimosso dalla console. Con <b>Riparti da zero</b> il percorso si ricarica.</p></div>'
     : `<iframe class="phone-frame" src="${esc(phone.url)}" title="Vista azienda: ${esc(step.label)}"></iframe>`;
   const realUrl = !D.done && phone.url.startsWith('/j/') ? `${NET.baseUrl}${phone.url.replace('&anteprima=1', '').replace(/&p=[^&#]*/, '')}` : null;
   app.innerHTML = `<div class="pagehead"><div><h1>Percorso guidato</h1><p>${esc(D.company.name)} · ${esc(D.company.sector || '')} · perimetro ${esc(D.company.perimeter || '')}. Dati inventati: nulla entra nei dati reali o nel benchmark ufficiale.</p></div>
-      <div class="row"><button type="button" class="danger sm" id="tour_reset">Reset demo</button></div></div>
+      <div class="row"><button type="button" class="sm" id="tour_reset">Riparti da zero</button></div></div>
     <ol class="tstages" aria-label="Sessioni del percorso">${S.map(stage).join('')}<li class="tstage ${D.done ? 'st-live' : 'st-prep'}"><span class="stage-n" aria-hidden="true">${icon('flag')}</span><span><b>Allineamento finale</b><small>settembre 2027 · anteprima</small></span></li></ol>
     ${D.done ? '' : `<ol class="tsteps" aria-label="Passi di ${esc(sname(cur))}">${D.steps.map((x, k) => `<li class="${k < D.k ? 'done' : k === D.k ? 'on' : ''}" ${k === D.k ? 'aria-current="step"' : ''}><span aria-hidden="true">${k < D.k ? icon('check') : k + 1}</span>${esc(x.label)}</li>`).join('')}</ol>`}
     <div class="tourbar">
@@ -216,7 +218,7 @@ async function viewTour() {
   if ($('#tour_next')) $('#tour_next').onclick = () => act('/api/admin/demo/advance', { mode: 'step' }, 'Passo successivo');
   if ($('#tour_sess')) $('#tour_sess').onclick = () => act('/api/admin/demo/advance', { mode: 'session' }, 'Sessione successiva');
   if ($('#tour_end')) $('#tour_end').onclick = () => { if (confirm('Portare il percorso alla fine? Le quattro sessioni DEMO si chiudono con tutti i dati del file.')) act('/api/admin/demo/advance', { mode: 'end' }, 'Percorso completato'); };
-  $('#tour_reset').onclick = () => { if (confirm('Riportare il percorso guidato all\'inizio? Tutti i dati DEMO vengono cancellati, anche aziende e sessioni create a mano in DEMO, e il percorso si ricarica dal file. I dati reali non vengono toccati.')) act('/api/admin/demo/reset', {}, 'Demo ripristinata'); };
+  $('#tour_reset').onclick = () => { if (confirm('Ripartire da zero? I dati DEMO si cancellano (anche aziende e sessioni create a mano in DEMO) e si ricaricano con tutte le sessioni in preparazione, per seguire il processo passo per passo. I dati reali non vengono toccati.')) act('/api/admin/demo/reset', {}, 'Percorso guidato ripartito da zero'); };
 }
 
 // ---------- Domande delle sessioni: le stesse in DEMO e in Produzione (lo strumento V1 è uno solo) ----------
@@ -458,9 +460,10 @@ async function viewProgram() {
   if (PROVA) {
     const D = await api('/api/admin/demo');
     $('#demo').innerHTML = `<h2>Dati DEMO</h2>
-      <p class="ink2">${D.present ? `Sono caricate 14 aziende della community e l'azienda del percorso guidato (${esc(D.company?.name || '')}), che attraversa le quattro sessioni passo per passo. Le aziende e le sessioni che crei in questo ambiente restano DEMO.` : 'Non ci sono dati DEMO. Caricali per percorrere il programma con un\'azienda fittizia e vedere dashboard, plenaria, mappe e report.'}</p>
-      <div class="row">${D.present ? `<a class="btn sm" href="#/percorso">Apri il percorso guidato</a>${D.vetrina ? `<a class="btn sm ghost" href="/report/${D.vetrina}" target="_blank">Report dell'azienda guidata</a>` : ''}<button class="sm danger" id="demo_rm">Cancella tutti i dati DEMO</button>` : '<button class="sm" id="demo_add">Carica i dati DEMO</button>'}</div>`;
+      <p class="ink2">${D.present ? `Sono caricate 14 aziende della community e l'azienda del percorso guidato (${esc(D.company?.name || '')}). ${D.done ? 'Il programma è concluso: sessioni chiuse, mappe, report e commitment da mostrare.' : 'Il percorso è in corso: lo segui passo per passo dal Percorso guidato.'} Con «Riparti da zero» le sessioni tornano in preparazione per vedere il processo dall\'inizio. Le aziende e le sessioni che crei in questo ambiente restano DEMO.` : 'Non ci sono dati DEMO. Caricali per vedere il programma concluso con un\'azienda fittizia: dashboard, plenaria, mappe e report.'}</p>
+      <div class="row">${D.present ? `<a class="btn sm" href="#/percorso">Apri il percorso guidato</a>${D.vetrina ? `<a class="btn sm ghost" href="/report/${D.vetrina}" target="_blank">Report dell'azienda guidata</a>` : ''}<button class="sm ghost" id="demo_zero">Riparti da zero</button><button class="sm danger" id="demo_rm">Cancella tutti i dati DEMO</button>` : '<button class="sm" id="demo_add">Carica i dati DEMO</button>'}</div>`;
     if ($('#demo_add')) $('#demo_add').onclick = async () => { try { await api('/api/admin/demo', { method: 'POST' }); toast('Dati DEMO caricati'); await refreshSimDay(); route(); } catch (e) { toast(e.message, true); } };
+    if ($('#demo_zero')) $('#demo_zero').onclick = async () => { if (!confirm('Ripartire da zero? I dati DEMO si ricaricano con tutte le sessioni in preparazione, per seguire il processo passo per passo. I dati reali non vengono toccati.')) return; try { await api('/api/admin/demo/reset', { method: 'POST' }); toast('Percorso guidato ripartito da zero'); await refreshSimDay(); location.hash = '#/percorso'; } catch (e) { toast(e.message, true); } };
     if ($('#demo_rm')) $('#demo_rm').onclick = async () => { if (!confirm('Cancellare tutti i dati DEMO (aziende, sessioni, risposte e report DEMO)? I dati reali non vengono toccati.')) return; await api('/api/admin/demo', { method: 'DELETE' }); toast('Dati DEMO cancellati'); await refreshSimDay(); route(); };
   }
 }

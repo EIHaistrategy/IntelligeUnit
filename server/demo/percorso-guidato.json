@@ -1,7 +1,7 @@
 {
   "_istruzioni": [
     "Dati del PERCORSO GUIDATO dell'ambiente DEMO. Sono inventati: nessuna persona o azienda reale.",
-    "Si possono modificare a mano: dopo una modifica, nella console (DEMO) usa 'Reset demo' per ricaricarli.",
+    "Si possono modificare a mano: dopo una modifica, nella console (DEMO) usa 'Riparti da zero' (Percorso guidato) per ricaricarli.",
     "Livelli: numeri da 1 a 5, oppure \"ND\" (non ho sufficiente visibilità). Sotto-opzioni: \"A\", \"B\" o \"C\" se il livello le prevede.",
     "Funzioni: CEO, STRAT, IT, FIN, HR, LEGAL, RISK, PROC, MKT, OPS, OTHER.",
     "Date nel formato AAAA-MM-GG. Stati dei commitment: aperto, avviato, completato, non avviato, sospeso.",

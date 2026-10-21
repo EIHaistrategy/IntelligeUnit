@@ -13,7 +13,7 @@ import { pdfBuffer, pdfFileName } from './pdf.js';
 import { liveDashboard } from './live.js';
 import JSZip from 'jszip';
 import compression from 'compression';
-import { seedDemo, removeDemo, hasDemo, resetDemo, advanceDemo, tourState } from './demo.js';
+import { seedDemo, removeDemo, hasDemo, resetDemo, advanceDemo, tourState, loadDemoComplete } from './demo.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(here, '../public');
@@ -799,7 +799,8 @@ app.get('/api/admin/companies/:cid/journey', wrap((req) => {
       commitment: q.get('SELECT priority_item, status FROM commitments WHERE session_id = ? AND company_id = ?', s.id, c.id) || null };
   });
 }));
-app.post('/api/admin/demo', wrap((req, res) => (onlyDemo(req, res) ? seedDemo() : undefined)));
+// carica = programma concluso; per vedere il processo dall'inizio c'è il reset
+app.post('/api/admin/demo', wrap((req, res) => (onlyDemo(req, res) ? loadDemoComplete() : undefined)));
 app.delete('/api/admin/demo', wrap((req, res) => (onlyDemo(req, res) ? removeDemo() : undefined)));
 // registro modifiche dell'ambiente corrente
 app.get('/api/admin/audit', wrap((req) => q.all('SELECT * FROM audit WHERE seeded = ? ORDER BY id DESC LIMIT 500', envOf(req))));
@@ -837,7 +838,7 @@ process.on('unhandledRejection', (e) => console.error('Errore non gestito:', e))
 process.on('uncaughtException', (e) => console.error('Eccezione non gestita:', e));
 
 export function start(port = PORT) {
-  if (process.env.DEMO_DATA === '1' && !hasDemo()) { try { const d = seedDemo(); console.log(`  Percorso guidato DEMO caricato: ${d.company?.name}, ${d.sessions?.length} sessioni`); } catch (e) { console.error('Dati dimostrativi non caricati:', e.message); } }
+  if (process.env.DEMO_DATA === '1' && !hasDemo()) { try { const d = loadDemoComplete(); console.log(`  Dati DEMO caricati, programma concluso: ${d.company?.name}, ${d.sessions?.length} sessioni chiuse`); } catch (e) { console.error('Dati dimostrativi non caricati:', e.message); } }
   return app.listen(port, '0.0.0.0', () => {
     console.log('\n  AITO — AI Transformation & Adoption Map');
     console.log('  ─────────────────────────────────────────');

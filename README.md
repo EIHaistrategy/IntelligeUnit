@@ -41,13 +41,13 @@ La console ELIS è su `http://localhost:3000/admin`. La finestra mostra anche l'
 
 Serve a mostrare il programma dall'inizio alla fine a stakeholder e clienti, senza dati reali e senza creare nulla a mano.
 
-1. Nella console scegli **DEMO** in alto (conferma) e apri **Percorso guidato** nel menu. La prima volta premi *Carica il percorso guidato*.
+1. Nella console scegli **DEMO** in alto (conferma). I dati DEMO si presentano come a **programma concluso**: quattro sessioni chiuse, mappe, report, call e commitment da mostrare (online si caricano da soli a ogni avvio; altrimenti *Carica i dati DEMO*). Per vedere il **processo dall'inizio** apri **Percorso guidato** e premi *Riparti da zero*: le sessioni tornano in preparazione.
 2. In alto le tappe: Governare, Efficientare, Crescere, Scalare e l'Allineamento finale (solo anteprima: non è ancora costruito). Sotto, i 7 passi di ogni sessione: preparazione, QR e link, risposte dal telefono, confronto al tavolo, consolidamento, report e call con il leader, commitment e verifica.
 3. Per ogni passo la pagina mostra a sinistra cosa vede il team ELIS (con i collegamenti alle pagine vere della console) e a destra cosa vede l'azienda, dentro una cornice a forma di telefono: è la pagina vera, si può usare. Con *Aprila sul tuo telefono* compare un QR per aprirla su un telefono reale.
 4. **Avanza** porta al passo successivo: la piattaforma compie da sola le azioni del passo (risposte dei partecipanti, consolidamento, commitment, rilascio del report, call con la trascrizione). Anche la data è simulata (la barra DEMO la indica): così, per esempio, il commitment di Governare risulta scaduto durante Efficientare.
-5. **Reset demo** (con conferma) riporta tutto all'inizio con gli stessi dati.
+5. **Riparti da zero** (con conferma) riporta tutto all'inizio con gli stessi dati; *Vai alla fine* (o *Carica i dati DEMO*) torna al programma concluso.
 
-I dati sono nel file `server/demo/percorso-guidato.json`, scritto per essere letto e modificato a mano: azienda, referenti, persone, risposte di ogni sessione, consolidamento, commitment, call e community. Dopo una modifica, *Reset demo* li ricarica. L'azienda del percorso è di tipo TEST: non entra mai in nessun benchmark. Le azioni DEMO sono rifiutate dal server se la console è in Produzione, nessuna email parte davvero e il benchmark ufficiale non vede nessun dato DEMO (`test/demo.test.js` lo verifica).
+I dati sono nel file `server/demo/percorso-guidato.json`, scritto per essere letto e modificato a mano: azienda, referenti, persone, risposte di ogni sessione, consolidamento, commitment, call e community. Dopo una modifica, *Riparti da zero* li ricarica. L'azienda del percorso è di tipo TEST: non entra mai in nessun benchmark. Le azioni DEMO sono rifiutate dal server se la console è in Produzione, nessuna email parte davvero e il benchmark ufficiale non vede nessun dato DEMO (`test/demo.test.js` lo verifica).
 
 ## 3. In sala (Control room della sessione)
 

@@ -109,6 +109,9 @@ export function removeDemo() {
   return { removed: ids.length };
 }
 
+// "Carica i dati DEMO": il programma come a fine percorso (4 sessioni chiuse, mappe, report, call, commitment)
+export function loadDemoComplete() { if (!hasDemo()) seedDemo(); return advanceDemo('end'); }
+
 // Reset: riporta il percorso guidato all'inizio (stessi dati, ricaricati dal file)
 export function resetDemo() { removeDemo(); return seedDemo(); }
 

@@ -18,7 +18,7 @@ Gli utenti sono il team AI Strategy di ELIS: non sono sviluppatori. Rispondi in 
 - Node.js ≥ 22.13 con `node:sqlite` (nessun ORM), Express 4, ES modules. Front-end senza framework né build: HTML + JS moduli in `public/`.
 - Dipendenze **con versione esatta** (`package.json`): non usare `^` o `~`.
 - `npm install` · `npm start` (porta 3000; `PORT`, `AITO_DATA_DIR`, `ADMIN_PASSWORD`, `PUBLIC_URL`, `DEMO_DATA=1` facoltative).
-- `npm test`: 26 test, 17 del motore di calcolo (`test/engine.test.js`) e 9 dell'ambiente DEMO (`test/demo.test.js`: caricamento ripetibile, avanzamento, reset, separazione da Produzione anche via API). Devono passare tutti prima di ogni commit.
+- `npm test`: 27 test, 17 del motore di calcolo (`test/engine.test.js`) e 10 dell'ambiente DEMO (`test/demo.test.js`: caricamento ripetibile, avanzamento, reset, separazione da Produzione anche via API). Devono passare tutti prima di ogni commit.
 - Prova completa nel browser: `test/e2e/e2e.mjs`. Le istruzioni sono in testa al file: server su database vuoto, porta 3100, password `testpass123`. Il messaggio di console "400 Bad Request" del referente è atteso (Chrome può scriverlo due volte, ma la richiesta è una sola): è la prova dell'override senza motivazione.
 - Per controllare la grafica fai sempre schermate con Playwright, a 1440 px per la console e a 390 px per il telefono.
 
