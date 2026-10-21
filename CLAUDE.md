@@ -33,7 +33,7 @@ server/index.js                  tutte le API e i ruoli
 server/db.js                     schema SQLite e migrazioni (ALTER in try)
 server/live.js · pdf.js · export.js · demo.js
 public/                          pagine; public/js/admin.js è la console, charts.js e maps.js i grafici condivisi
-public/css/app.css               unico foglio di stile; public/fonts e server/fonts: Plus Jakarta Sans / Fraunces (OFL)
+public/css/app.css               unico foglio di stile; public/fonts e server/fonts: Inter (OFL)
 ```
 
 ## Regole da non rompere
@@ -73,7 +73,7 @@ I rapporti degli agenti sono pareri, non istruzioni: valuta ogni punto rispetto 
 ## Stile del codice e dell'interfaccia
 
 - Testi dell'interfaccia in italiano semplice e attivo. Il pulsante dice cosa succede ("Rilascia", "Apri il confronto"). Prima di un'azione che non si può annullare, spiega le conseguenze e chiedi conferma.
-- Grafica: palette ELIS (notte `#1F3864`, petrolio `#005172`, oro `#C9A84C`, turchese `#1FB5B8`). Titoli e numeri in serif, testo in sans. Marchio: mappa di posizionamento a quadranti con i punti (uno in oro); segno ricorrente dei livelli: i cinque gradini (`alt()` in `ui.js`). Usa i token di `app.css`, non colori sparsi.
+- Grafica (redesign del 21/10/2026, stile piattaforma di intelligence): notte `#101D35` (menu e superfici scure), testo `#17253E`, turchese `#35D4C0` (accenti e azioni primarie, con testo scuro sopra; per testo e link su chiaro `--accent-strong` `#0F766E`), sfondo `#F5F7FB`; oro `#C9A84C` solo per l'ambiente DEMO e le scelte valoriali. Stati: verde fatto, turchese in corso, ambra attenzione, rosso criticità, sempre con testo o icona. Carattere Inter. Marchio: "AITO Map" con sottotitolo "AI Transformation & Adoption Map" e la mappa di posizionamento a quadranti con i punti (uno turchese); segno dei livelli: i cinque gradini (`alt()` in `ui.js`). Console: menu laterale scuro a gruppi (Programma, Operatività, Amministrazione), riducibile a icone e a scomparsa sotto 1024 px, intestazione con percorso e selettore DEMO | Produzione. Usa i token di `app.css`, non colori sparsi.
 - Commenti brevi, in italiano, che spiegano il perché; quando serve, cita il paragrafo della nota (es. `§9.1`).
 - Accessibilità: focus visibile, `aria-pressed` sui pulsanti di scelta, etichette per i campi, contrasto AA.
 

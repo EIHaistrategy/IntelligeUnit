@@ -4,23 +4,34 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AI Transformation &amp; Adoption Map · Console ELIS</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2032%2032%22%3E%3Crect%20width=%2232%22%20height=%2232%22%20rx=%227%22%20fill=%22%231F3864%22/%3E%3Cpath%20d=%22M16%205v22M5%2016h22%22%20stroke=%22%23fff%22%20stroke-opacity=%22.35%22%20stroke-width=%221.4%22/%3E%3Ccircle%20cx=%229.5%22%20cy=%2221.5%22%20r=%222.2%22%20fill=%22%23fff%22%20fill-opacity=%22.7%22/%3E%3Ccircle%20cx=%2211.5%22%20cy=%2210.5%22%20r=%222.2%22%20fill=%22%23fff%22%20fill-opacity=%22.7%22/%3E%3Ccircle%20cx=%2221%22%20cy=%2222%22%20r=%222.2%22%20fill=%22%23fff%22%20fill-opacity=%22.7%22/%3E%3Ccircle%20cx=%2223.5%22%20cy=%229%22%20r=%223.6%22%20fill=%22%23C9A84C%22/%3E%3C/svg%3E">
-<link rel="preload" href="/static/fonts/sans-400.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="/static/fonts/serif-600.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2032%2032%22%3E%3Crect%20width=%2232%22%20height=%2232%22%20rx=%227%22%20fill=%22%23101D35%22/%3E%3Cpath%20d=%22M16%205v22M5%2016h22%22%20stroke=%22%23fff%22%20stroke-opacity=%22.35%22%20stroke-width=%221.4%22/%3E%3Ccircle%20cx=%229.5%22%20cy=%2221.5%22%20r=%222.2%22%20fill=%22%23fff%22%20fill-opacity=%22.7%22/%3E%3Ccircle%20cx=%2211.5%22%20cy=%2210.5%22%20r=%222.2%22%20fill=%22%23fff%22%20fill-opacity=%22.7%22/%3E%3Ccircle%20cx=%2221%22%20cy=%2222%22%20r=%222.2%22%20fill=%22%23fff%22%20fill-opacity=%22.7%22/%3E%3Ccircle%20cx=%2223.5%22%20cy=%229%22%20r=%223.6%22%20fill=%22%2335D4C0%22/%3E%3C/svg%3E">
+<link rel="preload" href="/static/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/static/fonts/inter-600.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/static/css/app.css">
 <style>
   .qrfull .url { font-size: 1.5rem; font-weight: 700; color: var(--navy); word-break: break-all; }
-  @media print { .topbar, .sidenav, .noprint { display: none !important; } .layout { display: block; } .card { box-shadow: none; } }
+  @media print { .side, .apphead, .provabar, .side-scrim, .noprint { display: none !important; } .app { display: block; } .card { box-shadow: none; } }
 </style>
 </head>
-<body>
-<div class="topbar"><span class="brand"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="1.5" y="1.5" width="29" height="29" rx="7" fill="none" stroke="#fff" stroke-opacity=".4" stroke-width="1.5"/><path d="M16 5v22M5 16h22" stroke="#fff" stroke-opacity=".25" stroke-width="1.2"/><circle cx="9.5" cy="21.5" r="2" fill="#fff" fill-opacity=".6"/><circle cx="11.5" cy="10.5" r="2" fill="#fff" fill-opacity=".6"/><circle cx="21" cy="22" r="2" fill="#fff" fill-opacity=".6"/><circle cx="19" cy="13.5" r="1.6" fill="#fff" fill-opacity=".6"/><circle cx="23.5" cy="9" r="3.2" fill="#C9A84C"/></svg><span class="bname">AI Transformation <em>&amp;</em> Adoption Map</span></span><span class="sub">Console ELIS</span><span class="spacer"></span>
-  <div class="envswitch hidden" id="envswitch" role="group" aria-label="Ambiente"><button type="button" data-env="prova">DEMO</button><button type="button" data-env="prod">Produzione</button></div>
-  <button class="link" id="logout" style="color:#fff;margin-left:16px">Esci</button></div>
-<div class="provabar hidden" id="provabar" role="note">Ambiente DEMO: dati dimostrativi, separati da quelli reali e mai nel benchmark ufficiale.</div>
-<div class="layout">
-  <nav class="sidenav" id="nav" aria-label="Menu"></nav>
-  <main class="main" id="app"><p class="muted">Caricamento…</p></main>
+<body class="console">
+<div class="app" id="appshell">
+  <aside class="side" id="side" aria-label="Navigazione principale">
+    <a class="side-brand" href="#/programma"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="1.5" y="1.5" width="29" height="29" rx="7" fill="none" stroke="#fff" stroke-opacity=".4" stroke-width="1.5"/><path d="M16 5v22M5 16h22" stroke="#fff" stroke-opacity=".25" stroke-width="1.2"/><circle cx="9.5" cy="21.5" r="2" fill="#fff" fill-opacity=".6"/><circle cx="11.5" cy="10.5" r="2" fill="#fff" fill-opacity=".6"/><circle cx="21" cy="22" r="2" fill="#fff" fill-opacity=".6"/><circle cx="19" cy="13.5" r="1.6" fill="#fff" fill-opacity=".6"/><circle cx="23.5" cy="9" r="3.2" fill="#35D4C0"/></svg><span class="bname">AITO Map<small>AI Transformation &amp; Adoption Map</small></span></a>
+    <nav class="sidenav" id="nav" aria-label="Menu"></nav>
+    <button type="button" class="side-collapse" id="collapse" aria-expanded="true" aria-controls="side"><span class="ico-slot"></span><span class="lbl">Riduci il menu</span></button>
+  </aside>
+  <div class="side-scrim" id="scrim" hidden></div>
+  <div class="appmain">
+    <header class="apphead">
+      <button type="button" class="menubtn" id="menubtn" aria-expanded="false" aria-controls="side" aria-label="Apri il menu"></button>
+      <nav class="crumbs" id="crumbs" aria-label="Percorso"></nav>
+      <span class="spacer"></span>
+      <div class="envswitch hidden" id="envswitch" role="group" aria-label="Ambiente"><button type="button" data-env="prova">DEMO</button><button type="button" data-env="prod">Produzione</button></div>
+      <button type="button" class="ghost sm logout" id="logout">Esci</button>
+    </header>
+    <div class="provabar hidden" id="provabar" role="note">Ambiente DEMO: dati dimostrativi, separati da quelli reali e mai nel benchmark ufficiale.</div>
+    <main class="main" id="app"><p class="muted">Caricamento…</p></main>
+  </div>
 </div>
 <script type="module" src="/static/js/admin.js"></script>
 </body>

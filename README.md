@@ -27,8 +27,9 @@ La console ELIS è su `http://localhost:3000/admin`. La finestra mostra anche l'
 
 ## Console ELIS: come è organizzata
 
-- **DEMO | Produzione** (selettore in alto). In *Produzione* si vedono solo le aziende reali (e quelle TEST, come l'azienda amica, sempre fuori dal benchmark) e le sessioni del calendario. In *Prova* la barra diventa a strisce oro e si vedono solo i dati dimostrativi: 4 sessioni di prova, 14 aziende DEMO e l'azienda vetrina. Le aziende e le sessioni create in Prova sono di prova e si cancellano con *Cancella tutti i dati di prova*. Il benchmark ufficiale, l'export e le versioni congelate riguardano solo la Produzione. La scelta vale per il browser in uso.
-- **Programma** (pagina iniziale): la linea del tempo delle 4 sessioni fino all'allineamento finale di settembre 2027 e l'elenco *Da fare*, calcolato dai dati (referenti mancanti, schede pre-sessione, cartoncini, benchmark da congelare, report da rilasciare, call da annotare, commitment scaduti).
+- **Menu laterale** (scuro, a gruppi): *Programma* (pagina iniziale, le 4 sessioni, Domande delle sessioni), *Operatività* (Sessioni ad hoc, Report e call con i leader, Commitment e verifica), *Amministrazione* (Aziende e referenti, Registro modifiche, Impostazioni). Con «Riduci il menu» resta solo la colonna delle icone (la scelta si ricorda nel browser); su tablet e telefono si apre con il pulsante ☰ in alto. In alto c'è il percorso della pagina (es. *Amministrazione / Aziende e referenti*).
+- **DEMO | Produzione** (selettore in alto). In *Produzione* si vedono solo le aziende reali (e quelle TEST, come l'azienda amica, sempre fuori dal benchmark) e le sessioni del calendario. In *DEMO* la barra diventa a strisce oro e si vedono solo i dati dimostrativi: 4 sessioni di prova, 14 aziende DEMO e l'azienda vetrina. Le aziende e le sessioni create in Prova sono di prova e si cancellano con *Cancella tutti i dati di prova*. Il benchmark ufficiale, l'export e le versioni congelate riguardano solo la Produzione. La scelta vale per il browser in uso.
+- **Programma** (pagina iniziale): in alto il programma e la prossima sessione con l'azione da fare (*Prepara la sessione* o *Gestisci la sessione in sala*); quattro indicatori calcolati dai dati (sessioni chiuse, aziende con referente, commitment aperti e scaduti); il percorso delle 4 sessioni più l'allineamento finale, con lo stato reale di ciascuna; *Da fare* (calcolato dai dati) e *Dopo le sessioni*.
 - **Sessioni**: le 4 sessioni in ordine di calendario, più le sessioni ad hoc. Ogni sessione ha quattro schede: *Prima* (preparazione), *In sala* (risposte individuali, confronto, consolidamento), *Mappe* (dashboard live, plenaria, mappe, versioni del benchmark), *Follow up* (benchmark, report, call con i leader). In fondo a ogni scheda i pulsanti portano alla precedente e alla successiva; da tastiera i tasti 1–4 aprono le schede e le frecce ← → passano alla precedente o alla successiva. In alto, i collegamenti rapidi: QR delle aziende, dashboard live, plenaria, mappe, report e call.
 - **Domande delle sessioni**: le domande di ogni sessione (livelli, sotto-opzioni, confronti a coppie, dati fattuali e profilo), uguali in DEMO e in Produzione, con il link all'anteprima da mandare alle aziende.
 - **Dopo le sessioni**: *Report e call con i leader* (tutte le sessioni in una pagina) e *Commitment e verifica* (stato di ogni commitment, scadenze superate evidenziate).
@@ -123,7 +124,7 @@ server/instrument/  strumento V1 e regole di scoring (dati versionati)
 server/engine/      motore di calcolo (funzioni pure, testate)
 server/             database, API, export, script
 public/             pagine: admin, referente, partecipante, report, plenaria, dashboard live
-public/fonts/       caratteri Plus Jakarta Sans e Fraunces (licenza SIL OFL), serviti dal server
+public/fonts/       carattere Inter (licenza SIL OFL), servito dal server
 server/fonts/       gli stessi caratteri in WOFF per i PDF
 test/               test del motore; test/e2e/e2e.mjs prova completa nel browser (Playwright)
 CLAUDE.md           istruzioni per Claude Code (regole da non rompere, comandi, agenti, pubblicazione)
