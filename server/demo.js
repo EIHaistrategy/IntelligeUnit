@@ -161,6 +161,19 @@ function enterFinal(S) {
     AL.confirm(c.id, 1, ACTOR);
   });
   const rel = L.releaseFinalReport(g.id, ACTOR); if (!rel.ok) throw new Error(rel.errors.join(' · '));
+  const day = A.data || '2027-09-20';
+  q.run('UPDATE alignment SET confirmed_at = ? WHERE company_id = ?', `${day} 11:00:00`, g.id);
+  q.run('UPDATE alignment_items SET created_at = ? WHERE company_id = ?', `${day} 10:30:00`, g.id);
+  simStamp(g.id, addDays(day, 3));
+}
+
+// In DEMO le date dei report seguono il calendario simulato, non il giorno in cui si presenta la demo
+function simStamp(companyId, day) {
+  const r = q.get('SELECT id, data_json FROM report_snapshots WHERE company_id = ? ORDER BY id DESC LIMIT 1', companyId); if (!r) return;
+  const R = JSON.parse(r.data_json), ts = `${day}T10:00:00.000Z`;
+  R.generatedAt = ts; if (R.snapshot) R.snapshot.releasedAt = ts;
+  if (R.alignment?.confirmedAt) R.alignment.confirmedAt = `${addDays(day, -3)} 11:00:00`;
+  q.run('UPDATE report_snapshots SET data_json = ?, created_at = ? WHERE id = ?', JSON.stringify(R), `${day} 10:00:00`, r.id);
 }
 
 // Effetti dell'ingresso nel passo k della sessione i
@@ -208,7 +221,8 @@ function enter(i, k, S) {
       q.run('UPDATE session_company SET leader_call_note = ?, leader_call_transcript = ?, leader_call_at = ? WHERE session_id = ? AND company_id = ?',
         sc.call.esito || null, sc.call.trascrizione || null, sc.call.data || null, sess.id, g.id);
     }
-    if (!q.get('SELECT 1 FROM report_snapshots WHERE session_id = ? AND company_id = ?', sess.id, g.id)) L.releaseReport(sess.id, g.id, ACTOR);
+    if (!q.get('SELECT 1 FROM report_snapshots WHERE session_id = ? AND company_id = ?', sess.id, g.id)) { L.releaseReport(sess.id, g.id, ACTOR); simStamp(g.id, addDays(sess.date, 7)); }
+    q.run("UPDATE session_company SET consolidated_at = ?, report_released_at = ? WHERE session_id = ? AND company_id = ?", `${sess.date} 12:00:00`, `${addDays(sess.date, 7)} 10:00:00`, sess.id, g.id);
   }
   if (step === 'commitment') {
     const prev = i > 0 ? demoSessions()[i - 1] : null;

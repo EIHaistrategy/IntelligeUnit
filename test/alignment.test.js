@@ -132,3 +132,21 @@ test('facilitatore: niente accesso all\'allineamento di un\'azienda dell\'altro 
   const r2 = await fetch(`${base}/api/admin/alignment/open`, { method: 'POST', headers: { ...H(), Cookie: cookie }, body: JSON.stringify({ open: true, env: 1 }) });
   assert.equal(r2.status, 409, 'pagina caricata in DEMO, cookie di Produzione');
 });
+
+test('nessuna versione identica del report unificato; protezioni del server', async () => {
+  // subito dopo un rilascio, un secondo rilascio senza cambiamenti non crea un'altra versione
+  const again = L.releaseFinalReport(g, 'test');
+  assert.equal(again.ok, false);
+  // azioni su dati DEMO con la console in Produzione: rifiutate (409)
+  const ref = q.get('SELECT id FROM referents WHERE company_id = ?', g).id;
+  const com = q.get('SELECT id FROM commitments WHERE company_id = ?', g).id;
+  const P = { ...H(), Cookie: cookie };
+  assert.equal((await fetch(`${base}/api/admin/referents/${ref}/regenerate`, { method: 'POST', headers: P, body: JSON.stringify({ reason: 'x' }) })).status, 409);
+  assert.equal((await fetch(`${base}/api/admin/commitments/${com}/status`, { method: 'PUT', headers: P, body: JSON.stringify({ status: 'avviato' }) })).status, 409);
+  // richieste che modificano dati senza Origin e senza Sec-Fetch-Site: rifiutate
+  assert.equal((await fetch(`${base}/api/admin/companies`, { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: cookie }, body: JSON.stringify({ name: 'X' }) })).status, 403);
+  // sessione inesistente in plenaria: 404, non 500
+  assert.equal((await fetch(`${base}/api/admin/plenaria/XXX`, { headers: { Cookie: cookie } })).status, 404);
+  // report di un'azienda dell'altro ambiente: 404 chiaro
+  assert.equal((await fetch(`${base}/api/admin/report/${g}`, { headers: { Cookie: cookie } })).status, 404);
+});

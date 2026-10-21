@@ -10,7 +10,8 @@ import { radar, whereMap, benchStrip } from '../public/js/charts.js';
 // Inter (SIL OFL), sottoinsieme latino: lo stesso carattere della piattaforma web.
 const FONT_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fonts');
 const I = E.INSTRUMENT, SC = E.SCORING;
-const C = { navy: '#005172', deep: '#1F3864', gold: '#C9A84C', goldInk: '#6F5718', teal: '#1FB5B8', ink: '#16202D', ink2: '#44505F', ink3: '#5B6777', line: '#D8DFE7', bg: '#F1F4F7',
+// stessi colori della piattaforma (app.css): notte, turchese e turchese scuro; l'oro resta alle scelte valoriali
+const C = { navy: '#101D35', deep: '#101D35', gold: '#35D4C0', goldInk: '#0F766E', teal: '#0F766E', ink: '#16202D', ink2: '#44505F', ink3: '#5B6777', line: '#D8DFE7', bg: '#F1F4F7',
   risk: '#B03424', ok: '#17784B', warn: '#8A5A12' };
 const BAND_COLOR = { FOND: '#A4520F', COST: '#6F5718', CONS: '#17784B' };
 const BAND_BG = { FOND: '#FCEBDD', COST: '#F5EDD3', CONS: '#E1F2E8' };
@@ -20,8 +21,11 @@ const lvl = (l, s) => (l == null ? 'N.D.' : `${l}${s || ''}`);
 const dateIt = (d) => new Date(d).toLocaleDateString('it-IT', { day: '2-digit', month: 'long', year: 'numeric' });
 
 export function buildCompanyPdf(R) {
-  const doc = new PDFDocument({ size: 'A4', margins: { top: 50, bottom: 56, left: 48, right: 48 }, bufferPages: true,
+  const doc = new PDFDocument({ size: 'A4', margins: { top: 50, bottom: 56, left: 48, right: 48 }, bufferPages: true, lang: 'it-IT', tagged: true, displayTitle: true,
     info: { Title: `AI Transformation & Adoption Map — ${R.company.name}`, Author: 'ELIS Innovation Hub · AITO', Subject: 'AI Transformation & Adoption Map — report riservato' } });
+  // il carattere non ha frecce né ≥: si sostituiscono prima di scrivere (altrimenti nel PDF esce un quadratino)
+  const fix = (t) => (typeof t === 'string' ? t.replace(/↔/g, '«»').replace(/→/g, '»').replace(/≥\s?/g, 'da ') : t);
+  for (const fn of ['text', 'widthOfString', 'heightOfString']) { const f = doc[fn].bind(doc); doc[fn] = (t, ...a) => f(fix(t), ...a); }
   doc.registerFont('Body', path.join(FONT_DIR, 'inter-400.woff'));
   doc.registerFont('Semi', path.join(FONT_DIR, 'inter-600.woff'));
   doc.registerFont('Bold', path.join(FONT_DIR, 'inter-700.woff'));
@@ -49,7 +53,7 @@ export function buildCompanyPdf(R) {
     const y0 = doc.y;
     let x = X0;
     if (m) {
-      doc.circle(X0 + 9, y0 + 8, 9).lineWidth(1).strokeColor(C.gold).stroke();
+      doc.circle(X0 + 9, y0 + 8, 9).lineWidth(1).strokeColor(C.goldInk).stroke();
       doc.font('Bold').fontSize(9).fillColor(C.goldInk).text(m[1], X0, y0 + 3.6, { width: 18, align: 'center' });
       x = X0 + 26;
     }
@@ -177,7 +181,9 @@ export function buildCompanyPdf(R) {
     doc.font('Bold').fontSize(9).fillColor(C.ink).text(n1(d.score), tx + 128, y + 2.6, { width: 34, align: 'right' });
     if (anyDimBench) doc.font('Body').fontSize(8).fillColor(C.ink2).text(d.bench?.available ? n1(d.bench.median) : '—', tx + 166, y + 3, { width: 34, align: 'right' });
     if (d.score != null) { const b = E.band(d.score); doc.font('Bold').fontSize(7.4); const bw = doc.widthOfString(b.name) + 10; doc.roundedRect(tx + 210, y + 1.5, bw, 12, 6).fill(BAND_BG[b.id]); doc.fillColor(BAND_COLOR[b.id]).text(b.name, tx + 215, y + 4, { lineBreak: false }); }
-    else doc.font('Body').fontSize(7).fillColor(C.ink3).text(I.sessions.find((s) => s.id === d.session).name, tx + 210, y + 3.5, { width: tw - 210 });
+    // dimensione non ancora misurata: si dice quando si misura (il nome della sessione da solo sembrava una fascia)
+    else { const ss = I.sessions.find((x) => x.id === d.session); const did = R.sessions.some((x) => x.base === d.session);
+      doc.font('Body').fontSize(7).fillColor(C.ink3).text(did ? 'nessuna visibilità (N.D.)' : `si misura a ${ss.name}`, tx + 210, y + 3.5, { width: tw - 210 }); }
     y += rowH;
   }
   doc.font('Body').fontSize(7.6).fillColor(C.ink3).text('Fasce del pilot: Fondativa < 44 · In costruzione 44–69 · Consolidata da 70. Le dimensioni non ancora misurate restano N.D. e non sono disegnate come zero.', tx, y + 2, { width: tw });
@@ -193,7 +199,8 @@ export function buildCompanyPdf(R) {
     const st = c.flagged ? ['da esaminare', C.risk] : c.comparisons.some((x) => x.status === 'prudenza') ? ['prudenza', C.teal] : ['coerente', C.ok];
     const y0 = doc.y;
     doc.font('Bold').fontSize(9.6).fillColor(C.ink).text(`${c.id} · ${c.label}`, X0, y0, { continued: false });
-    tag(st[0], st[1], X0 + doc.widthOfString(`${c.id} · ${c.label}`) + 8, y0 - 0.5);
+    doc.font('Bold').fontSize(9.6);
+    tag(st[0], st[1], X0 + doc.widthOfString(`${c.id} · ${c.label}`) + 12, y0 - 0.5);
     doc.y = y0 + 13;
     for (const x of c.comparisons) para(x.available ? `${x.enabler} ${n1(x.enablerScore)}  »  ${c.dependent} ${n1(x.dependentScore)}   (scarto ${x.diff > 0 ? '+' : ''}${n1(x.diff)})${x.status === 'da_esaminare' ? '  · da esaminare' : ''}` : `${x.enabler} » ${c.dependent}: non ancora disponibile (abilitante N.D.)`, { size: 8, color: C.ink2 });
     if (c.flagged) para(`Segnale: ${c.signal}`, { size: 8 });
@@ -223,7 +230,7 @@ export function buildCompanyPdf(R) {
     doc.font('Bold').fontSize(9).fillColor(C.ink).text(`${it.itemId} ${it.title}`, X0, y0 + 5, { width: 120 });
     doc.font('Body').fontSize(7.6).fillColor(C.ink3).text(`Dim. ${it.dimension} · ${it.kind === 'allineato' ? 'modificato nell\'allineamento finale' : it.confidence || ''}`, X0, doc.y + 1, { width: 120 });
     if (it.kind !== 'allineato') doc.text(`${it.validN} ${it.validN === 1 ? 'risposta valida' : 'risposte valide'} · ${it.ndN} N.D.`, X0, doc.y, { width: 120 });
-    if (it.valoriale) tag('valoriale', '#F5EDD3', X0, doc.y + 2, C.goldInk);
+    if (it.valoriale) tag('valoriale', '#F5EDD3', X0, doc.y + 2, '#6F5718');
     doc.font('Display').fontSize(15).fillColor(C.deep).text(lvl(it.level, it.sub), X0 + 126, y0 + 3, { width: 36 });
     doc.font('Body').fontSize(8).fillColor(C.ink2).text(n1(it.score), X0 + 126, y0 + 22, { width: 36 });
     doc.font('Body').fontSize(8.3).fillColor(C.ink).text(desc, X0 + 166, y0 + 5, { width: 215, lineGap: 1 });

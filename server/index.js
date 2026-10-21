@@ -88,6 +88,25 @@ const entityEnv = (table) => (req, res, next) => {
 };
 app.use('/api/admin/sessions/:id', entityEnv('sessions'));
 app.use('/api/admin/companies/:id', entityEnv('companies'));
+// referenti e commitment: l'ambiente è quello dell'azienda a cui appartengono
+const ownerEnv = (sql) => (req, res, next) => {
+  if (!/^\d+$/.test(req.params.id)) return next();
+  const row = q.get(sql, req.params.id);
+  if (!row) return res.status(404).json({ error: 'Non trovato' });
+  if (row.seeded !== (isProva(req) ? 1 : 0)) return res.status(409).json({ error: 'Hai cambiato ambiente (DEMO/Produzione) in un\'altra scheda: ricarica la pagina e riprova.' });
+  setRequestEnv(row.seeded); next();
+};
+app.use('/api/admin/referents/:id', ownerEnv('SELECT c.seeded FROM referents r JOIN companies c ON c.id = r.company_id WHERE r.id = ?'));
+app.use('/api/admin/commitments/:id', ownerEnv('SELECT c.seeded FROM commitments m JOIN companies c ON c.id = m.company_id WHERE m.id = ?'));
+// azienda dentro una sessione: deve esistere ed essere dello stesso ambiente della sessione
+app.use('/api/admin/sessions/:sid/companies/:cid', (req, res, next) => {
+  const s = q.get('SELECT seeded FROM sessions WHERE id = ?', req.params.sid), c = q.get('SELECT seeded FROM companies WHERE id = ?', req.params.cid);
+  if (!s || !c) return res.status(404).json({ error: 'Non trovato' });
+  if (s.seeded !== c.seeded) return res.status(409).json({ error: 'Azienda e sessione appartengono ad ambienti diversi' });
+  next();
+});
+// lettura per azienda (versioni dei report, percorso): solo dell'ambiente corrente
+app.use('/api/admin/companies/:cid/:what(reports|journey)', (req, res, next) => (q.get('SELECT 1 FROM companies WHERE id = ? AND seeded = ?', req.params.cid, isProva(req) ? 1 : 0) ? next() : res.status(404).json({ error: 'Azienda non trovata' })));
 app.get('/healthz', (req, res) => res.send('ok'));
 // la trascrizione di una call Teams può essere lunga: solo quella rotta accetta fino a 1 MB
 const jsonSmall = express.json({ limit: '200kb' }), jsonBig = express.json({ limit: '1mb' });
@@ -98,6 +117,7 @@ app.use('/api', (req, res, next) => {
   const site = req.headers['sec-fetch-site'];
   if (site && !['same-origin', 'none'].includes(site)) return res.status(403).json({ error: 'Richiesta non consentita' });
   const origin = req.headers.origin;
+  if (!origin && !site) return res.status(403).json({ error: 'Richiesta non consentita' });
   if (origin) { let host = null; try { host = new URL(origin).host; } catch { /* origin non valido */ } if (host !== req.headers.host) return res.status(403).json({ error: 'Richiesta non consentita' }); }
   next();
 });
@@ -361,7 +381,7 @@ app.delete(['/api/r/:t/session/:sid/participant/:pid', '/api/f/:c/session/:sid/p
   if (!p) return bad(res, 'Partecipante non trovato', 404);
   q.run('UPDATE participants SET removed = 1 WHERE id = ?', p.id);
   L.invalidateComparison(p.session_id, p.company_id);
-  audit(refActor(r), 'participant', p.id, 'remove', { name: p.name }, null, req.body?.reason || (r.facilitator ? 'Rimosso dal facilitatore ELIS' : 'Rimosso dal referente'));
+  audit(refActor(r), 'participant', p.id, 'remove', { name: p.name }, null, txt(req.body?.reason, 1000) || (r.facilitator ? 'Rimosso dal facilitatore ELIS' : 'Rimosso dal referente'));
   return { ok: true };
 }));
 // Il facilitatore corregge nome o funzione di un partecipante (es. funzione sbagliata scelta dal telefono).
@@ -547,24 +567,26 @@ app.post('/api/admin/companies', wrap((req, res) => {
 }));
 app.put('/api/admin/companies/:id', wrap((req, res) => {
   const before = q.get('SELECT * FROM companies WHERE id = ?', req.params.id); if (!before) return bad(res, 'Non trovata', 404);
-  const { name, perimeter, sector, kind } = { ...before, ...req.body };
+  const { kind } = { ...before, ...req.body };
+  const name = txt(req.body?.name ?? before.name, 150), perimeter = txt(req.body?.perimeter ?? before.perimeter, 200), sector = txt(req.body?.sector ?? before.sector, 100);
   if (!['REALE', 'TEST', 'DEMO'].includes(kind)) return bad(res, 'Tipo non valido');
-  if (kind === 'DEMO' && before.kind !== 'DEMO') return bad(res, 'Un\'azienda non può diventare DEMO: i dati dimostrativi si creano solo da Impostazioni');
+  if (kind === 'DEMO' && before.kind !== 'DEMO') return bad(res, 'Un\'azienda non può diventare DEMO: i dati dimostrativi si caricano dall\'ambiente DEMO (pagina Programma o Percorso guidato)');
   // un'azienda dell'ambiente DEMO non diventa mai REALE: entrerebbe nel benchmark ufficiale (regole 3 e 6)
   if (kind === 'REALE' && before.kind !== 'REALE' && (before.seeded || before.kind === 'DEMO')) return bad(res, 'Un\'azienda DEMO non può diventare REALE');
-  if (!txt(name, 150)) return bad(res, 'Nome obbligatorio');
+  if (!name) return bad(res, 'Nome obbligatorio');
   q.run('UPDATE companies SET name = ?, perimeter = ?, sector = ?, kind = ? WHERE id = ?', name, perimeter, sector, kind, before.id);
-  audit(ADMIN, 'company', before.id, 'update', before, { name, perimeter, sector, kind }, req.body?.reason || null);
+  audit(ADMIN, 'company', before.id, 'update', before, { name, perimeter, sector, kind }, txt(req.body?.reason, 1000) || null);
   return { ok: true };
 }));
 app.put('/api/admin/companies/:id/consent', wrap((req, res) => {
   const { type, granted } = req.body || {};
   if (!CONSENTS.includes(type)) return bad(res, 'Tipo di consenso non valido');
+  if (!q.get('SELECT 1 FROM companies WHERE id = ?', req.params.id)) return bad(res, 'Azienda non trovata', 404);
   if (!String(req.body?.reason || '').trim()) return bad(res, 'Indicare il motivo o il riferimento del consenso (es. "modulo firmato il 10/11")');
   const before = q.get('SELECT * FROM consents WHERE company_id = ? AND type = ?', req.params.id, type);
   q.run(`INSERT INTO consents (company_id, type, granted, updated_at) VALUES (?,?,?,datetime('now'))
          ON CONFLICT(company_id, type) DO UPDATE SET granted = excluded.granted, updated_at = excluded.updated_at`, req.params.id, type, granted ? 1 : 0);
-  audit(ADMIN, 'consent', `${req.params.id}/${type}`, granted ? 'grant' : 'revoke', before, { granted: !!granted }, req.body.reason);
+  audit(ADMIN, 'consent', `${req.params.id}/${type}`, granted ? 'grant' : 'revoke', before, { granted: !!granted }, txt(req.body.reason, 1000));
   return { ok: true };
 }));
 // Dopo che i QR di una sessione sono stati generati, il referente dell'azienda non si cambia fino alla chiusura della sessione.
@@ -590,7 +612,7 @@ app.post('/api/admin/companies/:id/referents', wrap((req, res) => {
   const t = token();
   if (!q.get('SELECT 1 FROM companies WHERE id = ?', req.params.id)) return bad(res, 'Azienda non trovata', 404);
   q.run('INSERT INTO referents (company_id, name, email, role, token) VALUES (?,?,?,?,?)', req.params.id, txt(name, 120), txt(email, 200), txt(role, 120), t);
-  audit(ADMIN, 'referent', req.params.id, 'create', null, { name, email, role, func }, lk.reason);
+  audit(ADMIN, 'referent', req.params.id, 'create', null, { name: txt(name, 120), email: txt(email, 200), role: txt(role, 120), func }, lk.reason);
   if (!q.all('SELECT name FROM roster WHERE company_id = ?', req.params.id).some((r) => normName(r.name) === normName(name))) {
     const r = q.run('INSERT INTO roster (company_id, name, func) VALUES (?,?,?)', req.params.id, txt(name, 120), func);
     audit(ADMIN, 'roster', r.lastInsertRowid, 'create', null, { name: txt(name, 120), func }, 'Referente iscritto in automatico');
@@ -626,9 +648,10 @@ app.get('/api/admin/sessions', wrap((req) => q.all('SELECT * FROM sessions WHERE
 app.post('/api/admin/sessions', wrap((req, res) => {
   const { base, date, channel, title } = req.body || {};
   const def = E.sessionDef(base); if (!def) return bad(res, 'Sessione base non valida');
+  if (date && !/^\d{4}-\d{2}-\d{2}$/.test(String(date))) return bad(res, 'Data non valida');
   const r = q.run('INSERT INTO sessions (base, title, date, mode, channel, code, instrument_version, scoring_version, seeded) VALUES (?,?,?,?,?,?,?,?,?)',
-    base, title || `${def.name} · ad hoc · ${(date || '').split('-').reverse().join('/')}${isProva(req) ? ' · prova' : ''}`, date || null, 'adhoc', channel === 'remoto' ? 'remoto' : 'presenza', shortCode(5), I.version, E.SCORING.version, envOf(req));
-  audit(ADMIN, 'session', r.lastInsertRowid, 'create', null, req.body);
+    base, txt(title, 150) || `${def.name} · ad hoc · ${(date || '').split('-').reverse().join('/')}${isProva(req) ? ' · prova' : ''}`, date || null, 'adhoc', channel === 'remoto' ? 'remoto' : 'presenza', shortCode(5), I.version, E.SCORING.version, envOf(req));
+  audit(ADMIN, 'session', r.lastInsertRowid, 'create', null, { base, date: date || null, channel, title: txt(title, 150) || null });
   return { id: Number(r.lastInsertRowid) };
 }));
 app.put('/api/admin/sessions/:id/phase', wrap((req, res) => {
@@ -726,7 +749,7 @@ app.get('/api/admin/companies/:cid/commitments', wrap((req) => q.all(`SELECT c.*
 app.put('/api/admin/sessions/:sid/companies/:cid/note', wrap((req) => {
   L.ensureSessionCompany(req.params.sid, req.params.cid);
   q.run('UPDATE session_company SET leader_call_note = ? WHERE session_id = ? AND company_id = ?', txt(req.body?.note, 4000), req.params.sid, req.params.cid);
-  audit(ADMIN, 'leader_call', `${req.params.sid}/${req.params.cid}`, 'note', null, { note: req.body?.note });
+  audit(ADMIN, 'leader_call', `${req.params.sid}/${req.params.cid}`, 'note', null, { note: txt(req.body?.note, 4000) });
   return { ok: true };
 }));
 
@@ -743,7 +766,7 @@ app.put('/api/admin/sessions/:sid/companies/:cid/transcript', wrap((req, res) =>
   const date = /^\d{4}-\d{2}-\d{2}$/.test(req.body?.date || '') ? req.body.date : null;
   q.run('UPDATE session_company SET leader_call_transcript = ?, leader_call_at = ? WHERE session_id = ? AND company_id = ?', text, date, s.id, c.id);
   audit(ADMIN, 'leader_call', `${s.id}/${c.id}`, sc.leader_call_transcript ? 'transcript_update' : 'transcript',
-    sc.leader_call_transcript ? { date: sc.leader_call_at, transcript: sc.leader_call_transcript } : null, { date, chars: text.length }, req.body?.reason || null);
+    sc.leader_call_transcript ? { date: sc.leader_call_at, transcript: sc.leader_call_transcript } : null, { date, chars: text.length }, txt(req.body?.reason, 1000) || null);
   return { ok: true, ...L.releaseReport(s.id, c.id, ADMIN) };
 }));
 
@@ -773,7 +796,7 @@ app.get('/api/admin/sessions/:sid/pdfs.zip', async (req, res) => {
     const comps = q.all('SELECT company_id FROM session_company WHERE session_id = ? AND consolidated_at IS NOT NULL', s.id);
     if (!comps.length) return bad(res, 'Nessuna azienda ha ancora consolidato in questa sessione');
     // generare molti PDF occupa il server per alcuni secondi: durante una sessione in corso si chiede conferma
-    const live = q.get("SELECT title FROM sessions WHERE phase IN ('individuale', 'confronto', 'consolidamento') LIMIT 1");
+    const live = q.get("SELECT title FROM sessions WHERE phase IN ('individuale', 'confronto', 'consolidamento') AND seeded = ? LIMIT 1", s.seeded);
     if (live && req.query.force !== '1') return bad(res, `C'è una sessione in corso (${live.title}): generare lo zip rallenterebbe i telefoni per alcuni secondi. Meglio scaricarlo a sessione chiusa.`, 409);
     const zip = new JSZip();
     for (const c of comps) {
@@ -788,7 +811,7 @@ app.get('/api/admin/sessions/:sid/pdfs.zip', async (req, res) => {
     res.type('application/zip').send(buf);
   } catch (e) { console.error(e); res.status(500).json({ error: 'Errore interno: riprova.' }); }
 });
-app.get('/api/admin/plenaria/:base', wrap((req) => L.plenaria(req.params.base, { preview: isProva(req) })));
+app.get('/api/admin/plenaria/:base', wrap((req, res) => (E.sessionDef(req.params.base) ? L.plenaria(req.params.base, { preview: isProva(req) }) : bad(res, 'Sessione non trovata', 404))));
 app.get('/api/admin/maps/:base', wrap((req, res) => (I.sessions.some((x) => x.id === req.params.base) ? L.sessionMaps(req.params.base, { preview: isProva(req) }) : bad(res, 'Sessione non trovata', 404))));
 // Report per l'admin: una versione rilasciata (?snap=id) oppure la bozza corrente, marcata come tale.
 function reportFor(cid, req, admin) {
@@ -797,7 +820,7 @@ function reportFor(cid, req, admin) {
   if (admin) return { ...L.companyReport(cid, { final: req.query.final === '1' }), draft: true };
   return L.getSnapshot(cid);
 }
-app.get('/api/admin/report/:cid', wrap((req) => reportFor(Number(req.params.cid), req, true)));
+app.get('/api/admin/report/:cid', wrap((req, res) => reportFor(Number(req.params.cid), req, true) || bad(res, 'Azienda non trovata in questo ambiente', 404)));
 app.post('/api/admin/correct', wrap((req, res) => {
   const { companyId, itemId, level, sub, reason } = req.body || {};
   const co = q.get('SELECT seeded FROM companies WHERE id = ?', companyId);
@@ -814,6 +837,9 @@ const envCompany = (req, res) => {
   return c;
 };
 app.get('/api/admin/alignment', wrap((req) => AL.overview(envOf(req))));
+// "Primi passi": le domande consultate valgono per tutto il team, non solo per il browser di chi le ha aperte
+app.get('/api/admin/flags', wrap((req) => ({ questionsSeen: getSetting(`questions_seen_${envOf(req) ? 'demo' : 'prod'}`) === '1' })));
+app.post('/api/admin/flags/questions-seen', wrap((req) => { setSetting(`questions_seen_${envOf(req) ? 'demo' : 'prod'}`, '1'); return { ok: true }; }));
 app.post('/api/admin/alignment/open', wrap((req, res) => {
   if (req.body?.env != null && Number(req.body.env) !== envOf(req)) return bad(res, 'Hai cambiato ambiente (DEMO/Produzione) in un\'altra scheda: ricarica la pagina e riprova.', 409);
   AL.setOpen(envOf(req), !!req.body?.open, ADMIN, txt(req.body?.reason, 1000)); return AL.overview(envOf(req)); }));
@@ -865,7 +891,7 @@ app.get('/api/admin/export.xlsx', async (req, res) => {
 app.get('/api/report/:cid/pdf', async (req, res) => {
   try {
     const cid = Number(req.params.cid);
-    if (isAdmin(req)) return await sendPdf(res, reportFor(cid, req, true));
+    if (isAdmin(req) && !req.query.t) { const R = reportFor(cid, req, true); return R ? await sendPdf(res, R) : bad(res, 'Azienda non trovata in questo ambiente', 404); }
     const r = q.get('SELECT * FROM referents WHERE token = ?', String(req.query.t || ''));
     if (!r || r.company_id !== cid) return bad(res, 'Non autorizzato', 401);
     const R = reportFor(cid, req, false);
@@ -875,7 +901,7 @@ app.get('/api/report/:cid/pdf', async (req, res) => {
 });
 app.get('/api/report/:cid', wrap((req, res) => {
   const cid = Number(req.params.cid);
-  if (isAdmin(req) && !req.query.t) return reportFor(cid, req, true);
+  if (isAdmin(req) && !req.query.t) return reportFor(cid, req, true) || bad(res, 'Azienda non trovata in questo ambiente (controlla DEMO/Produzione)', 404);
   const r = q.get('SELECT * FROM referents WHERE token = ?', String(req.query.t || ''));
   if (!r || r.company_id !== cid) return bad(res, 'Non autorizzato', 401);
   const R = reportFor(cid, req, false);

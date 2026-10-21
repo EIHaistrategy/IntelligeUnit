@@ -14,6 +14,8 @@ const BASE = process.env.AITO_BASE || 'http://localhost:3100';
 const PW = process.env.AITO_PW || 'testpass123';
 const OUT = process.argv[2] || './e2e-out';
 fs.mkdirSync(OUT, { recursive: true });
+// conferma nella finestra della pagina (riepilogo prima di azioni importanti)
+const okAsk = async (p) => { await p.waitForSelector('dialog.askbox[open]'); await p.click('dialog.askbox[open] button[type=submit]'); };
 const shot = async (page, name, full = true) => page.screenshot({ path: `${OUT}/${name}.png`, fullPage: full });
 const errors = [];
 
@@ -21,7 +23,7 @@ const browser = await chromium.launch(process.env.PW_CHROMIUM ? { executablePath
 const watch = (p, tag) => { p.on('pageerror', (e) => errors.push(`${tag}: ${e.message}`)); p.on('console', (m) => m.type() === 'error' && errors.push(`${tag} console: ${m.text()}`)); };
 
 // ---- Admin
-const adminCtx = await browser.newContext({ viewport: { width: 1360, height: 900 } });
+const adminCtx = await browser.newContext({ viewport: { width: 1360, height: 900 }, extraHTTPHeaders: { Origin: BASE } });
 const admin = await adminCtx.newPage(); watch(admin, 'admin');
 await admin.goto(`${BASE}/admin`);
 await admin.fill('#pw', PW); await admin.click('#go');
@@ -38,7 +40,7 @@ const refToken = refUrl.split('/r/')[1];
 await shot(admin, '02-admin-azienda');
 
 // ---- Referente: prima della sessione vede solo le domande, in sola lettura (decisione del 20/10/2026)
-const refCtx = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+const refCtx = await browser.newContext({ viewport: { width: 1200, height: 900 }, extraHTTPHeaders: { Origin: BASE } });
 const ref = await refCtx.newPage(); watch(ref, 'ref');
 await ref.goto(`${BASE}/r/${refToken}`); await ref.waitForSelector('text=Le domande della sessione');
 await shot(ref, '03-ref-domande');
@@ -67,7 +69,7 @@ const ros = await admin.request.post(`${BASE}/api/admin/companies/${company.id}/
 if (!ros.ok()) errors.push('iscrizione della persona non riuscita');
 const phones = [];
 for (const pp of people) {
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, extraHTTPHeaders: { Origin: BASE } });
   const pg = await ctx.newPage(); watch(pg, pp.name);
   await pg.goto(BASE + joinPath); await pg.waitForSelector('#go');
   if (phones.length === 0) await shot(pg, '05-phone-join', false);
@@ -144,11 +146,11 @@ await shot(ref, '13-ref-consolidamento-iniziale');
 await ref.click('#it-Q2 [data-s="B"]');
 // prova override su Q1 senza motivazione → errore atteso
 await ref.click('#it-Q1 [data-l="4"]');
-await ref.click('#confirm');
+await ref.click('#confirm'); await okAsk(ref);
 await ref.waitForSelector('.banner.risk');
 const errText = await ref.textContent('#errs');
 await ref.fill('#it-Q1 [data-reason]', 'Il piano industriale 2026 include l\'AI ed è stato comunicato a tutti i dirigenti');
-await ref.click('#confirm');
+await ref.click('#confirm'); await okAsk(ref);
 await ref.waitForSelector('text=Risultato consolidato', { timeout: 10000 });
 await ref.selectOption('#c_item', 'Q2');
 await ref.fill('#c_action', 'Formalizzare il mandato dello sponsor con budget e obiettivi annuali');

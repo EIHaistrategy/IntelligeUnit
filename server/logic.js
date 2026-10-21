@@ -519,6 +519,10 @@ export function releaseFinalReport(companyId, actor) {
     || q.get("SELECT * FROM sessions WHERE seeded = ? AND mode = 'workshop' ORDER BY date DESC LIMIT 1", company.seeded ? 1 : 0);
   if (!s) return { ok: false, errors: ['Nessuna sessione a cui collegare il report'] };
   const R = companyReport(companyId, { final: true });
+  // niente versioni identiche: se nulla è cambiato dall'ultima versione rilasciata, non se ne crea un'altra
+  const last = q.get("SELECT data_json FROM report_snapshots WHERE company_id = ? AND kind = 'finale' ORDER BY id DESC LIMIT 1", companyId);
+  const same = (x) => JSON.stringify({ ...x, generatedAt: null, snapshot: null });
+  if (last && same(JSON.parse(last.data_json)) === same(R)) return { ok: false, errors: ['Nulla è cambiato dall\'ultima versione rilasciata: non serve una nuova versione'] };
   const n = q.get("SELECT COUNT(*) n FROM report_snapshots WHERE company_id = ? AND kind = 'finale'", companyId).n + 1;
   // nell'indice delle versioni il report unificato sta da 1001 in su: non toglie numeri ai report di sessione
   const version = 1000 + n;

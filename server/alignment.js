@@ -51,7 +51,8 @@ export function alignmentState(companyId, seeded) {
   const suggested = E.proposePriorities(Object.fromEntries(items.map((i) => [i.itemId, i.current ? i.current.score : i.base?.score ?? null])), after)
     .slice(0, 3).map((p) => p.dimension);
   return {
-    open: isOpen(seeded), confirmedAt: h?.confirmed_at || null, confirmedBy: h?.confirmed_by || null,
+    open: isOpen(seeded), confirmedAt: h?.confirmed_at || null,
+    released: !!q.get("SELECT 1 FROM report_snapshots WHERE company_id = ? AND kind = 'finale'", companyId), confirmedBy: h?.confirmed_by || null,
     priorities: parse(h?.priorities_json, []), prioritiesNote: h?.priorities_note || '', suggestedPriorities: suggested,
     items, dims, reviewed: toReview.filter((i) => i.current).length, total: toReview.length,
     changed: items.filter((i) => i.current?.action === 'modifica').length,
