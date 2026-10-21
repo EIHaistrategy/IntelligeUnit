@@ -4,6 +4,7 @@ import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { AsyncLocalStorage } from 'node:async_hooks';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DATA_DIR = process.env.AITO_DATA_DIR || path.join(ROOT, 'data');
@@ -178,9 +179,12 @@ for (const sql of ["ALTER TABLE commitments ADD COLUMN status_note TEXT", "ALTER
   "ALTER TABLE session_company ADD COLUMN invited_at TEXT", "ALTER TABLE session_company ADD COLUMN qr_generated_at TEXT",
   "ALTER TABLE participants ADD COLUMN roster_id INTEGER",
   // trascrizione della call con il leader (Teams), allegata al report in una nuova versione
-  "ALTER TABLE session_company ADD COLUMN leader_call_transcript TEXT", "ALTER TABLE session_company ADD COLUMN leader_call_at TEXT"]) {
+  "ALTER TABLE session_company ADD COLUMN leader_call_transcript TEXT", "ALTER TABLE session_company ADD COLUMN leader_call_at TEXT",
+  // registro modifiche separato per ambiente: le righe già presenti sono di Produzione, tranne quelle del caricamento DEMO
+  "ALTER TABLE audit ADD COLUMN seeded INTEGER NOT NULL DEFAULT 0"]) {
   try { db.exec(sql); } catch { /* colonna già presente */ }
 }
+db.exec("UPDATE audit SET seeded = 1 WHERE seeded = 0 AND actor LIKE 'demo%'");
 
 export const token = (n = 18) => crypto.randomBytes(n).toString('base64url');
 export const shortCode = (n = 6) => {
@@ -201,10 +205,16 @@ export function tx(fn) {
   try { const r = fn(); db.exec('COMMIT'); return r; } catch (e) { db.exec('ROLLBACK'); throw e; }
 }
 
+// Ambiente della richiesta in corso (0 Produzione, 1 DEMO): lo imposta il server per ogni richiesta,
+// così ogni riga del registro sa a quale ambiente appartiene senza passarlo a mano.
+export const envStore = new AsyncLocalStorage();
+export const setRequestEnv = (seeded) => { const st = envStore.getStore(); if (st) st.seeded = seeded ? 1 : 0; };
+
 export function audit(actor, entity, entityId, action, before, after, reason = null) {
-  q.run('INSERT INTO audit (actor, entity, entity_id, action, before_json, after_json, reason) VALUES (?,?,?,?,?,?,?)',
+  const seeded = String(actor || '').startsWith('demo') ? 1 : (envStore.getStore()?.seeded ?? 0);
+  q.run('INSERT INTO audit (actor, entity, entity_id, action, before_json, after_json, reason, seeded) VALUES (?,?,?,?,?,?,?,?)',
     actor, entity, String(entityId ?? ''), action,
-    before == null ? null : JSON.stringify(before), after == null ? null : JSON.stringify(after), reason);
+    before == null ? null : JSON.stringify(before), after == null ? null : JSON.stringify(after), reason, seeded);
 }
 
 export function getSetting(key) { return q.get('SELECT value FROM settings WHERE key = ?', key)?.value; }

@@ -5,7 +5,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import QRCode from 'qrcode';
-import { q, db, DB_PATH, token, shortCode, audit, getSetting, setSetting } from './db.js';
+import { q, db, DB_PATH, token, shortCode, audit, getSetting, setSetting, envStore, setRequestEnv } from './db.js';
 import * as L from './logic.js';
 import * as E from './engine/index.js';
 import { buildExport } from './export.js';
@@ -13,7 +13,7 @@ import { pdfBuffer, pdfFileName } from './pdf.js';
 import { liveDashboard } from './live.js';
 import JSZip from 'jszip';
 import compression from 'compression';
-import { seedDemo, removeDemo, hasDemo } from './demo.js';
+import { seedDemo, removeDemo, hasDemo, resetDemo, advanceDemo, tourState } from './demo.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(here, '../public');
@@ -69,10 +69,14 @@ if (process.env.RENDER || process.env.TRUST_PROXY === '1') app.set('trust proxy'
 app.use((req, res, next) => {
   res.setHeader('Referrer-Policy', 'no-referrer'); // i link personali dei referenti non escono verso altri siti
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'DENY');
+  // le pagine si possono mostrare solo dentro questo stesso sito (anteprima del telefono nel percorso guidato DEMO)
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Content-Security-Policy', "frame-ancestors 'self'");
   next();
 });
 app.use(compression());
+// ogni richiesta porta con sé il suo ambiente, per il registro modifiche (Produzione o DEMO)
+app.use((req, res, next) => envStore.run({ seeded: isProva(req) ? 1 : 0 }, next));
 app.get('/healthz', (req, res) => res.send('ok'));
 // la trascrizione di una call Teams può essere lunga: solo quella rotta accetta fino a 1 MB
 const jsonSmall = express.json({ limit: '200kb' }), jsonBig = express.json({ limit: '1mb' });
@@ -165,6 +169,7 @@ app.get('/api/join/:code', wrap((req, res) => {
 app.post('/api/join/:code', wrap((req, res) => {
   const s = q.get('SELECT * FROM sessions WHERE code = ?', req.params.code);
   if (!s) return bad(res, 'Sessione non trovata', 404);
+  setRequestEnv(s.seeded);
   if (!['preparazione', 'individuale'].includes(s.phase)) return bad(res, 'La fase individuale è chiusa: non è più possibile registrarsi a questa sessione.');
   if (joinBlocked(req)) return bad(res, TOO_MANY, 429);
   const { companyId, companyCode, privacyAck, rosterId } = req.body || {};
@@ -207,6 +212,7 @@ function participant(req, res) {
   const p = q.get('SELECT * FROM participants WHERE token = ?', req.params.t);
   if (!p) { bad(res, 'Partecipante non riconosciuto', 404); return null; }
   if (p.removed) { bad(res, 'La registrazione è stata annullata dal referente aziendale', 403); return null; }
+  setRequestEnv(q.get('SELECT seeded FROM sessions WHERE id = ?', p.session_id)?.seeded);
   return p;
 }
 
@@ -286,6 +292,7 @@ function referent(req, res) {
   }
   const r = q.get('SELECT r.*, c.name company_name, c.kind company_kind, c.perimeter, c.seeded company_seeded FROM referents r JOIN companies c ON c.id = r.company_id WHERE r.token = ?', req.params.t);
   if (!r) { bad(res, 'Link referente non valido', 404); return null; }
+  setRequestEnv(r.company_seeded);
   return r;
 }
 // Il referente vede solo le sessioni del suo ambiente: azienda reale → sessioni di produzione, azienda di prova → sessioni di prova.
@@ -755,7 +762,11 @@ app.post('/api/admin/correct', wrap((req, res) => {
   if (!out.ok) return bad(res, out.errors.join(' · '));
   return out;
 }));
-app.get('/api/admin/demo', wrap(() => ({ present: hasDemo(), vetrina: q.get("SELECT id FROM companies WHERE seeded = 1 AND kind = 'TEST' ORDER BY id LIMIT 1")?.id || null })));
+// Ambiente DEMO: stato del percorso guidato, caricamento, avanzamento e reset. Mai in Produzione.
+const onlyDemo = (req, res) => { if (isProva(req)) return true; bad(res, 'Disponibile solo nell\'ambiente DEMO', 403); return false; };
+app.get('/api/admin/demo', wrap((req) => ({ ...(isProva(req) ? tourState() : { present: hasDemo() }), vetrina: isProva(req) ? q.get("SELECT id FROM companies WHERE seeded = 1 AND kind = 'TEST' ORDER BY id LIMIT 1")?.id || null : null })));
+app.post('/api/admin/demo/advance', wrap((req, res) => (onlyDemo(req, res) ? advanceDemo(['step', 'session', 'end'].includes(req.body?.mode) ? req.body.mode : 'step') : undefined)));
+app.post('/api/admin/demo/reset', wrap((req, res) => (onlyDemo(req, res) ? resetDemo() : undefined)));
 // Elenco dei commitment dell'ambiente corrente, per la verifica dopo le sessioni (§11, §12)
 app.get('/api/admin/commitments', wrap((req) => q.all(`SELECT m.*, c.name company_name, c.kind company_kind, s.title session_title, s.base, s.date session_date
   FROM commitments m JOIN companies c ON c.id = m.company_id JOIN sessions s ON s.id = m.session_id WHERE c.seeded = ? ORDER BY s.date, c.name`, envOf(req))));
@@ -772,9 +783,10 @@ app.get('/api/admin/companies/:cid/journey', wrap((req) => {
       commitment: q.get('SELECT priority_item, status FROM commitments WHERE session_id = ? AND company_id = ?', s.id, c.id) || null };
   });
 }));
-app.post('/api/admin/demo', wrap((req, res) => (hasDemo() ? bad(res, 'Dati dimostrativi già presenti') : seedDemo())));
-app.delete('/api/admin/demo', wrap(() => removeDemo()));
-app.get('/api/admin/audit', wrap(() => q.all('SELECT * FROM audit ORDER BY id DESC LIMIT 500')));
+app.post('/api/admin/demo', wrap((req, res) => (onlyDemo(req, res) ? seedDemo() : undefined)));
+app.delete('/api/admin/demo', wrap((req, res) => (onlyDemo(req, res) ? removeDemo() : undefined)));
+// registro modifiche dell'ambiente corrente
+app.get('/api/admin/audit', wrap((req) => q.all('SELECT * FROM audit WHERE seeded = ? ORDER BY id DESC LIMIT 500', envOf(req))));
 app.get('/api/admin/export.xlsx', async (req, res) => {
   try {
     const buf = await buildExport();
