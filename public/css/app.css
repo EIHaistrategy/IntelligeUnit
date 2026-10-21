@@ -57,7 +57,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px
 .tag .ico { width: 13px; height: 13px; vertical-align: -2px; }
 .back .ico { width: 15px; height: 15px; vertical-align: -3px; }
 /* I titoli ricevono il focus solo per i lettori di schermo al cambio di pagina: niente cornice */
-h1[tabindex="-1"]:focus, h2[tabindex="-1"]:focus { outline: none; }
+h1[tabindex="-1"]:focus, h2[tabindex="-1"]:focus { outline: none; box-shadow: none; }
 .netwarn { position: sticky; top: 0; z-index: 60; background: #8A2A1F; color: #fff; padding: 9px 16px; font-weight: 600; font-size: .92rem; text-align: center; }
 a { color: var(--navy); text-underline-offset: 2px; text-decoration-thickness: 1px; }
 a:hover { text-decoration-thickness: 2px; }
@@ -781,3 +781,53 @@ tbody tr:hover td { background: #FAFCFE; }
 .audit-d div { display: grid; gap: 2px; margin-top: 6px; }
 .audit-d code { display: block; font: .78rem ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--sunken); border: 1px solid var(--line-2); border-radius: 6px; padding: 6px 8px; white-space: pre-wrap; word-break: break-word; max-height: 160px; overflow: auto; color: var(--ink-2); }
 .tablesearch input[type=search] { width: 100%; font: inherit; font-size: .94rem; padding: 9px 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: #fff; color: var(--ink); }
+
+/* ======================================================================
+   Ambiente DEMO: barra sulle pagine pubbliche e percorso guidato nella console
+   ====================================================================== */
+.demobar { background: var(--gold); color: #1F1804; text-align: center; font-size: .82rem; font-weight: 600; padding: 6px 12px; letter-spacing: .01em; position: sticky; top: 58px; z-index: 19; }
+.demobar b { letter-spacing: .06em; }
+@media (max-width: 760px) { .demobar { position: static; } }
+.provabar b { letter-spacing: .06em; }
+.console .tstages { list-style: none; margin: 0 0 12px; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.console .tstage { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); min-width: 0; }
+.console .tstage span:last-child { display: grid; min-width: 0; line-height: 1.25; }
+.console .tstage b { font-size: .92rem; } .console .tstage small { font-size: .78rem; color: var(--ink-3); }
+.console .tstage.st-live { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.console .tstage .stage-n { width: 28px; height: 28px; }
+.console .tsteps { list-style: none; margin: 0 0 16px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.console .tsteps li { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px 5px 6px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); font-size: .8rem; color: var(--ink-2); }
+.console .tsteps li > span { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: .7rem; font-weight: 700; background: var(--line-2); color: var(--ink-2); }
+.console .tsteps li > span .ico { width: 11px; height: 11px; }
+.console .tsteps li.done > span { background: var(--ok); color: #fff; }
+.console .tsteps li.on { border-color: var(--accent); background: var(--accent-soft); color: var(--night); font-weight: 600; }
+.console .tsteps li.on > span { background: var(--accent); color: var(--night); }
+.console .tourbar { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; padding: 18px 22px; background: var(--night); color: #fff; border-radius: var(--radius-lg); margin-bottom: 16px; }
+.console .tourbar h2 { color: #fff; margin: 2px 0 4px; font-size: 1.3rem; }
+.console .tourbar p { margin: 0; color: #C3CEDE; max-width: 70ch; }
+.console .tourbar .eyebrow { color: var(--accent); margin: 0; }
+.console .tourbar .btn.ghost, .console .tourbar button.ghost { background: transparent; color: #fff; border-color: rgba(255,255,255,.3); }
+.console .tourbar button.ghost:hover { border-color: var(--accent); color: var(--accent); }
+.console .tourbar button:focus-visible { box-shadow: 0 0 0 5px #fff; }
+.console .tour-actions .ico { width: 16px; height: 16px; }
+.console .tourtabs { display: none; gap: 6px; margin-bottom: 10px; }
+.console .tourtabs button { background: var(--surface); color: var(--ink); border-color: var(--line-strong); }
+.console .tourtabs button[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: var(--night); }
+.console .tourpanes { display: grid; grid-template-columns: minmax(0, 1fr) 430px; gap: 16px; align-items: start; }
+.console .tp-admin h3, .console .tp-phone h3 { margin: 0 0 6px; }
+.console .tlinks { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 16px; }
+.console .tfacts { display: grid; gap: 10px; margin: 0; padding-top: 14px; border-top: 1px solid var(--line-2); }
+.console .tfacts div { display: grid; grid-template-columns: 140px 1fr; gap: 12px; font-size: .9rem; }
+.console .tfacts dt { color: var(--ink-3); font-weight: 600; } .console .tfacts dd { margin: 0; }
+.console .phone { width: 100%; max-width: 390px; margin: 10px auto 12px; border: 10px solid var(--night); border-radius: 32px; overflow: hidden; background: #fff; box-shadow: var(--lift); }
+.console .phone-frame { display: block; width: 100%; height: 700px; border: 0; }
+.console .phone-static { padding: 26px 20px; min-height: 360px; }
+.console .phone-static h3 { margin: 4px 0 10px; }
+@media (max-width: 1180px) { .console .tourpanes { grid-template-columns: minmax(0, 1fr) 400px; } .console .tstages { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 1023px) {
+  .console .tourtabs { display: flex; }
+  .console .tourpanes { grid-template-columns: 1fr; }
+  .console .tourpanes.view-admin .tp-phone, .console .tourpanes.view-phone .tp-admin { display: none; }
+  .console .tstages { grid-template-columns: 1fr 1fr; }
+  .console .tfacts div { grid-template-columns: 1fr; gap: 2px; }
+}

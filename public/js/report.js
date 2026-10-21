@@ -1,4 +1,4 @@
-import { api, esc, $, fmtScore, fmtNum, fmtDate, bandTag, levelLabel } from './ui.js';
+import { api, esc, $, fmtScore, fmtNum, fmtDate, bandTag, levelLabel, demoBar } from './ui.js';
 import { radar, whereMap, benchStrip } from './charts.js';
 
 const cid = location.pathname.split('/').pop();
@@ -31,7 +31,7 @@ async function boot() {
   const dDate = (s) => (s ? `<span class="nowrap">${new Date(s).toLocaleDateString('it-IT')}</span>` : '—');
 
   app.innerHTML = `
-  ${R.preview || R.draft ? `<div class="banner ${R.preview ? 'preview' : 'warn'} noprint">${[R.preview ? 'Ambiente DEMO: confronto calcolato sui dati dimostrativi, non è un report ufficiale.' : '', R.draft ? '<b>Bozza</b>: versione calcolata ora, non ancora rilasciata; l\'azienda vede solo le versioni rilasciate, che non cambiano più.' : ''].filter(Boolean).join(' ')}</div>` : ''}
+  ${R.preview ? (demoBar('report non ufficiale'), '') : ''}${R.draft ? `<div class="banner warn noprint">${['', R.draft ? '<b>Bozza</b>: versione calcolata ora, non ancora rilasciata; l\'azienda vede solo le versioni rilasciate, che non cambiano più.' : ''].filter(Boolean).join(' ')}</div>` : ''}
   ${R.snapshot ? `<div class="banner ok">Versione rilasciata v${R.snapshot.version} · ${esc(R.snapshot.sessionTitle)} · ${fmtDate(R.snapshot.releasedAt)}</div>` : ''}
   <div id="versions" class="noprint"></div>
   <div class="cover"><div class="eyebrow">AI Transformation &amp; Adoption Map · report riservato</div>

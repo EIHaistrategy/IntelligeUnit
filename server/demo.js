@@ -239,7 +239,8 @@ function community(sess, S) {
              VALUES (?,?,?,'sessione',?,?,?,'MEDIA','Media','dato dimostrativo',?,3,0,1,2,?,?,?)`,
         sess.id, c.id, itemId, level, sub, E.itemScore(itemId, level, sub), level, I.version, E.SCORING.version, ACTOR);
     }
-    q.run("INSERT OR IGNORE INTO session_company (session_id, company_id, consolidated_at, consolidated_by) VALUES (?, ?, datetime('now'), ?)", sess.id, c.id, ACTOR);
+    // la community è lo sfondo del benchmark: report e call si considerano già fatti, così "Da fare" parla solo dell'azienda guidata
+    q.run("INSERT OR IGNORE INTO session_company (session_id, company_id, consolidated_at, consolidated_by, report_released_at, leader_call_note) VALUES (?, ?, datetime('now'), ?, datetime('now'), 'Dato dimostrativo')", sess.id, c.id, ACTOR);
     const prio = def.items.slice().sort((a, b) => lv[a] - lv[b])[0];
     q.run("INSERT INTO commitments (session_id, company_id, priority_item, action, owner, kpi, peer_interest) VALUES (?, ?, ?, 'Azione dimostrativa', 'Demo', 'Evidenza dimostrativa', ?)",
       sess.id, c.id, prio, rnd() < 0.5 ? 1 : 0);

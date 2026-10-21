@@ -160,7 +160,7 @@ app.get('/api/join/:code', wrap((req, res) => {
   let pre = null;
   if (req.query.c) { pre = joinCompany(s, 'code', String(req.query.c).toUpperCase().slice(0, 10)); if (!pre) joinFail(req); }
   const companies = mode === 'elenco' ? q.all('SELECT id, name, join_code FROM companies WHERE seeded = ? ORDER BY name', s.seeded ? 1 : 0).filter((c) => joinCompany(s, 'id', c.id)) : [];
-  return { session: { id: s.id, title: s.title, base: s.base, phase: s.phase }, mode, preselected: pre ? { id: pre.id, name: pre.name, code: pre.join_code } : null,
+  return { session: { id: s.id, title: s.title, base: s.base, phase: s.phase, demo: !!s.seeded }, mode, preselected: pre ? { id: pre.id, name: pre.name, code: pre.join_code } : null,
     roster: pre ? rosterFor(s, pre) : [],
     companies: companies.map((c) => ({ id: c.id, name: c.name, code: c.join_code })), functions: I.functions,
     privacyUrl: getSetting('privacy_url') || null };
@@ -221,7 +221,7 @@ app.get('/api/p/:t', wrap((req, res) => {
   const st = L.participantState(p);
   const company = q.get('SELECT name FROM companies WHERE id = ?', p.company_id);
   const out = { participant: { name: p.name, func: p.func, submitted_at: p.submitted_at }, company: company.name,
-    session: { id: st.session.id, title: st.session.title, base: st.session.base, phase: st.session.phase },
+    session: { id: st.session.id, title: st.session.title, base: st.session.base, phase: st.session.phase, demo: !!st.session.seeded },
     answers: st.answers, answered: st.answered, pairAnswers: st.pairs };
   // ?lite=1: il telefono ha già le definizioni degli item, si inviano solo fase e dati
   if (req.query.lite !== '1') Object.assign(out, { items: st.def.items.map((id) => ({ id, ...I.items[id] })), pairs: st.def.pairs, pairQuestion: I.pairQuestion });
@@ -315,7 +315,7 @@ app.get(['/api/r/:t', '/api/f/:c'], wrap((req, res) => {
       presession_updated_at: pre.updated_at, participants: L.activeParticipants(s.id, r.company_id).length,
       commitment: !!q.get('SELECT 1 FROM commitments WHERE session_id = ? AND company_id = ?', s.id, r.company_id), leader_call: !!sc?.leader_call_note };
   }).filter((s) => s.mode === 'workshop' || s.participants > 0 || s.consolidated_at || q.get('SELECT 1 FROM session_company WHERE session_id = ? AND company_id = ?', s.id, r.company_id));
-  return { referent: { name: r.name, companyId: r.company_id, company: r.company_name, perimeter: r.perimeter, kind: r.company_kind }, sessions,
+  return { referent: { name: r.name, companyId: r.company_id, company: r.company_name, perimeter: r.perimeter, kind: r.company_kind, demo: !!r.company_seeded }, sessions,
     reports: L.listSnapshots(r.company_id) };
 }));
 

@@ -1,4 +1,4 @@
-import { api, esc, $, $$, toast, poll, distBars, confTag, phaseChips, qrImg, fmtScore, fmtDate, bandTag, levelLabel, alt, icon } from './ui.js';
+import { api, esc, $, $$, toast, poll, distBars, confTag, phaseChips, qrImg, fmtScore, fmtDate, bandTag, levelLabel, alt, icon, demoBar } from './ui.js';
 
 const T = location.pathname.split('/').pop();
 // La stessa pagina serve al facilitatore ELIS (/tavolo-elis/:azienda, dalla console): conduce confronto e consolidamento
@@ -28,6 +28,7 @@ async function boot() {
     return;
   }
   $('#who').textContent = `${me.referent.company} · ${me.referent.name}`;
+  if (me.referent.demo) demoBar();
   if (FAC) document.title = `AI Transformation & Adoption Map · Tavolo ${me.referent.company}`;
   addEventListener('hashchange', route);
   route();

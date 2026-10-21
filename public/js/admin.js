@@ -17,6 +17,7 @@ const longDate = (d) => (d ? new Date(`${d}T12:00:00`).toLocaleDateString('it-IT
 const isoDay = (d) => d.toISOString().slice(0, 10);
 const PHASE_LABEL = { preparazione: 'In preparazione', individuale: 'In sala: risposte individuali', confronto: 'In sala: confronto', consolidamento: 'In sala: consolidamento', chiusa: 'Chiusa' };
 let SESSIONS = [];
+let SIMDAY = null; // DEMO: data simulata del percorso guidato (scadenze e giorni mancanti si calcolano su questa)
 
 async function boot() {
   const me = await api('/api/admin/me');
@@ -28,6 +29,7 @@ async function boot() {
   $('#envswitch').classList.remove('hidden');
   if (PROVA) { document.body.classList.add('prova'); $('#provabar').classList.remove('hidden'); }
   shell();
+  if (PROVA) await refreshSimDay();
   addEventListener('hashchange', route);
   route();
 }
@@ -93,6 +95,7 @@ async function buildNav(view, arg) {
       `${esc(sessName(s))}<small>${esc(shortDate(s.date))}${live(s) ? ' · in corso' : s.phase === 'chiusa' ? ' · chiusa' : ''}</small>`, sid === s.id, 'navsess',
       `${sessName(s)} · ${shortDate(s.date)}${live(s) ? ' · in corso' : s.phase === 'chiusa' ? ' · chiusa' : ''}`)).join('')}
     </div>
+    ${PROVA ? link('#/percorso', ico('flag'), 'Percorso guidato', view === 'percorso') : ''}
     ${link('#/domande', ico('list'), 'Domande delle sessioni', view === 'domande')}
     <div class="navgroup">Operatività</div>
     ${link('#/adhoc', ico('plus'), `Sessioni ad hoc${adhoc().length ? ` <span class="navcount">${adhoc().length}</span>` : ''}`, view === 'adhoc' || (cur && cur.mode === 'adhoc'), '', 'Sessioni ad hoc')}
@@ -105,7 +108,7 @@ async function buildNav(view, arg) {
   // percorso in alto: dove si è, con i livelli superiori cliccabili
   const C = (label, href) => ({ label, href });
   const trail = {
-    programma: [C('Programma')], domande: [C('Programma', '#/programma'), C('Domande delle sessioni')],
+    programma: [C('Programma')], percorso: [C('Programma', '#/programma'), C('Percorso guidato')], domande: [C('Programma', '#/programma'), C('Domande delle sessioni')],
     adhoc: [C('Operatività'), C('Sessioni ad hoc')], report: [C('Operatività'), C('Report e call con i leader')], commitment: [C('Operatività'), C('Commitment e verifica')],
     aziende: [C('Amministrazione'), C('Aziende e referenti')], azienda: [C('Amministrazione'), C('Aziende e referenti', '#/aziende'), C('Scheda azienda')],
     audit: [C('Amministrazione'), C('Registro modifiche')], impostazioni: [C('Amministrazione'), C('Impostazioni')],
@@ -127,7 +130,86 @@ async function route() {
   const arg = rest.join('/');
   await buildNav(view, arg);
   ({ programma: viewProgram, sessione: viewControl, adhoc: viewAdhoc, report: viewReports, commitment: viewCommitments, aziende: viewCompanies, azienda: viewCompany,
-    benchmark: viewBenchmark, audit: viewAudit, impostazioni: viewSettings, qr: viewQr, tavolo: viewTableCard, tavoli: viewTables, mappe: viewMaps, domande: viewQuestions }[view] || viewProgram)(arg);
+    benchmark: viewBenchmark, audit: viewAudit, impostazioni: viewSettings, qr: viewQr, tavolo: viewTableCard, tavoli: viewTables, mappe: viewMaps, domande: viewQuestions, percorso: viewTour }[view] || viewProgram)(arg);
+}
+
+// ---------- DEMO: percorso guidato con un'azienda fittizia ----------
+async function refreshSimDay() {
+  try { const D = await api('/api/admin/demo'); SIMDAY = D.simDay || null; } catch { SIMDAY = null; }
+  const el = $('#simday'); if (el) el.textContent = SIMDAY ? ` · data simulata: ${longDate(SIMDAY)}` : '';
+}
+let tourView = 'admin'; // al telefono si vede una vista alla volta
+async function viewTour() {
+  if (!PROVA) { location.hash = '#/programma'; return; }
+  const D = await api('/api/admin/demo');
+  const act = async (url, body, msg) => { try { await api(url, { method: 'POST', body: body || {} }); toast(msg); await refreshSimDay(); route(); } catch (e) { toast(e.message, true); } };
+  if (!D.present) {
+    app.innerHTML = `<div class="pagehead"><div><h1>Percorso guidato</h1><p>Il programma dall'inizio alla fine con un'azienda fittizia, per mostrarlo a stakeholder e clienti senza dati reali.</p></div></div>
+      <div class="card"><p>I dati DEMO non sono caricati. Il caricamento crea l'azienda del percorso guidato, i suoi referenti, la community di 14 aziende e le quattro sessioni DEMO in preparazione.</p>
+      <button type="button" id="tour_load">Carica il percorso guidato</button></div>`;
+    $('#tour_load').onclick = () => act('/api/admin/demo', {}, 'Percorso guidato caricato');
+    return;
+  }
+  const S = D.sessions, cur = D.done ? null : S[D.s], step = D.done ? null : D.steps[D.k], cid = D.company.id;
+  const sname = (x) => INST.sessions.find((y) => y.id === x.base)?.name || x.title;
+  // la pagina vera da mostrare nel telefono e quella della console per ogni passo
+  const joinUrl = (p) => `/j/${cur.code}?c=${D.company.joinCode}&anteprima=1${p ? `&p=${p}` : ''}`;
+  const phone = D.done ? null : {
+    prep: { url: `/r/${D.referentToken}`, who: `Il referente ${esc(D.referents[0]?.name || '')} riceve il link: vede le domande della sessione e le inoltra ai colleghi` },
+    qr: { url: joinUrl(), who: 'Inquadrato il QR del tavolo: l\'azienda è già scelta, ognuno tocca il proprio nome' },
+    individuale: { url: joinUrl(D.liveToken), who: `${esc(D.liveName || 'Una persona')} risponde dal telefono: puoi toccare i livelli, la risposta si salva davvero (solo in DEMO)` },
+    confronto: { url: joinUrl(D.liveToken), who: 'Dopo l\'invio: la distribuzione anonima delle risposte dell\'azienda' },
+    consolidamento: { url: `/r/${D.referentToken}#/sessione/${cur.id}`, who: 'Il referente segue e corregge dal suo link quello che il facilitatore registra al tavolo' },
+    report: { url: `/report/${cid}?t=${D.referentToken}${D.snapshot ? `&snap=${D.snapshot.id}` : ''}`, who: 'Il report rilasciato, come lo legge il referente, con la trascrizione della call in appendice' },
+    commitment: { url: `/r/${D.referentToken}#/sessione/${cur.id}`, who: 'Priorità e commitment dell\'azienda, dal link del referente' },
+  }[step.id];
+  const console_ = D.done ? [] : {
+    prep: [[`#/sessione/${cur.id}/prima`, 'Preparazione della sessione'], [`#/azienda/${cid}`, 'Scheda dell\'azienda']],
+    qr: [[`#/tavolo/${cur.id}:${cid}`, 'QR dell\'azienda'], [`#/sessione/${cur.id}/prima`, 'Preparazione della sessione']],
+    individuale: [[`#/sessione/${cur.id}/sala`, 'Control room: risposte in sala']],
+    confronto: [[`/tavolo-elis/${cid}#/sessione/${cur.id}`, 'Tavolo del facilitatore', true], [`#/sessione/${cur.id}/sala`, 'Control room']],
+    consolidamento: [[`/tavolo-elis/${cid}#/sessione/${cur.id}`, 'Tavolo del facilitatore: consolida', true], [`#/sessione/${cur.id}/sala`, 'Control room']],
+    report: [['#/report', 'Report e call con i leader'], [`/report/${cid}`, 'Report dell\'azienda', true], [`/plenaria/${cur.base}`, 'Plenaria della community', true]],
+    commitment: [['#/commitment', 'Commitment e verifica'], [`#/azienda/${cid}`, 'Scheda dell\'azienda']],
+  }[step.id];
+  const stage = (x, i) => {
+    const st = i < D.s || D.done ? 'done' : i === D.s ? 'live' : 'prep';
+    return `<li class="tstage st-${st}"><span class="stage-n" aria-hidden="true">${st === 'done' ? icon('check') : i + 1}</span><span><b>${esc(sname(x))}</b><small>${esc(longDate(x.date))}</small></span></li>`;
+  };
+  const phoneHtml = D.done
+    ? `<div class="phone-static"><p class="eyebrow">Anteprima</p><h3>Allineamento finale · settembre 2027</h3><p>Il referente, con il leader, riceverà un modulo precompilato con livelli e sotto-opzioni dei 12 item misurati prima di luglio: per ognuno conferma o modifica, con un'evidenza. Poi la call con il leader conferma le tre priorità finali.</p><p class="small muted">Funzione non ancora disponibile nella piattaforma: questa è solo un'anteprima.</p></div>`
+    : `<iframe class="phone-frame" src="${esc(phone.url)}" title="Vista azienda: ${esc(step.label)}"></iframe>`;
+  const realUrl = !D.done && phone.url.startsWith('/') ? `${NET.baseUrl}${phone.url.replace('&anteprima=1', '').replace(/&p=[^&#]*/, '')}` : null;
+  app.innerHTML = `<div class="pagehead"><div><h1>Percorso guidato</h1><p>${esc(D.company.name)} · ${esc(D.company.sector || '')} · perimetro ${esc(D.company.perimeter || '')}. Dati inventati: nulla entra nei dati reali o nel benchmark ufficiale.</p></div>
+      <div class="row"><button type="button" class="danger sm" id="tour_reset">Reset demo</button></div></div>
+    <ol class="tstages" aria-label="Sessioni del percorso">${S.map(stage).join('')}<li class="tstage ${D.done ? 'st-live' : 'st-prep'}"><span class="stage-n" aria-hidden="true">${icon('flag')}</span><span><b>Allineamento finale</b><small>settembre 2027 · anteprima</small></span></li></ol>
+    ${D.done ? '' : `<ol class="tsteps" aria-label="Passi di ${esc(sname(cur))}">${D.steps.map((x, k) => `<li class="${k < D.k ? 'done' : k === D.k ? 'on' : ''}" ${k === D.k ? 'aria-current="step"' : ''}><span aria-hidden="true">${k < D.k ? icon('check') : k + 1}</span>${esc(x.label)}</li>`).join('')}</ol>`}
+    <div class="tourbar">
+      <div><span class="eyebrow">${D.done ? 'Fine del percorso' : `${esc(sname(cur))} · passo ${D.k + 1} di ${D.steps.length}`}</span><h2>${D.done ? 'Allineamento finale (anteprima)' : esc(step.label)}</h2>
+        <p>${D.done ? 'Le quattro sessioni sono chiuse: la mappa è completa. A settembre 2027 l\'allineamento porta tutte le dimensioni alla stessa data.' : esc(step.who)}</p></div>
+      <div class="row tour-actions">${D.done ? '' : `<button type="button" class="primary" id="tour_next">Avanza${icon('arrow', 'thin')}</button><button type="button" class="ghost" id="tour_sess">${D.s < 3 ? 'Vai alla sessione successiva' : 'Chiudi l\'ultima sessione'}</button><button type="button" class="ghost" id="tour_end">Vai alla fine</button>`}</div>
+    </div>
+    <div class="tourtabs" role="tablist" aria-label="Viste del passo"><button type="button" role="tab" data-tv="admin" aria-selected="${tourView === 'admin'}">Vista admin ELIS</button><button type="button" role="tab" data-tv="phone" aria-selected="${tourView === 'phone'}">Vista azienda</button></div>
+    <div class="tourpanes view-${tourView}">
+      <section class="panel tp-admin" aria-labelledby="tpa-t"><h3 id="tpa-t">Vista admin ELIS</h3>
+        ${D.done ? `<p>La mappa dell'azienda è completa. Apri il report finale e la plenaria della community.</p><div class="tlinks"><a class="btn ghost" href="/report/${cid}" target="_blank">Report dell'azienda</a><a class="btn ghost" href="#/report">Report e call con i leader</a><a class="btn ghost" href="#/commitment">Commitment e verifica</a></div>`
+          : `<p class="small ink2">Le pagine vere della console, con i dati di questo passo:</p><div class="tlinks">${console_.map(([href, label, ext]) => `<a class="btn ghost" href="${href}" ${ext ? 'target="_blank"' : ''}>${esc(label)}${ext ? '<span class="sr-only"> (nuova scheda)</span>' : ''}</a>`).join('')}</div>`}
+        <dl class="tfacts"><div><dt>Azienda</dt><dd>${esc(D.company.name)} · TEST, fuori dal benchmark</dd></div>
+          <div><dt>Referenti</dt><dd>${D.referents.map((r) => `${esc(r.name)} <span class="muted">(${esc(r.role || '')})</span>`).join('<br>')}</dd></div>
+          <div><dt>Codice azienda</dt><dd class="mono">${esc(D.company.joinCode)}</dd></div>
+          ${D.simDay ? `<div><dt>Data simulata</dt><dd>${esc(longDate(D.simDay))}</dd></div>` : ''}</dl>
+      </section>
+      <section class="panel tp-phone" aria-labelledby="tpp-t"><h3 id="tpp-t">Vista azienda</h3>
+        <p class="small ink2">${D.done ? 'Anteprima di quello che vedrà il referente.' : phone.who}</p>
+        <div class="phone">${phoneHtml}</div>
+        ${realUrl ? `<details class="small"><summary>Aprila sul tuo telefono</summary><div style="margin-top:8px">${qrImg(realUrl, 150)}</div><p class="mono small" style="word-break:break-all">${esc(realUrl)}</p></details>` : ''}
+      </section>
+    </div>`;
+  $$('[data-tv]').forEach((b) => b.onclick = () => { tourView = b.dataset.tv; $('.tourpanes').className = `tourpanes view-${tourView}`; $$('[data-tv]').forEach((x) => x.setAttribute('aria-selected', String(x.dataset.tv === tourView))); });
+  if ($('#tour_next')) $('#tour_next').onclick = () => act('/api/admin/demo/advance', { mode: 'step' }, 'Passo successivo');
+  if ($('#tour_sess')) $('#tour_sess').onclick = () => act('/api/admin/demo/advance', { mode: 'session' }, 'Sessione successiva');
+  if ($('#tour_end')) $('#tour_end').onclick = () => { if (confirm('Portare il percorso alla fine? Le quattro sessioni DEMO si chiudono con tutti i dati del file.')) act('/api/admin/demo/advance', { mode: 'end' }, 'Percorso completato'); };
+  $('#tour_reset').onclick = () => { if (confirm('Riportare il percorso guidato all\'inizio? Tutti i dati DEMO vengono cancellati e ricaricati dal file. I dati reali non vengono toccati.')) act('/api/admin/demo/reset', {}, 'Demo ripristinata'); };
 }
 
 // ---------- Domande delle sessioni: le stesse in DEMO e in Produzione (lo strumento V1 è uno solo) ----------
@@ -212,7 +294,7 @@ async function viewProgram() {
   const ctrl = await Promise.all(SESSIONS.map((s) => api(`/api/admin/sessions/${s.id}/control`)));
   const byId = Object.fromEntries(ctrl.map((C) => [C.session.id, C]));
   const [commits, companies] = await Promise.all([api('/api/admin/commitments'), api('/api/admin/companies')]);
-  const today = isoDay(new Date());
+  const today = SIMDAY || isoDay(new Date());
   const next = cal.find((s) => s.phase !== 'chiusa');
   const live = SESSIONS.find((s) => ['individuale', 'confronto', 'consolidamento'].includes(s.phase));
 
@@ -341,10 +423,10 @@ async function viewProgram() {
   if (PROVA) {
     const D = await api('/api/admin/demo');
     $('#demo').innerHTML = `<h2>Dati DEMO</h2>
-      <p class="ink2">${D.present ? 'Sono caricate 14 aziende dimostrative e un\'azienda vetrina (TEST) con tutto il flusso, distribuite sulle quattro sessioni DEMO. Le aziende e le sessioni che crei in questo ambiente sono anch\'esse di prova.' : 'Non ci sono dati DEMO. Caricali per vedere dashboard, plenaria, mappe e report pieni.'}</p>
-      <div class="row">${D.present ? `${D.vetrina ? `<a class="btn sm ghost" href="/report/${D.vetrina}" target="_blank">Report della vetrina</a>` : ''}<button class="sm danger" id="demo_rm">Cancella tutti i dati DEMO</button>` : '<button class="sm" id="demo_add">Carica i dati DEMO</button>'}</div>`;
-    if ($('#demo_add')) $('#demo_add').onclick = async () => { try { await api('/api/admin/demo', { method: 'POST' }); toast('Dati DEMO caricati'); route(); } catch (e) { toast(e.message, true); } };
-    if ($('#demo_rm')) $('#demo_rm').onclick = async () => { if (!confirm('Cancellare tutti i dati DEMO (aziende, sessioni, risposte e report DEMO)? I dati reali non vengono toccati.')) return; await api('/api/admin/demo', { method: 'DELETE' }); toast('Dati DEMO cancellati'); route(); };
+      <p class="ink2">${D.present ? `Sono caricate 14 aziende della community e l'azienda del percorso guidato (${esc(D.company?.name || '')}), che attraversa le quattro sessioni passo per passo. Le aziende e le sessioni che crei in questo ambiente restano DEMO.` : 'Non ci sono dati DEMO. Caricali per percorrere il programma con un\'azienda fittizia e vedere dashboard, plenaria, mappe e report.'}</p>
+      <div class="row">${D.present ? `<a class="btn sm" href="#/percorso">Apri il percorso guidato</a>${D.vetrina ? `<a class="btn sm ghost" href="/report/${D.vetrina}" target="_blank">Report dell'azienda guidata</a>` : ''}<button class="sm danger" id="demo_rm">Cancella tutti i dati DEMO</button>` : '<button class="sm" id="demo_add">Carica i dati DEMO</button>'}</div>`;
+    if ($('#demo_add')) $('#demo_add').onclick = async () => { try { await api('/api/admin/demo', { method: 'POST' }); toast('Dati DEMO caricati'); await refreshSimDay(); route(); } catch (e) { toast(e.message, true); } };
+    if ($('#demo_rm')) $('#demo_rm').onclick = async () => { if (!confirm('Cancellare tutti i dati DEMO (aziende, sessioni, risposte e report DEMO)? I dati reali non vengono toccati.')) return; await api('/api/admin/demo', { method: 'DELETE' }); toast('Dati DEMO cancellati'); await refreshSimDay(); route(); };
   }
 }
 
@@ -396,7 +478,7 @@ async function viewReports() {
 // ---------- Dopo le sessioni: commitment e verifica ----------
 async function viewCommitments() {
   const all = await api('/api/admin/commitments');
-  const today = isoDay(new Date());
+  const today = SIMDAY || isoDay(new Date());
   const params = new URLSearchParams(location.hash.split('?')[1] || '');
   const only = params.get('tutti') !== '1';
   const due = (m) => ['aperto', 'avviato'].includes(m.status) && m.due_date && m.due_date < today;

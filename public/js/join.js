@@ -1,17 +1,21 @@
-import { api, esc, $, $$, toast, poll, distBars, confTag, phaseChips, alt } from './ui.js';
+import { api, esc, $, $$, toast, poll, distBars, confTag, phaseChips, alt, demoBar } from './ui.js';
 
 const code = location.pathname.split('/').pop();
 const preCompany = (new URLSearchParams(location.search).get('c') || '').toUpperCase();
 const KEY = `aito_p_${code}`;
 const app = $('#app');
-let tok = null; try { tok = localStorage.getItem(KEY); } catch { /* storage non disponibile */ }
+// Anteprima nel percorso guidato DEMO (telefono simulato nella console): la persona arriva nell'indirizzo
+// e nulla si salva nel browser, così il computer dell'admin non resta "registrato" come partecipante.
+const QS = new URLSearchParams(location.search);
+const PREVIEW = QS.get('anteprima') === '1';
+let tok = null; if (PREVIEW) tok = QS.get('p') || null; else { try { tok = localStorage.getItem(KEY); } catch { /* storage non disponibile */ } }
 let state = null;
 let step = 0;
 let lastPhase = null;
 let lastComparisonKey = '';
 let closedNotice = false; // la fase individuale si è chiusa mentre il telefono era aperto
 
-function saveTok(t) { tok = t; try { t ? localStorage.setItem(KEY, t) : localStorage.removeItem(KEY); } catch { /* */ } }
+function saveTok(t) { tok = t; if (PREVIEW) return; try { t ? localStorage.setItem(KEY, t) : localStorage.removeItem(KEY); } catch { /* */ } }
 const focusTitle = () => { const h = $('#app h2, #app h1'); if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); } };
 
 async function start() {
@@ -43,6 +47,7 @@ async function renderJoin(cc = preCompany, codeError = false, notice = '') {
     return;
   }
   $('#sesstitle').textContent = info.session.title;
+  if (info.session.demo) demoBar();
   // Dopo la fase individuale non ci si registra più (§2): lo si dice subito, non dopo aver compilato il modulo.
   if (!['preparazione', 'individuale'].includes(info.session.phase)) {
     const next = { confronto: 'Segui il confronto con i colleghi del tuo tavolo.', consolidamento: 'Il referente della tua azienda sta registrando la posizione ufficiale.', chiusa: 'La sessione è conclusa.' }[info.session.phase] || '';
@@ -142,6 +147,7 @@ async function leave() {
 }
 
 function renderPhase() {
+  if (state?.session?.demo) demoBar();
   $('#sesstitle').textContent = state.session.title;
   lastPhase = state.session.phase;
   lastComparisonKey = '';

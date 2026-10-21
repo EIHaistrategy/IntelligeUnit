@@ -149,6 +149,16 @@ export async function downloadQrPng(text, label, sub, filename) {
   setTimeout(() => URL.revokeObjectURL(href), 1000);
 }
 
+// Barra "MODALITÀ DEMO" in cima alle pagine che mostrano dati dimostrativi (telefono, referente, report, schermi di sala)
+export function demoBar(note = '') {
+  if (document.getElementById('demobar')) return;
+  const b = document.createElement('div');
+  b.id = 'demobar'; b.className = 'demobar'; b.setAttribute('role', 'note');
+  b.innerHTML = `<b>MODALITÀ DEMO</b> · dati simulati${note ? ` · ${esc(note)}` : ''}`;
+  const top = document.querySelector('.topbar');
+  if (top) top.after(b); else document.body.prepend(b);
+}
+
 // Aggiornamento periodico; dopo 3 errori di fila mostra un avviso "connessione persa" finché non torna.
 export function poll(fn, ms = 3000) {
   let stopped = false, fails = 0;
