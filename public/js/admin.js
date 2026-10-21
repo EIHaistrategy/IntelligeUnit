@@ -1,4 +1,4 @@
-import { api, esc, $, $$, toast, poll, phaseChips, PHASES, qrImg, qrLabeled, downloadQrPng, icon, fmtDate, fmtScore, levelLabel } from './ui.js';
+import { api, esc, $, $$, toast, poll, phaseChips, PHASES, qrImg, qrLabeled, downloadQrPng, icon, fmtDate, fmtScore, levelLabel, alt } from './ui.js';
 
 const app = $('#app');
 let INST, SC, NET;
@@ -57,6 +57,7 @@ async function buildNav(view, arg) {
     <div class="navgroup">Sessioni</div>
     ${calendar().map((s, i) => link(`#/sessione/${s.id}`, `<span class="navnum ph-${s.phase}" aria-hidden="true">${s.phase === 'chiusa' ? icon('check') : i + 1}</span><span class="navtxt">${esc(INST.sessions.find((x) => x.id === s.base).name)}<small>${esc(shortDate(s.date))}${['individuale', 'confronto', 'consolidamento'].includes(s.phase) ? ' · in corso' : ''}</small></span>`, sid === s.id, 'navsess')).join('')}
     ${link('#/adhoc', `Sessioni ad hoc${adhoc().length ? ` <span class="navcount">${adhoc().length}</span>` : ''}`, view === 'adhoc' || (cur && cur.mode === 'adhoc'))}
+    ${link('#/domande', 'Domande delle sessioni', view === 'domande')}
     <div class="navgroup">Dopo le sessioni</div>
     ${link('#/report', 'Report e call con i leader', view === 'report')}
     ${link('#/commitment', 'Commitment e verifica', view === 'commitment')}
@@ -79,7 +80,32 @@ async function route() {
   const arg = rest.join('/');
   await buildNav(view, arg);
   ({ programma: viewProgram, sessione: viewControl, adhoc: viewAdhoc, report: viewReports, commitment: viewCommitments, aziende: viewCompanies, azienda: viewCompany,
-    benchmark: viewBenchmark, audit: viewAudit, impostazioni: viewSettings, qr: viewQr, tavolo: viewTableCard, tavoli: viewTables, mappe: viewMaps }[view] || viewProgram)(arg);
+    benchmark: viewBenchmark, audit: viewAudit, impostazioni: viewSettings, qr: viewQr, tavolo: viewTableCard, tavoli: viewTables, mappe: viewMaps, domande: viewQuestions }[view] || viewProgram)(arg);
+}
+
+// ---------- Domande delle sessioni: le stesse in DEMO e in Produzione (lo strumento V1 è uno solo) ----------
+function viewQuestions(arg) {
+  const base = INST.sessions.some((x) => x.id === arg) ? arg : INST.sessions[0].id;
+  const S = INST.sessions.find((x) => x.id === base);
+  const day = (d) => (d ? new Date(`${d}T12:00:00`).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' }) : '');
+  const pairQ = ([a, b]) => INST.pairQuestion.replace('{a}', `<b>${esc(INST.items[a].pairLabel || INST.items[a].title)}</b>`).replace('{b}', `<b>${esc(INST.items[b].pairLabel || INST.items[b].title)}</b>`);
+  const facts = S.items.flatMap((id) => INST.items[id].levels.filter((l) => l.fact).map((l) => ({ ...l.fact, item: id, level: l.level })));
+  const profile = (INST.profile || []).filter((p) => p.session === base);
+  app.innerHTML = `<div class="pagehead"><div><h1>Domande delle sessioni</h1><p>Le domande sono le stesse in DEMO e in Produzione: lo strumento V1 è uno solo. Qui ci sono anche le sotto-opzioni, che si scelgono nel consolidamento.</p></div></div>
+    <div class="tabs" role="tablist" aria-label="Sessioni">${INST.sessions.map((x, i) => `<button type="button" role="tab" class="tab ${x.id === base ? 'on' : ''}" aria-selected="${x.id === base}" data-qs="${x.id}"><span class="tdot" aria-hidden="true">${i + 1}</span>${esc(x.name)}</button>`).join('')}</div>
+    <div class="row between" style="margin-bottom:16px"><p class="ink2" style="margin:0"><b>${esc(S.name)}</b>${S.date ? ` · ${esc(day(S.date))}` : ''} · dimensioni ${esc(S.dimensions.join(' e '))}</p>
+      <div class="row"><a class="btn sm ghost" href="/anteprima/${S.id}" target="_blank">Anteprima per le aziende</a><button class="sm ghost" id="qcopy" type="button">Copia il link dell'anteprima</button></div></div>
+    ${S.items.map((id, i) => { const it = INST.items[id]; return `<section class="card" aria-labelledby="qt-${id}">
+      <div class="qmeta"><span>Domanda ${i + 1} di ${S.items.length} · dimensione ${esc(it.dimension)}</span><span class="tag navy">${esc(id)}</span></div>
+      <h2 id="qt-${id}">${esc(it.title)}</h2><p class="statement">${esc(it.statement)}</p>
+      <ol class="preview-levels">${it.levels.map((l) => `<li><span class="n" aria-hidden="true">${l.level}${alt(l.level)}</span><span><span class="sr-only">Livello ${l.level}: </span>${esc(l.descriptor)}${l.valoriale ? ' <span class="tag gold">valoriale</span>' : ''}
+        ${l.sub ? `<span class="small muted" style="display:block;margin-top:4px">${l.sub.map((x) => `<b>${l.level}${esc(x.key)}</b> ${esc(x.text)}`).join('<br>')}</span>` : ''}</span></li>`).join('')}</ol></section>`; }).join('')}
+    ${S.pairs?.length ? `<section class="card"><h2>Confronti a coppie</h2><ul>${S.pairs.map((pq) => `<li>${pairQ(pq)}</li>`).join('')}</ul></section>` : ''}
+    ${facts.length || profile.length ? `<section class="card"><h2>In sala chiediamo anche</h2>
+      ${facts.length ? `<h3>Dati fattuali per le sotto-opzioni</h3><ul>${facts.map((f) => `<li><b>${esc(f.item)}, livello ${f.level}</b>: ${esc(f.q)}</li>`).join('')}</ul>` : ''}
+      ${profile.length ? `<h3>Profilo di approccio (fuori punteggio)</h3><ul>${profile.map((pp) => `<li>${esc(pp.q)}</li>`).join('')}</ul>` : ''}</section>` : ''}`;
+  $$('[data-qs]').forEach((b) => b.onclick = () => { location.hash = `#/domande/${b.dataset.qs}`; });
+  $('#qcopy').onclick = async () => { try { await navigator.clipboard.writeText(`${location.origin}/anteprima/${S.id}`); toast('Link copiato'); } catch { toast(`${location.origin}/anteprima/${S.id}`); } };
 }
 
 // Azioni condivise tra control room e pagina "Report e call"
@@ -497,7 +523,7 @@ async function viewControl(arg) {
     app.innerHTML = `<a class="back" href="#/programma">${icon('back')} Programma</a>
       <div class="pagehead"><div><h1>${esc(s.title)}</h1><p class="small">Domande della sessione: ${esc(C.def.items.map((i) => `${i} ${INST.items[i].title}`).join(' · '))}</p></div>
         <div class="row shortcuts" aria-label="Collegamenti rapidi"><a class="btn sm ghost" href="#/tavoli/${s.id}">QR delle aziende</a><a class="btn sm ghost" href="/live/${s.id}" target="_blank">Dashboard live</a>
-          <a class="btn sm ghost" href="/plenaria/${s.base}" target="_blank">Plenaria</a><a class="btn sm ghost" href="/mappe/${s.base}" target="_blank">Mappe</a><a class="btn sm ghost" href="#/report">Report e call</a></div></div>
+          <a class="btn sm ghost" href="/plenaria/${s.base}" target="_blank">Plenaria</a><a class="btn sm ghost" href="/mappe/${s.base}" target="_blank">Mappe</a><a class="btn sm ghost" href="#/report">Report e call</a><a class="btn sm ghost" href="#/domande/${s.base}">Domande</a></div></div>
       <div class="tabs" role="tablist" aria-label="Momenti della sessione">${TABS.map((t) => `<button type="button" role="tab" class="tab ${tabState(t)} ${t.id === tab ? 'on' : ''}" aria-selected="${t.id === tab}" data-tab="${t.id}">
         <span class="tdot" aria-hidden="true">${tabState(t) === 'done' ? icon('check') : ''}</span>${esc(t.label)}${tabState(t) === 'now' ? '<span class="sr-only"> (in corso)</span>' : ''}</button>`).join('')}</div>
       ${tab === 'risultati' ? results : `
