@@ -7,6 +7,10 @@ let stopPoll = null;
 // ---------- Ambiente: Produzione o DEMO (cookie del browser, letto anche dal server) ----------
 const PROVA = /(?:^|;\s*)aito_mode=prova/.test(document.cookie);
 function setEnv(env) {
+  const msg = env === 'prova'
+    ? 'Passare all\'ambiente DEMO? Vedrai solo dati simulati (azienda del percorso guidato e community di prova). I dati reali restano dove sono.'
+    : 'Tornare all\'ambiente di Produzione? Vedrai e modificherai i dati reali del programma.';
+  if (!confirm(msg)) return;
   document.cookie = `aito_mode=${env === 'prova' ? 'prova' : 'prod'}; Path=/; Max-Age=${60 * 60 * 24 * 30}; SameSite=Lax`;
   location.hash = '#/programma'; location.reload();
 }
@@ -87,6 +91,8 @@ async function buildNav(view, arg) {
   const cur = SESSIONS.find((s) => s.id === sid);
   const live = (s) => ['individuale', 'confronto', 'consolidamento'].includes(s.phase);
   const sessName = (s) => INST.sessions.find((x) => x.id === s.base)?.name || s.title;
+  // voci che si riempiono solo dopo il consolidamento: restano cliccabili, ma lo dicono
+  const soon = SESSIONS.some((s) => ['consolidamento', 'chiusa'].includes(s.phase)) ? '' : '<small class="navsoon">Disponibile dopo la sessione 1</small>';
   $('#nav').innerHTML = `
     <div class="navgroup">Programma</div>
     ${link('#/programma', ico('grid'), 'Programma', view === 'programma')}
@@ -99,8 +105,8 @@ async function buildNav(view, arg) {
     ${link('#/domande', ico('list'), 'Domande delle sessioni', view === 'domande')}
     <div class="navgroup">Operatività</div>
     ${link('#/adhoc', ico('plus'), `Sessioni ad hoc${adhoc().length ? ` <span class="navcount">${adhoc().length}</span>` : ''}`, view === 'adhoc' || (cur && cur.mode === 'adhoc'), '', 'Sessioni ad hoc')}
-    ${link('#/report', ico('file'), 'Report e call con i leader', view === 'report')}
-    ${link('#/commitment', ico('target'), 'Commitment e verifica', view === 'commitment')}
+    ${link('#/report', ico('file'), `Report e call con i leader${soon}`, view === 'report', '', `Report e call con i leader${soon ? ' · disponibile dopo la sessione 1' : ''}`)}
+    ${link('#/commitment', ico('target'), `Commitment e verifica${soon}`, view === 'commitment', '', `Commitment e verifica${soon ? ' · disponibile dopo la sessione 1' : ''}`)}
     <div class="navgroup">Amministrazione</div>
     ${link('#/aziende', ico('building'), 'Aziende e referenti', view === 'aziende' || view === 'azienda')}
     ${link('#/audit', ico('history'), 'Registro modifiche', view === 'audit')}
@@ -220,6 +226,7 @@ function viewQuestions(arg) {
   const pairQ = ([a, b]) => INST.pairQuestion.replace('{a}', `<b>${esc(INST.items[a].pairLabel || INST.items[a].title)}</b>`).replace('{b}', `<b>${esc(INST.items[b].pairLabel || INST.items[b].title)}</b>`);
   const facts = S.items.flatMap((id) => INST.items[id].levels.filter((l) => l.fact).map((l) => ({ ...l.fact, item: id, level: l.level })));
   const profile = (INST.profile || []).filter((p) => p.session === base);
+  try { localStorage.setItem('aito_q_seen', '1'); } catch { /* */ }
   app.innerHTML = `<div class="pagehead"><div><h1>Domande delle sessioni</h1><p>Le domande sono le stesse in DEMO e in Produzione: lo strumento V1 è uno solo. Qui ci sono anche le sotto-opzioni, che si scelgono nel consolidamento.</p></div></div>
     <div class="tabs" role="tablist" aria-label="Sessioni">${INST.sessions.map((x, i) => `<button type="button" role="tab" class="tab ${x.id === base ? 'on' : ''}" aria-selected="${x.id === base}" data-qs="${x.id}"><span class="tdot" aria-hidden="true">${i + 1}</span>${esc(x.name)}</button>`).join('')}</div>
     <div class="row between" style="margin-bottom:16px"><p class="ink2" style="margin:0"><b>${esc(S.name)}</b>${S.date ? ` · ${esc(day(S.date))}` : ''} · dimensioni ${esc(S.dimensions.join(' e '))}</p>
@@ -340,6 +347,27 @@ async function viewProgram() {
   const primary = live ? { href: `#/sessione/${live.id}/sala`, label: 'Gestisci la sessione in sala' }
     : next ? { href: `#/sessione/${next.id}/prima`, label: 'Prepara la sessione' }
     : { href: '#/report', label: 'Report e call con i leader' };
+  // B3: cosa manca per la prossima sessione in preparazione (dai dati della control room)
+  const missing = [];
+  if (next && next.phase === 'preparazione' && !live) {
+    const C = byId[next.id], cs = C.companies;
+    if (!cs.length) missing.push(['nessuna azienda censita', '#/aziende']);
+    else {
+      const noRef = cs.filter((c) => !c.referents.length).length, noMail = cs.filter((c) => c.referents.length && !c.invited_at).length, noQr = cs.filter((c) => c.referents.length && !c.qr_generated_at).length;
+      if (noRef) missing.push([`${noRef} ${noRef === 1 ? 'azienda senza referente' : 'aziende senza referente'}`, '#/aziende']);
+      if (noMail) missing.push([`${noMail} ${noMail === 1 ? 'email al referente da inviare' : 'email ai referenti da inviare'}`, `#/sessione/${next.id}/prima`]);
+      if (noQr) missing.push([`${noQr} QR da generare`, `#/sessione/${next.id}/prima`]);
+    }
+  }
+  // B2: primi passi, finché il programma non è avviato (stato calcolato dai dati; le domande "viste" si ricordano nel browser)
+  let qSeen = false; try { qSeen = !!localStorage.getItem('aito_q_seen'); } catch { /* */ }
+  const nC = next ? byId[next.id].companies : [];
+  const setup = next && next.phase === 'preparazione' && !closed && !live ? [
+    { done: companies.length > 0, label: 'Aggiungi le aziende e i referenti', href: '#/aziende', note: companies.length ? `${companies.length} ${companies.length === 1 ? 'azienda' : 'aziende'}` : 'nessuna ancora' },
+    { done: qSeen, label: 'Verifica le domande della sessione', href: `#/domande/${next.base}`, note: qSeen ? 'consultate' : 'da consultare' },
+    { done: nC.length > 0 && nC.every((c) => c.qr_generated_at), label: 'Genera i QR delle aziende', href: `#/sessione/${next.id}/prima`, note: nC.length ? `${nC.filter((c) => c.qr_generated_at).length} di ${nC.length}` : 'servono le aziende' },
+    { done: nC.length > 0 && !missing.length, label: 'Prepara la sessione', href: `#/sessione/${next.id}/prima`, note: missing.length ? `manca: ${missing.map((m) => m[0]).join(', ')}` : nC.length ? 'pronta' : 'servono le aziende' },
+  ] : null;
   const kpi = (label, value, sub, extra = '') => `<div class="kpitile"><span class="kt-l">${label}</span><span class="kt-v">${value}</span>${sub ? `<span class="kt-s">${sub}</span>` : ''}${extra}</div>`;
   const pct = cal.length ? Math.round((closed / cal.length) * 100) : 0;
 
@@ -379,13 +407,20 @@ async function viewProgram() {
         <span class="hn-t">${esc(sname(focus))}</span>
         <span class="hn-d">${esc(longDate(focus.date))}${!live && daysTo(focus.date) >= 0 ? ` · tra ${daysTo(focus.date)} ${daysTo(focus.date) === 1 ? 'giorno' : 'giorni'}` : ''}</span>
         <span class="chip chip-${status(focus)[0]}">${status(focus)[0] === 'live' ? icon('dot') : ''}${esc(status(focus)[1])}</span>
-        <a class="btn primary" href="${primary.href}">${esc(primary.label)}${icon('arrow', 'thin')}</a></div>`
+        <a class="btn primary" href="${primary.href}">${esc(primary.label)}${icon('arrow', 'thin')}</a>
+        ${missing.length ? `<p class="hn-miss"><b>Manca ancora:</b> ${missing.map(([t, h]) => `<a href="${h}">${esc(t)}</a>`).join(' · ')}</p>` : ''}</div>`
       : cal.length ? `<div class="hero-next"><span class="hn-l">Prossima tappa</span><span class="hn-t">Allineamento finale</span><span class="hn-d">Inizio settembre 2027 · le 4 sessioni sono chiuse</span>
           <span class="chip chip-prep">Non ancora disponibile nella piattaforma</span>
           <a class="btn primary" href="#/report">${relTodo > 0 ? `Report e call · ${relTodo} da rilasciare` : 'Report e call con i leader'}${icon('arrow', 'thin')}</a></div>`
-      : `<div class="hero-next"><span class="hn-l">Calendario</span><span class="hn-t">Nessuna sessione</span><span class="hn-d">${PROVA ? 'Carica i dati DEMO per provare la piattaforma con il calendario di prova.' : 'Le sessioni del programma non sono ancora in calendario.'}</span>
-          ${PROVA ? '<button type="button" class="primary" id="godemo">Vai ai dati DEMO</button>' : '<a class="btn primary" href="#/adhoc">Sessioni ad hoc</a>'}</div>`}
+      : `<div class="hero-next"><span class="hn-l">Calendario</span><span class="hn-t">Nessuna sessione</span><span class="hn-d">${PROVA ? 'Il percorso guidato carica un\'azienda fittizia e le quattro sessioni DEMO, da seguire passo per passo.' : 'Le sessioni del programma non sono ancora in calendario.'}</span>
+          ${PROVA ? `<a class="btn primary" href="#/percorso">Apri il percorso guidato${icon('arrow', 'thin')}</a>` : '<a class="btn primary" href="#/adhoc">Sessioni ad hoc</a>'}</div>`}
     </section>
+
+    ${setup && !setup.every((x) => x.done) ? `<section class="card setup" aria-labelledby="su-t">
+      <div class="sechead"><h2 id="su-t">Primi passi</h2><span class="small muted">${setup.filter((x) => x.done).length} di ${setup.length} fatti</span></div>
+      <ol class="checklist">${setup.map((x, i) => `<li class="${x.done ? 'done' : ''}"><span class="ck-n" aria-hidden="true">${x.done ? icon('check', 'thin') : i + 1}</span>
+        <a href="${x.href}">${esc(x.label)}</a><span class="ck-s">${x.done ? '<span class="sr-only">Fatto: </span>' : '<span class="sr-only">Da fare: </span>'}${esc(x.note)}</span></li>`).join('')}</ol>
+    </section>` : ''}
 
     <section class="kpis" aria-label="Indicatori del programma">
       ${cal.length ? kpi('Sessioni chiuse', `${closed}<small>/${cal.length}</small>`, `${pct}% del calendario`) : kpi('Sessioni chiuse', '—', 'nessuna sessione in calendario')}
@@ -399,7 +434,7 @@ async function viewProgram() {
       <ol class="stages">${cal.map(stage).join('')}
         <li class="stage st-future final"><div class="stage-top"><span class="stage-n" aria-hidden="true">${icon('flag')}</span><span class="chip chip-off">Non ancora disponibile</span></div>
           <h3>Allineamento finale</h3><p class="stage-date">${icon('calendar', 'thin')}Inizio settembre 2027</p>
-          <p class="stage-desc">Conferma o modifica dei 12 item misurati prima di luglio e tre priorità finali (§14.1).</p><p class="stage-facts">Da costruire nella piattaforma</p></li></ol>
+          <p class="stage-desc">Conferma o modifica dei 12 item misurati prima di luglio e tre priorità finali.</p><p class="stage-facts">Da costruire nella piattaforma</p></li></ol>
     </section>
 
     ${PROVA ? '<div class="card" id="demo"><p class="muted small">…</p></div>' : ''}
@@ -419,7 +454,6 @@ async function viewProgram() {
         </ul>
       </section>
     </div>`;
-  if ($('#godemo')) $('#godemo').onclick = () => { $('#demo')?.scrollIntoView({ behavior: 'smooth' }); $('#demo button')?.focus({ preventScroll: true }); };
   if (PROVA) {
     const D = await api('/api/admin/demo');
     $('#demo').innerHTML = `<h2>Dati DEMO</h2>
@@ -433,7 +467,7 @@ async function viewProgram() {
 // ---------- Sessioni ad hoc ----------
 async function viewAdhoc() {
   const ss = adhoc();
-  app.innerHTML = `<div class="pagehead"><div><h1>Sessioni ad hoc</h1><p>Per un'azienda assente: stesso flusso, stessi descrittori e stessa versione dello strumento. La modalità viene registrata e i dati entrano nella versione successiva del benchmark (§6.3).</p></div></div>
+  app.innerHTML = `<div class="pagehead"><div><h1>Sessioni ad hoc</h1><p>Per un'azienda assente: stesso flusso, stessi descrittori e stessa versione dello strumento. La modalità viene registrata e i dati entrano nella versione successiva del benchmark.</p></div></div>
     ${ss.length ? `<div class="grid c2">${ss.map((s) => `<div class="card sesscard"><div class="row between" style="align-items:flex-start"><h2 style="margin:0">${esc(s.title)}</h2><span class="tag gold">${esc(s.channel)}</span></div>
       <div style="margin:16px 0">${phaseChips(s.phase)}</div><a class="btn sm" href="#/sessione/${s.id}">Gestisci la sessione</a></div>`).join('')}</div>` : '<p class="muted">Nessuna sessione ad hoc.</p>'}
     <div class="card"><h2>Nuova sessione ad hoc</h2>
@@ -483,7 +517,7 @@ async function viewCommitments() {
   const only = params.get('tutti') !== '1';
   const due = (m) => ['aperto', 'avviato'].includes(m.status) && m.due_date && m.due_date < today;
   const list = only ? all.filter((m) => !['completato'].includes(m.status)) : all;
-  app.innerHTML = `<div class="pagehead"><div><h1>Commitment e verifica</h1><p>Le priorità scelte dalle aziende in sala, con azione, owner e scadenza. Lo stato si aggiorna nella call con il leader e con l'item pulse della sessione successiva (§11, §12).</p></div>
+  app.innerHTML = `<div class="pagehead"><div><h1>Commitment e verifica</h1><p>Le priorità scelte dalle aziende in sala, con azione, owner e scadenza. Lo stato si aggiorna nella call con il leader e con l'item pulse della sessione successiva.</p></div>
       <div class="row"><a class="btn sm ${only ? '' : 'ghost'}" href="#/commitment">Da seguire</a><a class="btn sm ${only ? 'ghost' : ''}" href="#/commitment?tutti=1">Tutti</a></div></div>
     <div class="card">${list.length ? `<div class="tablewrap"><table><thead><tr><th>Azienda</th><th>Priorità e azione</th><th>Owner e scadenza</th><th>Stato</th></tr></thead><tbody>
       ${list.map((m) => `<tr><td><a href="#/azienda/${m.company_id}"><b>${esc(m.company_name)}</b></a><div class="small muted">${esc(m.session_title)}</div></td>
@@ -512,7 +546,7 @@ const FLOW = [
 ];
 const NEXT = {
   preparazione: { to: 'individuale', label: 'Apri le risposte individuali', what: 'I partecipanti registrati vedono le domande della sessione e i confronti a coppie. Chi arriva dopo può ancora registrarsi.' },
-  individuale: { to: 'confronto', label: 'Chiudi le risposte e apri il confronto', what: 'Le risposte individuali si bloccano e non si potranno riaprire (§2). Ogni tavolo vede la distribuzione anonima delle proprie risposte, il referente la vista di confronto.' },
+  individuale: { to: 'confronto', label: 'Chiudi le risposte e apri il confronto', what: 'Le risposte individuali si bloccano e non si potranno riaprire. Ogni tavolo vede la distribuzione anonima delle proprie risposte, il referente la vista di confronto.' },
   confronto: { to: 'consolidamento', label: 'Apri il consolidamento', what: 'Il referente di ogni azienda registra livello e sotto-opzione ufficiali, poi priorità e commitment.' },
   consolidamento: { to: 'chiusa', label: 'Chiudi la sessione', what: 'I referenti non possono più modificare il consolidamento; il commitment resta modificabile. Da qui in poi le correzioni le fa ELIS, con motivazione nel registro.' },
 };
@@ -714,7 +748,7 @@ async function viewControl(arg) {
     const back = backAllowed ? `<details class="backphase"><summary>${s.phase === 'chiusa' ? 'Riapri il consolidamento' : `Torna a: ${esc(prev.label)}`}</summary>
       <label class="f" for="backreason">Motivo (resta nel registro modifiche)</label><input type="text" id="backreason" maxlength="1000">
       <button class="sm ghost" id="goback" style="margin-top:8px">Torna indietro</button></details>`
-      : (backFrom && idx >= 2 && idx - 1 <= 1 ? '<p class="small muted" style="margin-top:14px">Dopo il confronto non si torna alle risposte individuali (§2). Per un\'azienda che deve rifare la rilevazione usa una sessione ad hoc.</p>' : '');
+      : (backFrom && idx >= 2 && idx - 1 <= 1 ? '<p class="small muted" style="margin-top:14px">Dopo il confronto non si torna alle risposte individuali. Per un\'azienda che deve rifare la rilevazione usa una sessione ad hoc.</p>' : '');
 
     const tabState = (t) => { if (!t.steps.length) return ''; const st = t.steps.map((x) => state(FLOW.find((f2) => f2.id === x))); return st.every((x) => x === 'done') ? 'done' : st.includes('now') ? 'now' : ''; };
     const results = `<div class="grid c3">
@@ -899,7 +933,10 @@ async function viewCompanies() {
       <div><label class="f" for="n_name">Nome *</label><input type="text" id="n_name"></div>
       ${pick('n_per', 'Perimetro valutato', PERIMETERS)}
       ${pick('n_sec', 'Settore', SECTORS)}
-      <div><label class="f">Tipo</label><select id="n_kind" ${PROVA ? 'disabled' : ''}>${PROVA ? '<option value="TEST">TEST (ambiente DEMO)</option>' : '<option value="REALE">REALE</option><option value="TEST">TEST (prova del flusso, fuori benchmark)</option>'}</select></div></div>
+      <div><label class="f" for="n_kind">Tipo</label><select id="n_kind" aria-describedby="n_kind_h" ${PROVA ? 'disabled' : ''}>${PROVA ? '<option value="TEST">TEST (ambiente DEMO)</option>' : '<option value="REALE">REALE</option><option value="TEST">TEST (prova del flusso, fuori benchmark)</option>'}</select></div></div>
+      <div class="kind-help" id="n_kind_h">${PROVA ? '<p><span class="chip chip-off">TEST</span> In DEMO le aziende nuove sono sempre di prova: restano separate dalla Produzione e non entrano mai nel benchmark ufficiale.</p>'
+        : `<p><span class="chip chip-done">REALE</span> Un'azienda del programma AITO 3. Con il suo consenso, i suoi dati entrano nel benchmark della community.</p>
+        <p><span class="chip chip-off">TEST</span> Un'azienda per provare il flusso (per esempio un'azienda amica). Usa le stesse pagine, ma non entra mai nel benchmark.</p>`}</div>
       <div style="margin-top:12px"><button id="n_go">Aggiungi</button></div></div>
     ${cs.length > 5 ? `<div class="tablesearch"><label class="sr-only" for="q_az">Cerca un'azienda</label><input type="search" id="q_az" placeholder="Cerca per nome, perimetro o referente"><span class="small muted" id="q_az_n" aria-live="polite">${cs.length} aziende</span></div>` : ''}
     <div class="card"><div class="tablewrap"><table><thead><tr><th>Azienda</th><th>Tipo</th><th>Perimetro</th><th>Consensi</th><th>Referenti</th></tr></thead><tbody>
@@ -937,7 +974,7 @@ async function viewCompany(id) {
       <div><label class="f">Tipo</label><select id="e_kind" ${PROVA ? 'disabled' : ''}>${(c.kind === 'DEMO' ? ['DEMO'] : PROVA ? [c.kind] : ['REALE', 'TEST']).map((k) => `<option ${c.kind === k ? 'selected' : ''}>${k}</option>`).join('')}</select></div></div>
       <div style="margin-top:12px"><button id="e_save">Salva</button></div></details>
     <div class="grid c2">
-      <div class="card"><h2>Consensi</h2><p class="small muted">Distinti e revocabili (§16). Alla creazione dell'azienda sono tutti concessi: togli la spunta solo se l'azienda ne nega uno. Senza consenso al benchmark l'azienda riceve comunque il proprio report ma non entra nelle distribuzioni.</p>
+      <div class="card"><h2>Consensi</h2><p class="small muted">Distinti e revocabili. Alla creazione dell'azienda sono tutti concessi: togli la spunta solo se l'azienda ne nega uno. Senza consenso al benchmark l'azienda riceve comunque il proprio report ma non entra nelle distribuzioni.</p>
         ${['benchmark', 'peer', 'testimonianza', 'followup'].map((k) => `<label class="check"><input type="checkbox" data-consent="${k}" ${c.consents[k]?.granted ? 'checked' : ''}> ${{ benchmark: 'Benchmark anonimo', peer: 'Peer matching', testimonianza: 'Testimonianza', followup: 'Follow-up' }[k]} <span class="small muted">${c.consents[k] ? fmtDate(c.consents[k].at) : ''}</span></label>`).join('')}</div>
       <div class="card"><h2>Referenti</h2>
         ${lock ? `<div class="banner info">Referente bloccato: i QR di <b>${esc(lock.title)}</b> sono stati generati il ${fmtDate(lock.qr_generated_at)}. Fino alla chiusura della sessione il referente si cambia, o il link si revoca, solo come eccezione con un motivo scritto nel registro modifiche. L'email si può sempre correggere.
@@ -957,7 +994,7 @@ async function viewCompany(id) {
       <div class="grid c3" style="margin-top:12px"><input type="text" id="p_name" placeholder="Nome e cognome" aria-label="Nome e cognome della persona" maxlength="120">
         <select id="p_func" aria-label="Funzione della persona"><option value="">— Funzione —</option>${INST.functions.map((f) => `<option value="${f.id}">${esc(f.label)}</option>`).join('')}</select>
         <div><button class="sm" id="p_add">Aggiungi persona</button></div></div></div>
-    <div class="card"><h2>Commitment e verifica</h2><p class="small muted">Lo stato si aggiorna nella call con il leader e con l'item pulse della sessione successiva (§11, §12).</p><div id="commits"><p class="muted small">Caricamento…</p></div></div>
+    <div class="card"><h2>Commitment e verifica</h2><p class="small muted">Lo stato si aggiorna nella call con il leader e con l'item pulse della sessione successiva.</p><div id="commits"><p class="muted small">Caricamento…</p></div></div>
     <div class="card"><h2>Report rilasciati</h2><div id="snaps"><p class="muted small">Caricamento…</p></div></div>
     <div class="card"><h2>Valori consolidati correnti</h2>
       ${R.items.length ? `<table><thead><tr><th>Item</th><th>Livello</th><th class="num">Score</th><th>Confidence</th><th></th></tr></thead><tbody>
@@ -1020,7 +1057,7 @@ async function viewBenchmark() {
 async function viewMaps() {
   const vs = await api('/api/admin/benchmark');
   app.innerHTML = `<h1>Mappe a quadranti</h1>
-    <p class="lede" style="margin-bottom:20px">Una pagina per sessione con le tre mappe della nota (§10.2–10.4): dove intervenire, se il bisogno è individuale o condiviso, con chi accelerare. Usano l'ultima versione congelata del benchmark (nell'ambiente DEMO, i dati dimostrativi). I nomi delle aziende sono nascosti finché non li mostri.</p>
+    <p class="lede" style="margin-bottom:20px">Una pagina per sessione con le tre mappe della nota: dove intervenire, se il bisogno è individuale o condiviso, con chi accelerare. Usano l'ultima versione congelata del benchmark (nell'ambiente DEMO, i dati dimostrativi). I nomi delle aziende sono nascosti finché non li mostri.</p>
     <div class="grid c2">${INST.sessions.map((s) => { const v = vs.find((x) => x.base === s.id); const dims = s.dimensions.map((d) => INST.dimensions.find((x) => x.id === d));
       return `<div class="card sesscard"><h2 style="margin:0">${esc(s.name)}</h2>
         <p class="small muted" style="margin:4px 0 12px">${dims.map((d) => `${d.id} ${esc(d.name)}`).join(' · ')}</p>

@@ -831,3 +831,29 @@ tbody tr:hover td { background: #FAFCFE; }
   .console .tstages { grid-template-columns: 1fr 1fr; }
   .console .tfacts div { grid-template-columns: 1fr; gap: 2px; }
 }
+
+/* ---- Blocco B: primi passi, cosa manca, badge del menu, tipo di azienda ---- */
+.sidenav a .lbl small.navsoon { display: block; color: #A9B8CC; font-style: italic; }
+.setup { margin-bottom: 20px; }
+.checklist { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.checklist li { display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 12px; padding: 10px 4px; border-top: 1px solid var(--line-2); }
+.checklist li:first-child { border-top: 0; }
+.checklist .ck-n { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--line-strong); font-size: .8rem; font-weight: 600; color: var(--ink-2); }
+.checklist li.done .ck-n { background: var(--ok); color: #fff; box-shadow: none; }
+.checklist li.done .ck-n .ico { width: 14px; height: 14px; }
+.checklist a { font-weight: 600; color: var(--accent-strong); }
+.checklist li.done a { color: var(--ink-2); font-weight: 500; }
+.checklist .ck-s { font-size: .85rem; color: var(--ink-3); text-align: right; }
+@media (max-width: 640px) { .checklist li { grid-template-columns: 28px 1fr; } .checklist .ck-s { grid-column: 2; text-align: left; } }
+.console .hero-next .hn-miss { margin: 6px 0 0; font-size: .85rem; line-height: 1.5; color: #FCD38D; }
+.hn-miss a { color: inherit; text-decoration: underline; }
+.kind-help { margin-top: 10px; display: grid; gap: 6px; font-size: .86rem; color: var(--ink-2); }
+.kind-help p { margin: 0; display: flex; gap: 8px; align-items: baseline; }
+.kind-help .chip { flex: none; }
+/* più aria intorno alle sotto-opzioni (varianti del livello) */
+.subs { margin-top: 10px; padding: 6px 0 6px 14px; }
+.subs div { margin: 8px 0; line-height: 1.5; }
+.subs summary { color: var(--ink-2); }
+.subchoice { gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--line-strong); }
+/* DEMO: intestazione color oro, ben riconoscibile */
+body.prova .apphead { background: #FBF6E6; box-shadow: inset 0 -3px 0 var(--gold); }
