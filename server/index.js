@@ -597,7 +597,7 @@ app.put('/api/admin/sessions/:id/phase', wrap((req, res) => {
   const from = PHASES.indexOf(s.phase), to = PHASES.indexOf(req.body.phase);
   // §2 indipendenza iniziale: dopo il confronto le risposte individuali non si riaprono
   if (to < from && to <= PHASES.indexOf('individuale') && from >= PHASES.indexOf('confronto'))
-    return bad(res, 'Dopo il confronto non si può tornare alla fase individuale: le risposte sarebbero influenzate dalla vista dell\'azienda (§2). Per un\'azienda che deve rifare la rilevazione usa una sessione ad hoc.');
+    return bad(res, 'Dopo il confronto non si può tornare alla fase individuale: le risposte sarebbero influenzate dalla vista dell\'azienda. Per un\'azienda che deve rifare la rilevazione usa una sessione ad hoc.');
   if (to < from && !String(req.body?.reason || '').trim()) return bad(res, 'Per tornare a una fase precedente indica il motivo');
   if (to > from + 1) return bad(res, 'Le fasi si aprono una alla volta: passa prima alla fase successiva');
   q.run('UPDATE sessions SET phase = ? WHERE id = ?', req.body.phase, s.id);

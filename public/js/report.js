@@ -99,7 +99,7 @@ async function boot() {
 
   <div class="card"><h2><span class="secnum">6</span>Priorità</h2>
     <div class="explain">L'ordine segue la nota: prima riportare a coerenza, poi i prerequisiti fondativi, poi le dimensioni sotto 70 e sotto la mediana peer. È una proposta trasparente, non sostituisce il giudizio dell'azienda.</div>
-    ${R.mapComplete ? `<h3>Tre priorità provvisorie</h3><p class="small muted">Provvisorie dopo Scalare; si confermano dopo l'allineamento finale di settembre 2027, quando tutte le dimensioni hanno la stessa data (§11.1, §14.1).</p>
+    ${R.mapComplete ? `<h3>Tre priorità provvisorie</h3><p class="small muted">Provvisorie dopo Scalare; si confermano dopo l'allineamento finale di settembre 2027, quando tutte le dimensioni hanno la stessa data.</p>
       <ol>${R.priorities.slice(0, 3).map((p) => `<li><b>${p.dimension} · ${esc(p.name)}</b> (${fmtScore(p.score)}) — <span class="small">${esc(p.reasons.join('; ') || 'nessun segnale specifico')}</span></li>`).join('')}</ol>`
       : `<p class="small">Le tre priorità complessive si calcolano a Map completa (${R.dimsComplete}/8 dimensioni misurate finora). In ogni sessione l'azienda sceglie la propria priorità e il commitment, riportati qui sotto.</p>`}
     <h3>Commitment registrati</h3>

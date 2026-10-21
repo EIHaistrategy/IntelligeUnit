@@ -90,13 +90,13 @@ function draw() {
     ${M.preview ? (demoBar(), '') : ''}
     <div class="mhead"><h1>${esc(M.def.name)}: mappe a quadranti</h1>
       <p>Fonte: ${esc(M.version)}, ${M.nCompanies} aziende. Le soglie (${T.where.score} e 0; ${Math.round(T.community.fondShare * 100)}% e ${T.community.iqr} punti; ${T.peer.need} e ${T.peer.contrib}) sono ipotesi del pilot da validare con l'Intelligence Unit.</p></div>
-    <section class="msec"><h2>Dove intervenire</h2><p class="q">§10.2 · Posizionamento azienda–peer</p>
+    <section class="msec"><h2>Dove intervenire</h2><p class="q">Posizionamento azienda–peer</p>
       <p class="lede">Ogni piccola mappa è un'azienda e ogni punto una dimensione della sessione. Orizzontale: lo score della dimensione. Verticale: quanto è sopra o sotto la mediana delle altre aziende (l'azienda stessa è esclusa dal calcolo). È la mappa del report aziendale, vista per tutte le aziende insieme.${showNames ? '' : ' I nomi sono nascosti: attiva "mostra i nomi" solo se lo schermo non è proiettato.'}</p>
       ${whereHtml}</section>
-    <section class="msec"><h2>Il bisogno è individuale o condiviso?</h2><p class="q">§10.3 · Gap della community</p>
+    <section class="msec"><h2>Il bisogno è individuale o condiviso?</h2><p class="q">Gap della community</p>
       <p class="lede">Ogni punto è una dimensione. Orizzontale: quante aziende sono ancora in fascia Fondativa. Verticale: quanto le aziende sono diverse tra loro. Molte aziende indietro e simili tra loro suggeriscono un'azione comune; aziende molto diverse chiedono percorsi differenziati.</p>
       ${gapHtml}</section>
-    <section class="msec"><h2>Con chi accelerare?</h2><p class="q">§10.4 · Peer matching</p>
+    <section class="msec"><h2>Con chi accelerare?</h2><p class="q">Peer matching</p>
       <p class="lede">Ogni punto è una dimensione. Orizzontale: quante aziende l'hanno scelta come priorità nel commitment. Verticale: quante aziende potrebbero portare la propria esperienza. Dove entrambi sono alti conviene attivare la rete.</p>
       ${peerHtml}</section>`;
 }

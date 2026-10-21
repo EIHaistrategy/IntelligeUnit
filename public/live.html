@@ -87,7 +87,7 @@ async function draw() {
     ${!ready ? `<div class="card waiting"><div class="big">${P.benchmarkN}<span> / ${P.minN}</span></div>
         <p style="font-size:1.25rem;margin-top:14px">Il benchmark compare quando almeno <b>${P.minN} aziende</b> hanno consolidato e dato il consenso.</p>
         <div class="meter" style="grid-template-columns:repeat(${P.minN},1fr)">${Array.from({ length: P.minN }, (_, i) => `<div class="${i < P.benchmarkN ? 'on' : ''}"></div>`).join('')}</div>
-        <p class="muted">Sotto questa soglia le singole aziende sarebbero riconoscibili (§9.1).</p></div>` : `
+        <p class="muted">Sotto questa soglia le singole aziende sarebbero riconoscibili.</p></div>` : `
     <div class="grid c2">${D.dims.map((d) => `<div class="card dimcard"><h2><span class="dim-letter">${d.dimension}</span>${esc(d.name)}</h2>
       ${d.stats.available ? `<div class="herorow"><div class="hero">${fmtScore(d.stats.median)}</div><div class="ink2">mediana della community<br>metà centrale tra ${fmtScore(d.stats.q1)} e ${fmtScore(d.stats.q3)} · N=${d.stats.n} · ${esc(d.stats.label)}</div></div>
         ${strip(d.stats)}
@@ -101,7 +101,7 @@ async function draw() {
       ${it.dist.available ? `<div class="seg">${it.dist.levels.filter((l) => l.count).map((l) => `<div class="l${l.level}" style="flex:${l.count}" title="Livello ${l.level}: ${l.count} aziende">${l.count}</div>`).join('')}</div>
         <p class="small muted" style="margin:8px 0 0">${it.dist.levels.filter((l) => l.subDist).map((l) => `Liv. ${l.level}: ${l.subDist.map((s) => `${l.level}${s.key} ${s.count}`).join(' · ')}`).join(' — ') || 'Varianti dei livelli non mostrate: nessuna raggiunge 5 aziende.'}${it.nd ? ` · ${it.nd} aziende con N.D.` : ''}</p>`
         : `<div class="banner warn" style="margin-top:8px">Non ancora disponibile: N = ${it.dist.n}.</div>`}</div>`).join('')}</div>`}
-    <p class="small muted" style="margin-top:20px;max-width:none">Dati anonimi e aggregati, aggiornati ogni 5 secondi man mano che le aziende consolidano. Non sono ancora la versione ufficiale: il benchmark si congela a fine sessione e i report usano quella versione (§9).${D.frozen ? ` Ultima versione congelata: ${esc(D.frozen.label)} (N=${D.frozen.n_companies}).` : ''}</p>`;
+    <p class="small muted" style="margin-top:20px;max-width:none">Dati anonimi e aggregati, aggiornati ogni 5 secondi man mano che le aziende consolidano. Non sono ancora la versione ufficiale: il benchmark si congela a fine sessione e i report usano quella versione.${D.frozen ? ` Ultima versione congelata: ${esc(D.frozen.label)} (N=${D.frozen.n_companies}).` : ''}</p>`;
 }
 draw();
 setInterval(draw, 5000);
