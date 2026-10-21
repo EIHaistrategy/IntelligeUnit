@@ -13,6 +13,8 @@
   .mhead h1 { font-family: var(--display); font-size: clamp(2rem, 3.4vw, 2.8rem); margin: 0; }
   .mhead p { margin: 8px 0 0; color: var(--ink-2); font-size: 1.05rem; }
   .msec { margin-top: 34px; }
+  /* al telefono grafici e tabelle restano dentro lo schermo */
+  .msec .card { min-width: 0; overflow-x: auto; } .msec .chart svg { max-width: 100%; height: auto; }
   .msec > h2 { font-size: 1.6rem; margin-bottom: 4px; }
   .msec > .q { color: var(--ink-3); font-weight: 600; margin: 0 0 6px; }
   .msec > .lede { margin-bottom: 16px; }
@@ -34,8 +36,7 @@
 </style>
 </head>
 <body>
-<div class="topbar"><span class="brand"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="1.5" y="1.5" width="29" height="29" rx="7" fill="none" stroke="#fff" stroke-opacity=".4" stroke-width="1.5"/><path d="M16 5v22M5 16h22" stroke="#fff" stroke-opacity=".25" stroke-width="1.2"/><circle cx="9.5" cy="21.5" r="2" fill="#fff" fill-opacity=".6"/><circle cx="11.5" cy="10.5" r="2" fill="#fff" fill-opacity=".6"/><circle cx="21" cy="22" r="2" fill="#fff" fill-opacity=".6"/><circle cx="19" cy="13.5" r="1.6" fill="#fff" fill-opacity=".6"/><circle cx="23.5" cy="9" r="3.2" fill="#35D4C0"/></svg><span class="bname">AITO Map<small>AI Transformation &amp; Adoption Map</small></span></span><span class="sub" id="ttl">Mappe a quadranti</span><span class="spacer"></span>
-  <label><input type="checkbox" id="names"> mostra i nomi delle aziende</label></div>
+<div class="topbar"><span class="brand"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="1.5" y="1.5" width="29" height="29" rx="7" fill="none" stroke="#fff" stroke-opacity=".4" stroke-width="1.5"/><path d="M16 5v22M5 16h22" stroke="#fff" stroke-opacity=".25" stroke-width="1.2"/><circle cx="9.5" cy="21.5" r="2" fill="#fff" fill-opacity=".6"/><circle cx="11.5" cy="10.5" r="2" fill="#fff" fill-opacity=".6"/><circle cx="21" cy="22" r="2" fill="#fff" fill-opacity=".6"/><circle cx="19" cy="13.5" r="1.6" fill="#fff" fill-opacity=".6"/><circle cx="23.5" cy="9" r="3.2" fill="#35D4C0"/></svg><span class="bname">AITO Map<small>AI Transformation &amp; Adoption Map</small></span></span><span class="sub" id="ttl">Mappe a quadranti</span></div>
 <div class="wrap" id="app"><p class="muted">Caricamento…</p></div>
 <script type="module">
 import { api, esc, $, fmtScore, demoBar } from '/static/js/ui.js';
@@ -45,8 +46,9 @@ const base = location.pathname.split('/').pop();
 const params = new URLSearchParams(location.search);
 // pagina riservata al team ELIS e non proiettata (decisione del 21/10/2026): i nomi si vedono di default, si possono nascondere
 let showNames = params.get('nomi') !== '0';
-$('#names').checked = showNames;
-$('#names').onchange = (e) => { showNames = e.target.checked; params.set('nomi', showNames ? '1' : '0'); history.replaceState(null, '', `?${params}`); draw(); };
+// prima le mappe di community; le mappe per azienda si aprono con un pulsante
+let showCompanies = params.get('aziende') === '1';
+const keep = () => history.replaceState(null, '', `?${params}`);
 
 let M;
 try { M = await api(`/api/admin/maps/${base}`); }
@@ -90,15 +92,20 @@ function draw() {
     ${M.preview ? (demoBar(), '') : ''}
     <div class="mhead"><h1>${esc(M.def.name)}: mappe a quadranti</h1>
       <p>Fonte: ${esc(M.version)}, ${M.nCompanies} aziende. Le soglie (${T.where.score} e 0; ${Math.round(T.community.fondShare * 100)}% e ${T.community.iqr} punti; ${T.peer.need} e ${T.peer.contrib}) sono ipotesi del pilot da validare con l'Intelligence Unit.</p></div>
-    <section class="msec"><h2>Dove intervenire</h2><p class="q">Posizionamento azienda–peer</p>
-      <p class="lede">Ogni piccola mappa è un'azienda e ogni punto una dimensione della sessione. Orizzontale: lo score della dimensione. Verticale: quanto è sopra o sotto la mediana delle altre aziende (l'azienda stessa è esclusa dal calcolo). È la mappa del report aziendale, vista per tutte le aziende insieme.${showNames ? '' : ' I nomi sono nascosti: attiva "mostra i nomi" solo se lo schermo non è proiettato.'}</p>
-      ${whereHtml}</section>
     <section class="msec"><h2>Il bisogno è individuale o condiviso?</h2><p class="q">Gap della community</p>
       <p class="lede">Ogni punto è una dimensione. Orizzontale: quante aziende sono ancora in fascia Fondativa. Verticale: quanto le aziende sono diverse tra loro. Molte aziende indietro e simili tra loro suggeriscono un'azione comune; aziende molto diverse chiedono percorsi differenziati.</p>
       ${gapHtml}</section>
     <section class="msec"><h2>Con chi accelerare?</h2><p class="q">Peer matching</p>
       <p class="lede">Ogni punto è una dimensione. Orizzontale: quante aziende l'hanno scelta come priorità nel commitment. Verticale: quante aziende potrebbero portare la propria esperienza. Dove entrambi sono alti conviene attivare la rete.</p>
-      ${peerHtml}</section>`;
+      ${peerHtml}</section>
+    <section class="msec" aria-labelledby="dove-t"><h2 id="dove-t">Dove intervenire, azienda per azienda</h2><p class="q">Posizionamento azienda–peer</p>
+      <p class="lede">Ogni piccola mappa è un'azienda e ogni punto una dimensione della sessione. Orizzontale: lo score della dimensione. Verticale: quanto è sopra o sotto la mediana delle altre aziende (l'azienda stessa è esclusa dal calcolo). È la mappa del report aziendale, vista per tutte le aziende insieme.</p>
+      <div class="row" style="align-items:center;gap:16px;margin-bottom:14px">
+        <button type="button" id="cmp" class="${showCompanies ? 'ghost' : 'primary'}" aria-expanded="${showCompanies}" aria-controls="cmp-box">${showCompanies ? 'Nascondi le mappe per azienda' : 'Mostra le mappe per azienda'}</button>
+        <label class="small"><input type="checkbox" id="names" ${showNames ? 'checked' : ''}> mostra i nomi delle aziende <span class="muted">(vale anche per il peer matching)</span></label></div>
+      <div id="cmp-box" ${showCompanies ? '' : 'hidden'}>${showNames ? '' : '<p class="small muted">I nomi sono nascosti: ogni azienda compare come «Azienda 1», «Azienda 2»…</p>'}${whereHtml}</div></section>`;
+  $('#cmp').onclick = () => { showCompanies = !showCompanies; params.set('aziende', showCompanies ? '1' : '0'); keep(); draw(); $('#cmp').focus(); };
+  $('#names').onchange = (e) => { showNames = e.target.checked; params.set('nomi', showNames ? '1' : '0'); keep(); draw(); $('#names').focus(); };
 }
 draw();
 </script>
