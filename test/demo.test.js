@@ -12,6 +12,7 @@ process.env.ADMIN_PASSWORD = 'testpass123';
 const { q } = await import('../server/db.js');
 const D = await import('../server/demo.js');
 const L = await import('../server/logic.js');
+const I = (await import('../server/engine/index.js')).INSTRUMENT;
 const { app } = await import('../server/index.js');
 
 let server, base, cookie;
@@ -150,4 +151,13 @@ test('«Carica i dati DEMO» mostra il programma concluso; «Riparti da zero» t
   const z = await (await fetch(`${base}/api/admin/demo/reset`, { method: 'POST', headers: C, body: '{}' })).json();
   assert.equal(z.done, false); assert.ok(z.sessions.every((s) => s.phase === 'preparazione'));
   assert.equal(prod().companies, 1);
+});
+
+test('mappe: una sessione mostra solo le dimensioni delle sessioni precedenti, mai le successive', () => {
+  const order = ['GOV', 'EFF', 'GROW', 'SCALE'];
+  for (const [i, base] of order.entries()) {
+    const M = L.sessionMaps(base, { preview: true });
+    const prev = order.slice(0, i).flatMap((b) => I.sessions.find((s) => s.id === b).dimensions).sort();
+    assert.deepEqual(M.others.map((d) => d.dimension).sort(), prev, `${base}: solo le sessioni precedenti`);
+  }
 });

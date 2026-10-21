@@ -387,9 +387,10 @@ export function sessionMaps(base, { preview = false } = {}) {
     delete info.rows;
     return { ...info, where };
   });
-  // le altre dimensioni già misurate, come contesto nelle mappe 10.3 e 10.4
+  // come contesto nelle mappe 10.3 e 10.4, solo le dimensioni delle sessioni precedenti: le sessioni sono progressive,
+  // la mappa di una sessione non mostra mai quello che si misura dopo (anche rivista a programma concluso)
   const others = [];
-  for (const s2 of I.sessions.filter((x) => x.id !== base)) {
+  for (const s2 of I.sessions.filter((x) => x.date < def.date)) {
     const src2 = benchSource(s2.id, preview);
     if (!src2) continue;
     for (const d of s2.dimensions) { const info = dimInfo(d, src2.data); delete info.rows; others.push(info); }

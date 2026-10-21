@@ -17,7 +17,7 @@ export function gapMapHtml(M) {
     <div><table><thead><tr><th>Dimensione</th><th class="num">Fondativa</th><th class="num">IQR</th><th>Quadrante</th></tr></thead><tbody>
       ${allDims.map((d) => `<tr class="${d.main ? '' : 'muted'}"><td><span class="dim-letter" style="${d.main ? '' : 'background:#B5BFCB'}">${d.dimension}</span>${esc(d.name)}</td>
         ${d.gap.available ? `<td class="num">${pct(d.gap.fondShare)}</td><td class="num">${fmtScore(d.gap.iqr)}</td><td><b>${esc(d.gap.quadrant)}</b></td>` : `<td colspan="3" class="small muted">N = ${d.gap.n}: non disponibile</td>`}</tr>`).join('')}</tbody></table>
-      <p class="small muted" style="margin-top:10px">In blu le dimensioni di questa sessione, in grigio quelle già misurate nelle altre sessioni.</p></div></div></div>`;
+      <p class="small muted" style="margin-top:10px">${M.others.length ? 'In blu le dimensioni di questa sessione, in grigio quelle misurate nelle sessioni precedenti.' : 'È la prima sessione: le dimensioni delle sessioni successive compariranno nelle loro mappe.'}</p></div></div></div>`;
 
   return gapHtml;
 }
