@@ -148,7 +148,7 @@ let tourView = 'admin'; // al telefono si vede una vista alla volta
 async function viewTour() {
   if (!PROVA) { location.hash = '#/programma'; return; }
   const D = await api('/api/admin/demo');
-  const act = async (url, body, msg) => { try { await api(url, { method: 'POST', body: body || {} }); toast(msg); await refreshSimDay(); route(); } catch (e) { toast(e.message, true); } };
+  const act = async (url, body, msg) => { $$('[id^=tour_]').forEach((b) => { b.disabled = true; }); try { await api(url, { method: 'POST', body: body || {} }); toast(msg); await refreshSimDay(); route(); } catch (e) { toast(e.message, true); $$('[id^=tour_]').forEach((b) => { b.disabled = false; }); } };
   if (!D.present) {
     app.innerHTML = `<div class="pagehead"><div><h1>Percorso guidato</h1><p>Il programma dall'inizio alla fine con un'azienda fittizia, per mostrarlo a stakeholder e clienti senza dati reali.</p></div></div>
       <div class="card"><p>I dati DEMO non sono caricati. Il caricamento crea l'azienda del percorso guidato, i suoi referenti, la community di 14 aziende e le quattro sessioni DEMO in preparazione.</p>
@@ -184,8 +184,9 @@ async function viewTour() {
   };
   const phoneHtml = D.done
     ? `<div class="phone-static"><p class="eyebrow">Anteprima</p><h3>Allineamento finale · settembre 2027</h3><p>Il referente, con il leader, riceverà un modulo precompilato con livelli e sotto-opzioni dei 12 item misurati prima di luglio: per ognuno conferma o modifica, con un'evidenza. Poi la call con il leader conferma le tre priorità finali.</p><p class="small muted">Funzione non ancora disponibile nella piattaforma: questa è solo un'anteprima.</p></div>`
+    : /null|undefined/.test(phone.url) ? '<div class="phone-static"><p>Questa vista non è disponibile: il referente o il partecipante DEMO è stato rimosso dalla console. Con <b>Reset demo</b> il percorso si ricarica.</p></div>'
     : `<iframe class="phone-frame" src="${esc(phone.url)}" title="Vista azienda: ${esc(step.label)}"></iframe>`;
-  const realUrl = !D.done && phone.url.startsWith('/') ? `${NET.baseUrl}${phone.url.replace('&anteprima=1', '').replace(/&p=[^&#]*/, '')}` : null;
+  const realUrl = !D.done && phone.url.startsWith('/j/') ? `${NET.baseUrl}${phone.url.replace('&anteprima=1', '').replace(/&p=[^&#]*/, '')}` : null;
   app.innerHTML = `<div class="pagehead"><div><h1>Percorso guidato</h1><p>${esc(D.company.name)} · ${esc(D.company.sector || '')} · perimetro ${esc(D.company.perimeter || '')}. Dati inventati: nulla entra nei dati reali o nel benchmark ufficiale.</p></div>
       <div class="row"><button type="button" class="danger sm" id="tour_reset">Reset demo</button></div></div>
     <ol class="tstages" aria-label="Sessioni del percorso">${S.map(stage).join('')}<li class="tstage ${D.done ? 'st-live' : 'st-prep'}"><span class="stage-n" aria-hidden="true">${icon('flag')}</span><span><b>Allineamento finale</b><small>settembre 2027 · anteprima</small></span></li></ol>
@@ -215,7 +216,7 @@ async function viewTour() {
   if ($('#tour_next')) $('#tour_next').onclick = () => act('/api/admin/demo/advance', { mode: 'step' }, 'Passo successivo');
   if ($('#tour_sess')) $('#tour_sess').onclick = () => act('/api/admin/demo/advance', { mode: 'session' }, 'Sessione successiva');
   if ($('#tour_end')) $('#tour_end').onclick = () => { if (confirm('Portare il percorso alla fine? Le quattro sessioni DEMO si chiudono con tutti i dati del file.')) act('/api/admin/demo/advance', { mode: 'end' }, 'Percorso completato'); };
-  $('#tour_reset').onclick = () => { if (confirm('Riportare il percorso guidato all\'inizio? Tutti i dati DEMO vengono cancellati e ricaricati dal file. I dati reali non vengono toccati.')) act('/api/admin/demo/reset', {}, 'Demo ripristinata'); };
+  $('#tour_reset').onclick = () => { if (confirm('Riportare il percorso guidato all\'inizio? Tutti i dati DEMO vengono cancellati, anche aziende e sessioni create a mano in DEMO, e il percorso si ricarica dal file. I dati reali non vengono toccati.')) act('/api/admin/demo/reset', {}, 'Demo ripristinata'); };
 }
 
 // ---------- Domande delle sessioni: le stesse in DEMO e in Produzione (lo strumento V1 è uno solo) ----------
@@ -350,7 +351,7 @@ async function viewProgram() {
   // B3: cosa manca per la prossima sessione in preparazione (dai dati della control room)
   const missing = [];
   if (next && next.phase === 'preparazione' && !live) {
-    const C = byId[next.id], cs = C.companies;
+    const C = byId[next.id], cs = PROVA ? C.companies.filter((c) => c.kind === 'TEST') : C.companies;
     if (!cs.length) missing.push(['nessuna azienda censita', '#/aziende']);
     else {
       const noRef = cs.filter((c) => !c.referents.length).length, noMail = cs.filter((c) => c.referents.length && !c.invited_at).length, noQr = cs.filter((c) => c.referents.length && !c.qr_generated_at).length;
@@ -361,7 +362,7 @@ async function viewProgram() {
   }
   // B2: primi passi, finché il programma non è avviato (stato calcolato dai dati; le domande "viste" si ricordano nel browser)
   let qSeen = false; try { qSeen = !!localStorage.getItem('aito_q_seen'); } catch { /* */ }
-  const nC = next ? byId[next.id].companies : [];
+  const nC = next ? byId[next.id].companies.filter((c) => !PROVA || c.kind === 'TEST') : [];
   const setup = next && next.phase === 'preparazione' && !closed && !live ? [
     { done: companies.length > 0, label: 'Aggiungi le aziende e i referenti', href: '#/aziende', note: companies.length ? `${companies.length} ${companies.length === 1 ? 'azienda' : 'aziende'}` : 'nessuna ancora' },
     { done: qSeen, label: 'Verifica le domande della sessione', href: `#/domande/${next.base}`, note: qSeen ? 'consultate' : 'da consultare' },
@@ -405,7 +406,7 @@ async function viewProgram() {
       ${focus ? `<div class="hero-next">
         <span class="hn-l">${live ? 'In corso adesso' : 'Prossima sessione'}</span>
         <span class="hn-t">${esc(sname(focus))}</span>
-        <span class="hn-d">${esc(longDate(focus.date))}${!live && daysTo(focus.date) >= 0 ? ` · tra ${daysTo(focus.date)} ${daysTo(focus.date) === 1 ? 'giorno' : 'giorni'}` : ''}</span>
+        <span class="hn-d">${esc(longDate(focus.date))}${!live && daysTo(focus.date) === 0 ? ' · oggi' : !live && daysTo(focus.date) > 0 ? ` · tra ${daysTo(focus.date)} ${daysTo(focus.date) === 1 ? 'giorno' : 'giorni'}` : ''}</span>
         <span class="chip chip-${status(focus)[0]}">${status(focus)[0] === 'live' ? icon('dot') : ''}${esc(status(focus)[1])}</span>
         <a class="btn primary" href="${primary.href}">${esc(primary.label)}${icon('arrow', 'thin')}</a>
         ${missing.length ? `<p class="hn-miss"><b>Manca ancora:</b> ${missing.map(([t, h]) => `<a href="${h}">${esc(t)}</a>`).join(' · ')}</p>` : ''}</div>`

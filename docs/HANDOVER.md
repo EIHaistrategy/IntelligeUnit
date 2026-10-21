@@ -14,7 +14,7 @@ La piattaforma copre il ciclo completo di una sessione e il lavoro dopo la sessi
 | Referente (scheda pre-sessione, confronto, consolidamento con sotto-opzioni, commitment, report) | Completo |
 | Console ELIS: Programma, sessioni con schede Prima/In sala/Mappe/Follow up, report e call, commitment, aziende | Completa, riorganizzata il 19/10 |
 | Ambiente DEMO separato dalla Produzione (cookie `aito_mode`, dati `seeded = 1`, registro modifiche per ambiente) | Completo |
-| Percorso guidato DEMO: azienda fittizia dalla preparazione al report, vista admin e telefono, data simulata, reset (`server/demo.js`, dati in `server/demo/percorso-guidato.json`) | Completo, 6 test; sul ramo `claude/gifted-newton-0n6iuq`, non ancora su `main` |
+| Percorso guidato DEMO: azienda fittizia dalla preparazione al report, vista admin e telefono, data simulata, reset (`server/demo.js`, dati in `server/demo/percorso-guidato.json`) | Completo, 9 test; sul ramo `claude/gifted-newton-0n6iuq`, non ancora su `main` |
 | Dashboard live, plenaria, mappe a quadranti §10.2–10.4 | Complete |
 | Report web e PDF per azienda, con versioni rilasciate immutabili; zip di tutti i PDF | Completi |
 | Export Excel (solo produzione), registro modifiche | Completi |
@@ -75,7 +75,7 @@ Limiti noti:
 ```
 git clone https://github.com/EIHaistrategy/IntelligeUnit.git && cd IntelligeUnit
 npm install
-npm test                                   # 23 test (17 motore + 6 DEMO)
+npm test                                   # 26 test (17 motore + 9 DEMO)
 ADMIN_PASSWORD=una-password npm start      # console su http://localhost:3000/admin
 ```
 

@@ -185,6 +185,10 @@ for (const sql of ["ALTER TABLE commitments ADD COLUMN status_note TEXT", "ALTER
   try { db.exec(sql); } catch { /* colonna già presente */ }
 }
 db.exec("UPDATE audit SET seeded = 1 WHERE seeded = 0 AND actor LIKE 'demo%'");
+// righe scritte prima della separazione su aziende e sessioni DEMO: vanno nel registro DEMO
+db.exec(`UPDATE audit SET seeded = 1 WHERE seeded = 0 AND (
+  (entity = 'company' AND entity_id IN (SELECT CAST(id AS TEXT) FROM companies WHERE seeded = 1)) OR
+  (entity = 'session' AND entity_id IN (SELECT CAST(id AS TEXT) FROM sessions WHERE seeded = 1)))`);
 
 export const token = (n = 18) => crypto.randomBytes(n).toString('base64url');
 export const shortCode = (n = 6) => {
@@ -200,9 +204,12 @@ export const q = {
   run: (sql, ...p) => db.prepare(sql).run(...p),
 };
 
+// Transazione; se ne è già aperta una (per esempio il percorso guidato DEMO che chiama le regole vere), ci si unisce a quella
+let txDepth = 0;
 export function tx(fn) {
-  db.exec('BEGIN');
-  try { const r = fn(); db.exec('COMMIT'); return r; } catch (e) { db.exec('ROLLBACK'); throw e; }
+  if (txDepth) { txDepth++; try { return fn(); } finally { txDepth--; } }
+  db.exec('BEGIN'); txDepth = 1;
+  try { const r = fn(); db.exec('COMMIT'); return r; } catch (e) { db.exec('ROLLBACK'); throw e; } finally { txDepth = 0; }
 }
 
 // Ambiente della richiesta in corso (0 Produzione, 1 DEMO): lo imposta il server per ogni richiesta,

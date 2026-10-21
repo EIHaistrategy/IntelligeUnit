@@ -106,3 +106,35 @@ test('reset: il percorso torna all\'inizio, con gli stessi dati', async () => {
   assert.equal(q.get("SELECT COUNT(*) n FROM companies WHERE seeded = 1 AND kind = 'TEST'").n, 1);
   assert.equal(prod().companies, 1);
 });
+
+test('un\'azienda DEMO non diventa REALE e non entra mai nel benchmark ufficiale', async () => {
+  const g = D.tourState().company.id;
+  const r = await fetch(`${base}/api/admin/companies/${g}`, { method: 'PUT', headers: { ...H(), Cookie: `${cookie}; aito_mode=prova` }, body: JSON.stringify({ kind: 'REALE' }) });
+  assert.equal(r.status, 400);
+  // anche se il dato fosse cambiato direttamente nel database, il benchmark ufficiale lo ignora
+  q.run("UPDATE companies SET kind = 'REALE' WHERE id = ?", g);
+  D.advanceDemo('end');
+  assert.equal(L.computeBenchmark('GOV').companies.length, 0);
+  q.run("UPDATE companies SET kind = 'TEST' WHERE id = ?", g);
+  const fr = await fetch(`${base}/api/admin/benchmark/GOV/freeze`, { method: 'POST', headers: { ...H(), Cookie: `${cookie}; aito_mode=prova` }, body: '{}' });
+  assert.equal(fr.status, 403, 'il benchmark ufficiale non si congela dalla DEMO');
+});
+
+test('modifiche da una scheda rimasta nell\'altro ambiente: rifiutate', async () => {
+  const sid = D.tourState().sessions[0].id;
+  const r = await fetch(`${base}/api/admin/sessions/${sid}/phase`, { method: 'PUT', headers: { ...H(), Cookie: cookie }, body: JSON.stringify({ phase: 'chiusa' }) });
+  assert.equal(r.status, 409, 'cookie di Produzione su una sessione DEMO');
+});
+
+test('aziende create a mano in DEMO non confondono il percorso; la fase non torna indietro', () => {
+  D.removeDemo();
+  q.run("INSERT INTO companies (name, kind, join_code, seeded) VALUES ('Mia prova', 'TEST', 'MIAP', 1)");
+  const st = D.seedDemo();
+  assert.equal(st.sessions.length, 4);
+  assert.match(st.company.name, /Altavia/);
+  // il team porta a mano la sessione al confronto: "Avanza" non la riporta indietro
+  q.run("UPDATE sessions SET phase = 'confronto' WHERE id = ?", st.sessions[0].id);
+  D.advanceDemo(); D.advanceDemo();
+  assert.equal(q.get('SELECT phase FROM sessions WHERE id = ?', st.sessions[0].id).phase, 'confronto');
+  assert.equal(prod().companies, 1);
+});

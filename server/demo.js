@@ -14,6 +14,7 @@ import * as E from './engine/index.js';
 const I = E.INSTRUMENT;
 const SCRIPT = path.join(path.dirname(fileURLToPath(import.meta.url)), 'demo', 'percorso-guidato.json');
 const ACTOR = 'demo';
+const PHASES = ['preparazione', 'individuale', 'confronto', 'consolidamento', 'chiusa'];
 const FAC = 'demo:facilitatore';
 export const loadScript = () => JSON.parse(fs.readFileSync(SCRIPT, 'utf8'));
 
@@ -36,11 +37,13 @@ export const STEPS = [
 ];
 const BASES = ['GOV', 'EFF', 'GROW', 'SCALE'];
 
-export function hasDemo() { return !!q.get('SELECT 1 FROM companies WHERE seeded = 1 LIMIT 1'); }
+// Il percorso si riconosce dal suo stato salvato (azienda e sessioni create dal caricamento),
+// non da "esiste un dato DEMO": le aziende create a mano in DEMO non lo confondono.
 const tourGet = () => { try { return JSON.parse(getSetting('demo_tour') || 'null'); } catch { return null; } };
-const tourSet = (t) => setSetting('demo_tour', JSON.stringify(t));
-const guided = () => q.get("SELECT * FROM companies WHERE seeded = 1 AND kind = 'TEST' ORDER BY id LIMIT 1");
-const demoSessions = () => BASES.map((b) => q.get("SELECT * FROM sessions WHERE seeded = 1 AND mode = 'workshop' AND base = ? ORDER BY id LIMIT 1", b));
+const tourSet = (t) => setSetting('demo_tour', JSON.stringify({ ...tourGet(), ...t }));
+const guided = () => { const t = tourGet(); return t?.g ? q.get('SELECT * FROM companies WHERE id = ? AND seeded = 1', t.g) : null; };
+const demoSessions = () => { const ids = tourGet()?.sids || []; return BASES.map((b, i) => (ids[i] ? q.get('SELECT * FROM sessions WHERE id = ? AND seeded = 1', ids[i]) : null)); };
+export function hasDemo() { return !!guided(); }
 const addDays = (d, n) => { const x = new Date(`${d}T12:00:00Z`); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
 
 // Caricamento: idempotente (se i dati DEMO ci sono già, non duplica nulla)
@@ -49,10 +52,11 @@ export function seedDemo() {
   const S = loadScript();
   const rnd = prng(20261119);
   tx(() => {
+    const sids = [];
     for (const base of BASES) {
       const def = E.sessionDef(base);
-      q.run(`INSERT INTO sessions (base, title, date, mode, channel, code, phase, instrument_version, scoring_version, seeded)
-             VALUES (?, ?, ?, 'workshop', 'presenza', ?, 'preparazione', ?, ?, 1)`, base, `${def.name} · demo`, def.date, shortCode(5), I.version, E.SCORING.version);
+      sids.push(Number(q.run(`INSERT INTO sessions (base, title, date, mode, channel, code, phase, instrument_version, scoring_version, seeded)
+             VALUES (?, ?, ?, 'workshop', 'presenza', ?, 'preparazione', ?, ?, 1)`, base, `${def.name} · demo`, def.date, shortCode(5), I.version, E.SCORING.version).lastInsertRowid));
     }
     for (const c of S.community) {
       const r = q.run("INSERT INTO companies (name, perimeter, sector, kind, join_code, seeded) VALUES (?, 'Gruppo', ?, 'DEMO', ?, 1)", `${c.nome} (demo)`, c.settore, shortCode(4));
@@ -69,15 +73,16 @@ export function seedDemo() {
       q.run('INSERT INTO roster (company_id, name, func) VALUES (?,?,?)', cid, r.nome, r.funzione);
     }
     for (const p of S.persone) q.run('INSERT INTO roster (company_id, name, func) VALUES (?,?,?)', cid, p.nome, p.funzione);
+    q.run("DELETE FROM settings WHERE key = 'demo_tour'");
+    tourSet({ s: 0, k: 0, g: cid, sids });
+    enter(0, 0, S); // nella stessa transazione: se fallisce, non restano dati a metà
+    audit(ACTOR, 'demo', '', 'seed', null, { community: S.community.length, azienda: S.azienda.nome });
   });
-  tourSet({ s: 0, k: 0 });
-  enter(0, 0, S);
-  audit(ACTOR, 'demo', '', 'seed', null, { community: S.community.length, azienda: S.azienda.nome });
   return tourState();
 }
 
 export function removeDemo() {
-  // solo ciò che ha creato il caricamento dimostrativo: mai aziende inserite a mano
+  // tutti i dati dell'ambiente DEMO (seeded = 1), anche aziende e sessioni create a mano in DEMO; mai dati di Produzione
   const ids = q.all('SELECT id FROM companies WHERE seeded = 1').map((r) => r.id);
   const sids = q.all('SELECT id FROM sessions WHERE seeded = 1').map((r) => r.id);
   tx(() => {
@@ -100,7 +105,7 @@ export function removeDemo() {
     }
     q.run("DELETE FROM settings WHERE key = 'demo_tour'");
   });
-  audit('admin', 'demo', '', 'remove', null, { removed: ids.length });
+  audit(ACTOR, 'demo', '', 'remove', null, { removed: ids.length });
   return { removed: ids.length };
 }
 
@@ -116,8 +121,9 @@ export function advanceDemo(mode = 'step') {
   do {
     if (t.s >= BASES.length) break;
     t = t.k + 1 < STEPS.length ? { s: t.s, k: t.k + 1 } : { s: t.s + 1, k: 0 };
-    tourSet(t);
-    if (t.s < BASES.length) enter(t.s, t.k, S);
+    // passo e suoi effetti insieme: se un effetto fallisce, il percorso resta dov'era
+    const n = t;
+    tx(() => { tourSet({ s: n.s, k: n.k }); if (n.s < BASES.length) enter(n.s, n.k, S); });
   } while ((mode === 'session' && t.s === startS) || (mode === 'end' && t.s < BASES.length));
   return tourState();
 }
@@ -130,7 +136,8 @@ function enter(i, k, S) {
   const sc = S.sessioni[sess.base] || {};
   const def = E.sessionDef(sess.base);
   L.ensureSessionCompany(sess.id, g.id);
-  const phase = (p) => { if (sess.phase !== p) { q.run('UPDATE sessions SET phase = ? WHERE id = ?', p, sess.id); audit(ACTOR, 'session', sess.id, 'phase', { phase: sess.phase }, { phase: p }, 'Percorso guidato DEMO'); sess.phase = p; } };
+  // la fase va solo avanti (regola 4): se il team l'ha già portata oltre a mano, non si torna indietro
+  const phase = (p) => { if (PHASES.indexOf(p) > PHASES.indexOf(sess.phase)) { q.run('UPDATE sessions SET phase = ? WHERE id = ?', p, sess.id); audit(ACTOR, 'session', sess.id, 'phase', { phase: sess.phase }, { phase: p }, 'Percorso guidato DEMO'); sess.phase = p; } };
   const step = STEPS[k].id;
   if (step === 'prep') {
     q.run("UPDATE session_company SET invited_at = COALESCE(invited_at, datetime('now')) WHERE session_id = ? AND company_id = ?", sess.id, g.id);

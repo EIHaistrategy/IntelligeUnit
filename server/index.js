@@ -77,6 +77,16 @@ app.use((req, res, next) => {
 app.use(compression());
 // ogni richiesta porta con sé il suo ambiente, per il registro modifiche (Produzione o DEMO)
 app.use((req, res, next) => envStore.run({ seeded: isProva(req) ? 1 : 0 }, next));
+// Le azioni della console su una sessione o un'azienda valgono per l'ambiente del dato, non del cookie:
+// se in un'altra scheda si è cambiato ambiente, la modifica si ferma (regola 6) e il registro resta coerente.
+const entityEnv = (table) => (req, res, next) => {
+  const row = /^\d+$/.test(req.params.id) ? q.get(`SELECT seeded FROM ${table} WHERE id = ?`, req.params.id) : null;
+  if (!row) return next();
+  if (req.method !== 'GET' && row.seeded !== (isProva(req) ? 1 : 0)) return res.status(409).json({ error: 'Hai cambiato ambiente (DEMO/Produzione) in un\'altra scheda: ricarica la pagina e riprova.' });
+  setRequestEnv(row.seeded); next();
+};
+app.use('/api/admin/sessions/:id', entityEnv('sessions'));
+app.use('/api/admin/companies/:id', entityEnv('companies'));
 app.get('/healthz', (req, res) => res.send('ok'));
 // la trascrizione di una call Teams può essere lunga: solo quella rotta accetta fino a 1 MB
 const jsonSmall = express.json({ limit: '200kb' }), jsonBig = express.json({ limit: '1mb' });
@@ -512,6 +522,8 @@ app.put('/api/admin/companies/:id', wrap((req, res) => {
   const { name, perimeter, sector, kind } = { ...before, ...req.body };
   if (!['REALE', 'TEST', 'DEMO'].includes(kind)) return bad(res, 'Tipo non valido');
   if (kind === 'DEMO' && before.kind !== 'DEMO') return bad(res, 'Un\'azienda non può diventare DEMO: i dati dimostrativi si creano solo da Impostazioni');
+  // un'azienda dell'ambiente DEMO non diventa mai REALE: entrerebbe nel benchmark ufficiale (regole 3 e 6)
+  if (kind === 'REALE' && before.kind !== 'REALE' && (before.seeded || before.kind === 'DEMO')) return bad(res, 'Un\'azienda DEMO non può diventare REALE');
   if (!txt(name, 150)) return bad(res, 'Nome obbligatorio');
   q.run('UPDATE companies SET name = ?, perimeter = ?, sector = ?, kind = ? WHERE id = ?', name, perimeter, sector, kind, before.id);
   audit(ADMIN, 'company', before.id, 'update', before, { name, perimeter, sector, kind }, req.body?.reason || null);
@@ -710,6 +722,7 @@ app.put('/api/admin/sessions/:sid/companies/:cid/transcript', wrap((req, res) =>
 // Benchmark, plenaria, report
 app.post('/api/admin/benchmark/:base/freeze', wrap((req, res) => {
   if (!E.sessionDef(req.params.base)) return bad(res, 'Sessione non valida');
+  if (isProva(req)) return bad(res, 'Il benchmark ufficiale si congela solo in Produzione', 403);
   return L.freezeBenchmark(req.params.base, ADMIN);
 }));
 app.get('/api/admin/benchmark', wrap((req) => (isProva(req) ? [] : q.all('SELECT id, base, kind, label, n_companies, instrument_version, scoring_version, created_at FROM benchmark_versions ORDER BY id DESC'))));
@@ -758,6 +771,9 @@ function reportFor(cid, req, admin) {
 app.get('/api/admin/report/:cid', wrap((req) => reportFor(Number(req.params.cid), req, true)));
 app.post('/api/admin/correct', wrap((req, res) => {
   const { companyId, itemId, level, sub, reason } = req.body || {};
+  const co = q.get('SELECT seeded FROM companies WHERE id = ?', companyId);
+  if (co && co.seeded !== envOf(req)) return bad(res, 'Hai cambiato ambiente (DEMO/Produzione) in un\'altra scheda: ricarica la pagina e riprova.', 409);
+  if (co) setRequestEnv(co.seeded);
   const out = L.adminCorrect(companyId, itemId, level, sub, reason, ADMIN);
   if (!out.ok) return bad(res, out.errors.join(' · '));
   return out;

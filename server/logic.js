@@ -274,7 +274,7 @@ export function currentValues(companyId) {
 // ---------- Benchmark ----------
 function eligibleCompanies({ preview = false } = {}) {
   if (preview) return q.all("SELECT * FROM companies WHERE seeded = 1 AND kind != 'TEST'"); // ambiente DEMO: solo i dati dimostrativi, mai le aziende TEST (regola 7)
-  return q.all(`SELECT c.* FROM companies c JOIN consents k ON k.company_id = c.id AND k.type = 'benchmark' AND k.granted = 1 WHERE c.kind = 'REALE'`);
+  return q.all(`SELECT c.* FROM companies c JOIN consents k ON k.company_id = c.id AND k.type = 'benchmark' AND k.granted = 1 WHERE c.kind = 'REALE' AND c.seeded = 0`); // mai dati dell'ambiente DEMO
 }
 
 export function computeBenchmark(base, opts = {}) {
