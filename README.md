@@ -86,7 +86,7 @@ Dove compaiono: voce *Mappe* nel menu della console; pulsante nella control room
 - Benchmark congelati per versione; solo aziende `REALE` con consenso al benchmark. Le aziende `TEST` (es. l'azienda amica) seguono il flusso vero ma restano fuori dal benchmark; le aziende `DEMO` vivono solo nell'ambiente **DEMO**.
 - Plenaria anonima, report riservato stampabile in PDF, export Excel di tutti i dati.
 - Sessioni ad hoc per aziende assenti (stesso flusso, modalità registrata).
-- Dati dimostrativi: nell'ambiente **DEMO** della console (o con `npm run demo`, o con la variabile d'ambiente `DEMO_DATA=1` all'avvio) si caricano il percorso guidato, 4 sessioni DEMO e 14 aziende della community. Restano separati dai dati reali e si cancellano con un clic.
+- Dati dimostrativi: nell'ambiente **DEMO** della console (o con `npm run demo`, o con la variabile d'ambiente `DEMO_DATA=1` all'avvio; online su Render è già attiva nel Dockerfile, così il percorso guidato si ricarica da solo a ogni riavvio: per disattivarla, `DEMO_DATA=0` nelle impostazioni del servizio) si caricano il percorso guidato, 4 sessioni DEMO e 14 aziende della community. Restano separati dai dati reali e si cancellano con un clic.
 - Mappe a quadranti per sessione (§10.2 dove intervenire, §10.3 gap della community, §10.4 peer matching), anche in plenaria e nel report.
 
 ## 6. Non ancora presente (fasi successive)

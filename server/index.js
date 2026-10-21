@@ -837,7 +837,7 @@ process.on('unhandledRejection', (e) => console.error('Errore non gestito:', e))
 process.on('uncaughtException', (e) => console.error('Eccezione non gestita:', e));
 
 export function start(port = PORT) {
-  if (process.env.DEMO_DATA === '1' && !hasDemo()) { try { console.log('  Dati dimostrativi caricati:', JSON.stringify(seedDemo())); } catch (e) { console.error('Dati dimostrativi non caricati:', e.message); } }
+  if (process.env.DEMO_DATA === '1' && !hasDemo()) { try { const d = seedDemo(); console.log(`  Percorso guidato DEMO caricato: ${d.company?.name}, ${d.sessions?.length} sessioni`); } catch (e) { console.error('Dati dimostrativi non caricati:', e.message); } }
   return app.listen(port, '0.0.0.0', () => {
     console.log('\n  AITO — AI Transformation & Adoption Map');
     console.log('  ─────────────────────────────────────────');
