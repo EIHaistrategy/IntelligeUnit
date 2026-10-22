@@ -150,3 +150,25 @@ test('nessuna versione identica del report unificato; protezioni del server', as
   // report di un'azienda dell'altro ambiente: 404 chiaro
   assert.equal((await fetch(`${base}/api/admin/report/${g}`, { headers: { Cookie: cookie } })).status, 404);
 });
+
+test('accesso firmato: resta valido dopo un riavvio a database vuoto, non si falsifica, «Esci» lo annulla', async () => {
+  const me = async (c) => (await (await fetch(`${base}/api/admin/me`, { headers: { Cookie: c } })).json()).role;
+  q.run('DELETE FROM admin_tokens'); // come dopo una pubblicazione su Render: nessuna sessione salvata
+  assert.equal(await me(cookie), 'admin');
+  const [, val] = cookie.split('=');
+  const parts = val.split('.');
+  await fetch(`${base}/api/admin/demo-access`, { method: 'PUT', headers: { ...H(), Cookie: cookie }, body: JSON.stringify({ password: 'comitato2027', enabled: true }) });
+  assert.equal(await me(`aito_admin=demo.${parts.slice(1).join('.')}`), null, 'il ruolo non si cambia a mano');
+  assert.equal(await me(`aito_admin=${parts.slice(0, 3).join('.')}.${'A'.repeat(43)}`), null, 'firma falsa');
+  const lg = await fetch(`${base}/api/admin/login`, { method: 'POST', headers: H(), body: JSON.stringify({ password: 'testpass123' }) });
+  const c2 = lg.headers.get('set-cookie').split(';')[0];
+  await fetch(`${base}/api/admin/logout`, { method: 'POST', headers: { ...H(), Cookie: c2 }, body: '{}' });
+  assert.equal(await me(c2), null);
+  assert.equal(await me(cookie), 'admin', 'le altre sessioni restano aperte');
+  // cambio password da Impostazioni: le altre sessioni escono, chi l'ha cambiata resta dentro con un cookie nuovo
+  const c3 = (await fetch(`${base}/api/admin/login`, { method: 'POST', headers: H(), body: JSON.stringify({ password: 'testpass123' }) })).headers.get('set-cookie').split(';')[0];
+  const ch = await fetch(`${base}/api/admin/password`, { method: 'PUT', headers: { ...H(), Cookie: cookie }, body: JSON.stringify({ password: 'testpass123' }) });
+  const c4 = ch.headers.get('set-cookie').split(';')[0];
+  assert.equal(await me(c3), null); assert.equal(await me(cookie), null); assert.equal(await me(c4), 'admin');
+  cookie = c4;
+});

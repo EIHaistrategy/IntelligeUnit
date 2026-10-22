@@ -9,6 +9,8 @@ services:
     envVars:
       - key: ADMIN_PASSWORD
         generateValue: true
+      - key: SESSION_SECRET   # firma dei cookie d'accesso: chi è entrato resta dentro dopo riavvii e pubblicazioni
+        generateValue: true
     disk:
       name: aito-data
       mountPath: /data

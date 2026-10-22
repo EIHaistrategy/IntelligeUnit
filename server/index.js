@@ -472,10 +472,44 @@ function cookie(req, name) {
   const m = (req.headers.cookie || '').split(';').map((x) => x.trim().split('=')).find(([k]) => k === name);
   return m ? decodeURIComponent(m[1]) : null;
 }
+// Accesso firmato: il cookie porta ruolo e data, firmati con un segreto casuale (variabile SESSION_SECRET).
+// Sul piano gratuito di Render ogni pubblicazione svuota il database: con SESSION_SECRET e le password nelle
+// variabili la chiave resta uguale, quindi chi è entrato resta dentro. Cambiare la password su Render fa uscire tutti.
+// Senza la variabile (uso locale) il segreto sta nel database: vale finché il database c'è.
+const SESSION_DAYS = 14;
+const envSecret = String(process.env.SESSION_SECRET || '').trim();
+if (envSecret.length < 16 && !getSetting('session_secret')) setSetting('session_secret', token(32));
+const sessionSecret = () => (envSecret.length >= 16 ? envSecret : getSetting('session_secret'));
+function sessionKey(role) {
+  const src = role === 'admin' ? (process.env.ADMIN_PASSWORD || getSetting('admin_pw'))
+    : role === 'demo' ? (envDemoPw().length >= 8 ? envDemoPw() : getSetting('demo_pw')) : null;
+  if (!src) return null;
+  // la password e l'epoca entrano nella chiave: cambiare la password, o l'epoca da Impostazioni, annulla i cookie firmati prima
+  return crypto.createHmac('sha256', sessionSecret()).update(`${role}|${src}|${getSetting(`sess_epoch_${role}`) || ''}`).digest();
+}
+function signSession(role) {
+  const body = `${role}.${Date.now()}.${token(12)}`;
+  return `${body}.${crypto.createHmac('sha256', sessionKey(role)).update(body).digest('base64url')}`;
+}
+const newEpoch = (role) => setSetting(`sess_epoch_${role}`, token(12));
+const sessionCookie = (req, role) => `aito_admin=${signSession(role)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * SESSION_DAYS}${req.secure ? '; Secure' : ''}`;
 // Ruolo dell'accesso: "admin" (team ELIS) oppure "demo" (comitato scientifico: vede e usa solo l'ambiente DEMO)
+function sessionOf(req) {
+  const m = /^(admin|demo)\.(\d{1,15})\.([\w-]{16})\.([\w-]{43})$/.exec(cookie(req, 'aito_admin') || '');
+  if (!m || Date.now() - Number(m[2]) > SESSION_DAYS * 864e5 || Number(m[2]) > Date.now() + 6e4) return null;
+  const role = m[1], key = sessionKey(role);
+  if (!key || (role === 'demo' && !demoActive())) return null;
+  const want = Buffer.from(crypto.createHmac('sha256', key).update(`${role}.${m[2]}.${m[3]}`).digest('base64url'));
+  const got = Buffer.from(m[4]);
+  if (got.length !== want.length || !crypto.timingSafeEqual(got, want)) return null;
+  // dopo «Esci» quel cookie resta rifiutato (fino al riavvio; il browser l'ha comunque cancellato)
+  return q.get('SELECT 1 FROM admin_tokens WHERE token = ?', m[3]) ? null : { role, id: m[3] };
+}
+// il ruolo si calcola una volta per richiesta
+const roleCache = new WeakMap();
 function roleOf(req) {
-  const t = cookie(req, 'aito_admin');
-  return t ? q.get("SELECT role FROM admin_tokens WHERE token = ? AND created_at > datetime('now', '-14 days')", t)?.role || null : null;
+  if (!roleCache.has(req)) roleCache.set(req, sessionOf(req)?.role || null);
+  return roleCache.get(req);
 }
 const isAdmin = (req) => !!roleOf(req);
 const isDemoViewer = (req) => roleOf(req) === 'demo';
@@ -517,17 +551,20 @@ app.post('/api/admin/login', wrap(async (req, res) => {
     return bad(res, 'Password errata', 401);
   }
   loginFails.delete(req.ip);
-  const t = token(24);
-  q.run('INSERT INTO admin_tokens (token, role) VALUES (?, ?)', t, role);
   const sec = req.secure ? '; Secure' : '';
-  res.setHeader('Set-Cookie', [`aito_admin=${t}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 14}${sec}`,
-    ...(role === 'demo' ? [`aito_mode=prova; Path=/; SameSite=Lax; Max-Age=${60 * 60 * 24 * 14}${sec}`] : [])]);
+  res.setHeader('Set-Cookie', [sessionCookie(req, role),
+    ...(role === 'demo' ? [`aito_mode=prova; Path=/; SameSite=Lax; Max-Age=${60 * 60 * 24 * SESSION_DAYS}${sec}`] : [])]);
   if (role === 'demo') audit('demo:comitato', 'access', '', 'login', null, null);
   return { ok: true, role };
 }));
 app.post('/api/admin/logout', wrap((req, res) => {
-  q.run('DELETE FROM admin_tokens WHERE token = ?', cookie(req, 'aito_admin') || '');
-  res.setHeader('Set-Cookie', 'aito_admin=; Path=/; Max-Age=0');
+  // si annota solo un cookie valido (niente scritture da richieste anonime); le annotazioni scadute si cancellano
+  const s = sessionOf(req);
+  if (s) {
+    q.run(`DELETE FROM admin_tokens WHERE created_at < datetime('now', '-${SESSION_DAYS} days')`);
+    q.run("INSERT OR IGNORE INTO admin_tokens (token, role) VALUES (?, 'uscito')", s.id);
+  }
+  res.setHeader('Set-Cookie', `aito_admin=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${req.secure ? '; Secure' : ''}`);
   return { ok: true };
 }));
 // pagina /demo: dice solo se l'accesso del comitato è attivo (nessun altro dettaglio)
@@ -555,12 +592,12 @@ app.put('/api/admin/demo-access', wrap(async (req, res) => {
     // spesso il browser riempie da solo il campo con la password admin salvata: non deve diventare la password del comitato
     if (await checkPw(pw, getSetting('admin_pw'))) return bad(res, 'La password DEMO deve essere diversa da quella admin (forse il browser ha riempito il campo da solo): scrivila di nuovo');
     setSetting('demo_pw', hashPw(pw));
-    q.run("DELETE FROM admin_tokens WHERE role = 'demo'"); // la vecchia password non vale più: si esce dagli accessi DEMO aperti
+    newEpoch('demo'); // la vecchia password non vale più: si esce dagli accessi DEMO aperti
     audit(ADMIN, 'settings', 'demo_pw', 'change', null, null);
   }
   if (enabled != null) {
     setSetting('demo_access', enabled ? '1' : '0');
-    if (!enabled) q.run("DELETE FROM admin_tokens WHERE role = 'demo'");
+    if (!enabled) newEpoch('demo');
     audit(ADMIN, 'settings', 'demo_access', enabled ? 'enable' : 'disable', null, null);
   }
   return { ok: true };
@@ -570,7 +607,9 @@ app.put('/api/admin/password', wrap((req, res) => {
   const pw = String(req.body?.password || '');
   if (pw.length < 8) return bad(res, 'Almeno 8 caratteri');
   setSetting('admin_pw', hashPw(pw)); audit(ADMIN, 'settings', 'admin_pw', 'change', null, null);
-  q.run('DELETE FROM admin_tokens WHERE token != ?', cookie(req, 'aito_admin') || ''); // chiude le altre sessioni aperte
+  // chiude le altre sessioni aperte; chi ha cambiato la password resta dentro con un cookie nuovo
+  newEpoch('admin');
+  res.setHeader('Set-Cookie', sessionCookie(req, 'admin'));
   return { ok: true };
 }));
 app.get('/api/admin/network', wrap(() => ({ baseUrl: baseUrl(), custom: getSetting('public_url') || null, addresses: lanAddresses(), port: PORT, db: DB_PATH })));

@@ -46,7 +46,9 @@ Per far validare il modello senza mostrare i dati reali c'è una seconda passwor
 3. Con questo accesso non si vede né si raggiunge la Produzione (il server rifiuta anche i tentativi diretti), né le Impostazioni, né l'export. I dati DEMO sono condivisi: se un membro fa «Riparti da zero», gli altri lo vedono.
 4. Cambiando la password o con «Disattiva l'accesso DEMO» chi era dentro esce.
 
-Sul piano gratuito di Render la password impostata da Impostazioni si perde a ogni riavvio: per tenerla, impostala anche come variabile `DEMO_PASSWORD` del servizio su Render (Environment). La variabile vale finché da Impostazioni non se ne imposta un'altra.
+Sul piano gratuito di Render la password impostata da Impostazioni si perde a ogni riavvio: per tenerla, impostala anche come variabile `DEMO_PASSWORD` del servizio su Render (Environment). Valgono tutte e due: quella della variabile e quella impostata da Impostazioni (fino al riavvio).
+
+**Restare dentro dopo gli aggiornamenti.** Con la variabile `SESSION_SECRET` su Render (un testo casuale di almeno 16 caratteri: nel pannello Environment c'è il pulsante «Generate») chi è entrato, team ELIS e comitato, resta dentro anche dopo ogni pubblicazione o riavvio, per 14 giorni. Senza la variabile, a ogni riavvio bisogna rientrare. Per far uscire tutti: cambia su Render `ADMIN_PASSWORD` (team ELIS), `DEMO_PASSWORD` (comitato) o `SESSION_SECRET` (tutti). Sul piano gratuito le uscite decise da Impostazioni (cambio password, «Disattiva l'accesso DEMO», «Esci») valgono solo fino al riavvio successivo.
 
 ### Allineamento finale (settembre 2027)
 
