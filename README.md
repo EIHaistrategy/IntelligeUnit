@@ -42,7 +42,7 @@ La console ELIS è su `http://localhost:3000/admin`. La finestra mostra anche l'
 
 Per far validare il modello senza mostrare i dati reali c'è una seconda password, che apre **solo l'ambiente DEMO**.
 1. In **Impostazioni → Accesso DEMO per il comitato scientifico** imposta la password (almeno 8 caratteri) e comunicala al comitato per un canale riservato.
-2. Il comitato entra da `/admin` con quella password: vede ed esplora tutta la DEMO (percorso guidato, mappe, plenaria, report, allineamento, viste azienda e telefono). In alto compare «Accesso DEMO · comitato scientifico» al posto del selettore.
+2. Il comitato entra dal suo indirizzo, **`/demo`** (per esempio https://aito-map.onrender.com/demo), con quella password. La pagina dice se l'accesso è attivo; la console `/admin` accetta solo la password admin, e `/demo` solo quella DEMO. Entrato, vede ed esplora tutta la DEMO (percorso guidato, mappe, plenaria, report, allineamento, viste azienda e telefono). In alto compare «Accesso DEMO · comitato scientifico» al posto del selettore.
 3. Con questo accesso non si vede né si raggiunge la Produzione (il server rifiuta anche i tentativi diretti), né le Impostazioni, né l'export. I dati DEMO sono condivisi: se un membro fa «Riparti da zero», gli altri lo vedono.
 4. Cambiando la password o con «Disattiva l'accesso DEMO» chi era dentro esce.
 

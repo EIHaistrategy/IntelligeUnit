@@ -128,6 +128,8 @@ app.use('/static', express.static(PUBLIC, { maxAge: 0 }));
 const page = (f) => (req, res) => res.sendFile(path.join(PUBLIC, f));
 app.get('/', page('index.html'));
 app.get('/admin', page('admin.html'));
+// indirizzo del comitato scientifico: entra solo nella DEMO
+app.get('/demo', page('demo.html'));
 app.get('/j/:code', page('join.html'));
 app.get('/r/:token', page('ref.html'));
 // tavolo del facilitatore ELIS: la vista del referente per un'azienda, aperta dalla console (serve l'accesso admin)
@@ -486,6 +488,7 @@ const ADMIN = 'admin';
 
 // valore della variabile DEMO_PASSWORD senza spazi e virgolette messi per errore nel pannello di Render
 const envDemoPw = () => String(process.env.DEMO_PASSWORD || '').trim().replace(/^(["'])(.*)\1$/, '$2').trim();
+const demoActive = () => getSetting('demo_access') !== '0' && (!!getSetting('demo_pw') || envDemoPw().length >= 8);
 async function demoPwOk(pw) {
   pw = String(pw || '').trim(); // uno spazio copiato per errore insieme alla password non deve bloccare il comitato
   if (!pw || getSetting('demo_access') === '0') return false;
@@ -504,7 +507,9 @@ app.post('/api/admin/login', wrap(async (req, res) => {
   const f = (loginFails.get(req.ip) || []).filter((t) => now - t < win);
   if (f.length >= 10 || globalFails.length >= 50) return bad(res, 'Troppi tentativi: riprova tra qualche minuto', 429);
   const pw = String(req.body?.password || '').slice(0, 200);
-  const role = (await checkPw(pw, getSetting('admin_pw'))) ? 'admin' : (await demoPwOk(pw)) ? 'demo' : null;
+  // /admin accetta solo la password admin; il comitato entra da /demo con la password DEMO
+  const role = req.body?.demo ? ((await demoPwOk(pw)) ? 'demo' : null) : (await checkPw(pw, getSetting('admin_pw'))) ? 'admin' : null;
+  if (req.body?.demo && !demoActive()) return bad(res, 'L\'accesso DEMO non è attivo: chiedi al team ELIS di impostare la password', 403);
   if (!role) {
     f.push(now); globalFails.push(now);
     if (loginFails.size > 1000) loginFails.clear();
@@ -525,6 +530,8 @@ app.post('/api/admin/logout', wrap((req, res) => {
   res.setHeader('Set-Cookie', 'aito_admin=; Path=/; Max-Age=0');
   return { ok: true };
 }));
+// pagina /demo: dice solo se l'accesso del comitato è attivo (nessun altro dettaglio)
+app.get('/api/demo/status', wrap(() => ({ active: demoActive() })));
 app.get('/api/admin/me', wrap((req) => ({ admin: isAdmin(req), role: roleOf(req) })));
 app.use('/api/admin', requireAdmin);
 // Accesso DEMO: niente Produzione, niente impostazioni di sistema, niente export (che è solo di Produzione)

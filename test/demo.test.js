@@ -165,7 +165,10 @@ test('mappe: una sessione mostra solo le dimensioni delle sessioni precedenti, m
 test('accesso DEMO (comitato scientifico): solo DEMO, niente Produzione, impostazioni o export', async () => {
   const A = { ...H(), Cookie: cookie };
   assert.equal((await fetch(`${base}/api/admin/demo-access`, { method: 'PUT', headers: A, body: JSON.stringify({ password: 'comitato2027', enabled: true }) })).status, 200);
-  const lg = await fetch(`${base}/api/admin/login`, { method: 'POST', headers: H(), body: JSON.stringify({ password: 'comitato2027' }) });
+  // da /admin la password DEMO non vale: il comitato entra da /demo
+  assert.equal((await fetch(`${base}/api/admin/login`, { method: 'POST', headers: H(), body: JSON.stringify({ password: 'comitato2027' }) })).status, 401);
+  assert.equal((await (await fetch(`${base}/api/demo/status`)).json()).active, true);
+  const lg = await fetch(`${base}/api/admin/login`, { method: 'POST', headers: H(), body: JSON.stringify({ password: ' comitato2027 ', demo: true }) });
   assert.equal((await lg.json()).role, 'demo');
   const dc = lg.headers.getSetCookie().find((c) => c.startsWith('aito_admin=')).split(';')[0];
   // anche con il cookie di Produzione vede solo la DEMO
@@ -184,6 +187,9 @@ test('accesso DEMO (comitato scientifico): solo DEMO, niente Produzione, imposta
   // disattivato l'accesso: chi era dentro esce e la password non vale più
   await fetch(`${base}/api/admin/demo-access`, { method: 'PUT', headers: A, body: JSON.stringify({ enabled: false }) });
   assert.equal((await fetch(`${base}/api/admin/companies`, { headers: V })).status, 401);
-  assert.equal((await fetch(`${base}/api/admin/login`, { method: 'POST', headers: H(), body: JSON.stringify({ password: 'comitato2027' }) })).status, 401);
+  assert.equal((await fetch(`${base}/api/admin/login`, { method: 'POST', headers: H(), body: JSON.stringify({ password: 'comitato2027', demo: true }) })).status, 403);
+  assert.equal((await (await fetch(`${base}/api/demo/status`)).json()).active, false);
+  // la password admin non entra da /demo
+  assert.equal((await fetch(`${base}/api/admin/login`, { method: 'POST', headers: H(), body: JSON.stringify({ password: 'testpass123', demo: true }) })).status, 403);
   assert.equal(prod().companies, 1);
 });

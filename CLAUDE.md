@@ -9,7 +9,7 @@ Gli utenti sono il team AI Strategy di ELIS: non sono sviluppatori. Rispondi in 
 | Ruolo | Accesso | Pagine |
 |---|---|---|
 | Team ELIS (admin) | password, cookie `aito_admin` | `/admin` (console), `/live/:sid`, `/plenaria/:base`, `/mappe/:base`, `/report/:cid` |
-| Comitato scientifico | password DEMO (Impostazioni o variabile `DEMO_PASSWORD`), cookie `aito_admin` con ruolo `demo` | la console solo in DEMO: niente Produzione, impostazioni, export (`roleOf`/`isDemoViewer` in `index.js`) |
+| Comitato scientifico | pagina `/demo` con la password DEMO (Impostazioni o variabile `DEMO_PASSWORD`), cookie `aito_admin` con ruolo `demo` | la console solo in DEMO: niente Produzione, impostazioni, export (`roleOf`/`isDemoViewer` in `index.js`) |
 | Facilitatore ELIS | come il team ELIS (console) | `/tavolo-elis/:cid`: la vista del referente per un'azienda; conduce confronto e consolidamento, corregge o rimuove i partecipanti in ogni fase |
 | Referente aziendale | link personale `/r/:token` | scheda pre-sessione, confronto, consolidamento, commitment, report rilasciati |
 | Partecipante | QR `/j/:code`, codice azienda, nessun account | risposte individuali dal telefono |

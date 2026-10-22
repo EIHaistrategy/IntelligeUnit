@@ -33,7 +33,7 @@ async function boot() {
   if (ROLE === 'demo' && !PROVA) { document.cookie = `aito_mode=prova; Path=/; Max-Age=${60 * 60 * 24 * 14}; SameSite=Lax`; location.reload(); return; }
   const i = await api('/api/instrument'); INST = i.instrument; SC = i.scoring;
   NET = await api('/api/admin/network');
-  $('#logout').onclick = async () => { await api('/api/admin/logout', { method: 'POST' }); location.reload(); };
+  $('#logout').onclick = async () => { await api('/api/admin/logout', { method: 'POST' }); if (me.role === 'demo') location.href = '/demo'; else location.reload(); };
   $$('[data-env]').forEach((b) => { const on = (b.dataset.env === 'prova') === PROVA; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); b.onclick = () => { if (!on) setEnv(b.dataset.env); }; });
   if (ROLE === 'demo') {
     $('#envswitch').insertAdjacentHTML('afterend', '<span class="rolebadge" title="Accesso solo all\'ambiente DEMO, per la validazione del modello"><span class="rb-long">Accesso DEMO · comitato scientifico</span><span class="rb-short" aria-hidden="true">DEMO · comitato</span></span>');
@@ -80,7 +80,7 @@ function login() {
       <span class="bname"><b>Intelligence Unit</b><small>AI Transformation &amp; Adoption Map · ELIS</small></span></div>
     <div class="card lift login"><h1>Console ELIS</h1><p class="ink2">Sessioni, aziende, benchmark e report del programma AITO 2026-27.</p>
     <label class="f" for="pw">Password</label><input type="password" id="pw" autocomplete="current-password" autofocus>
-    <p class="small muted" style="margin-top:8px">Team ELIS: la password della console. Comitato scientifico: la password DEMO ricevuta da ELIS, che apre solo l'ambiente dimostrativo.</p>
+    <p class="small muted" style="margin-top:8px">La password la custodisce il team AI Strategy ELIS. Comitato scientifico: entra da <a href="/demo">/demo</a> con la password DEMO.</p>
     <button id="go" class="big">Entra</button></div>`;
   const go = async () => { try { await api('/api/admin/login', { method: 'POST', body: { password: $('#pw').value } }); location.reload(); } catch (e) { toast(e.message, true); } };
   $('#go').onclick = go; $('#pw').onkeydown = (e) => e.key === 'Enter' && go();
@@ -1229,7 +1229,7 @@ async function viewSettings() {
         <a class="btn sm" href="/api/admin/export.xlsx">Scarica export Excel</a></div>
       <div class="card"><h3>Ambiente DEMO</h3><p class="small ink2">I dati dimostrativi vivono in un ambiente separato. Per vederli, caricarli o cancellarli scegli <b>DEMO</b> nel selettore in alto; per tornare ai dati reali scegli <b>Produzione</b>.</p></div>
       <div class="card"><h3>Accesso DEMO per il comitato scientifico</h3>
-        <p class="small ink2">Una password che apre solo l'ambiente DEMO: chi entra con questa vede ed esplora la DEMO (percorso guidato, mappe, report, allineamento) ma non può vedere né raggiungere la Produzione, le impostazioni o l'export. Si entra dalla stessa pagina di accesso della console.</p>
+        <p class="small ink2">Una password che apre solo l'ambiente DEMO: chi entra con questa vede ed esplora la DEMO (percorso guidato, mappe, report, allineamento) ma non può vedere né raggiungere la Produzione, le impostazioni o l'export. Il comitato entra da un indirizzo proprio: <a href="/demo" target="_blank" class="mono">${esc(NET.baseUrl)}/demo</a> <button type="button" class="sm ghost" id="dcopy">Copia l'indirizzo</button></p>
         <p class="small"><b>Stato:</b> ${!DA.hasPassword ? 'nessuna password valida (accesso non attivo)' : DA.enabled ? 'attivo' : 'disattivato'}<br>
           <b>Variabile DEMO_PASSWORD sul server:</b> ${DA.envStatus === 'attiva' ? 'letta, valida' : DA.envStatus === 'troppo corta' ? 'presente ma con meno di 8 caratteri: non vale' : 'non presente (su Render: Environment, poi «Save, rebuild and deploy»)'}<br>
           <b>Password impostata da qui:</b> ${DA.fromSettings ? 'sì (vale insieme a quella della variabile)' : 'no'}</p>
@@ -1252,6 +1252,7 @@ async function viewSettings() {
     if (!await ask('Comunicala al comitato scientifico per un canale riservato. Chi è entrato con la password precedente esce.', { title: 'Impostare la password DEMO?', ok: 'Imposta la password' })) return;
     try { await api('/api/admin/demo-access', { method: 'PUT', body: { password: v, enabled: true } }); toast(`Password DEMO impostata: «${v}». Accesso attivo`); viewSettings(); } catch (e) { toast(e.message, true); }
   };
+  $('#dcopy').onclick = async () => { try { await navigator.clipboard.writeText(`${NET.baseUrl}/demo`); toast('Indirizzo copiato'); } catch { await askText('Seleziona il testo e copialo.', `${NET.baseUrl}/demo`, { label: 'Indirizzo', ok: 'Chiudi' }); } };
   if ($('#dtoggle')) $('#dtoggle').onclick = async () => {
     if (DA.enabled && !await ask('Chi è entrato con la password DEMO esce e non può rientrare finché non riattivi l\'accesso.', { title: 'Disattivare l\'accesso DEMO?', ok: 'Disattiva' })) return;
     try { await api('/api/admin/demo-access', { method: 'PUT', body: { enabled: !DA.enabled } }); toast(DA.enabled ? 'Accesso DEMO disattivato' : 'Accesso DEMO riattivato'); viewSettings(); } catch (e) { toast(e.message, true); }

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Transformation &amp; Adoption Map · DEMO per il comitato scientifico</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2032%2032%22%3E%3Crect%20width=%2232%22%20height=%2232%22%20rx=%227%22%20fill=%22%23101D35%22/%3E%3Cpath%20d=%22M16%205v22M5%2016h22%22%20stroke=%22%23fff%22%20stroke-opacity=%22.35%22%20stroke-width=%221.4%22/%3E%3Ccircle%20cx=%229.5%22%20cy=%2221.5%22%20r=%222.2%22%20fill=%22%23fff%22%20fill-opacity=%22.7%22/%3E%3Ccircle%20cx=%2211.5%22%20cy=%2210.5%22%20r=%222.2%22%20fill=%22%23fff%22%20fill-opacity=%22.7%22/%3E%3Ccircle%20cx=%2221%22%20cy=%2222%22%20r=%222.2%22%20fill=%22%23fff%22%20fill-opacity=%22.7%22/%3E%3Ccircle%20cx=%2223.5%22%20cy=%229%22%20r=%223.6%22%20fill=%22%2335D4C0%22/%3E%3C/svg%3E">
+<link rel="preload" href="/static/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/static/fonts/inter-600.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/static/css/app.css">
+<style>
+  /* il campo non è di tipo "password": così il browser non ci mette la password admin salvata per lo stesso sito */
+  .masked { -webkit-text-security: disc; text-security: disc; font-family: var(--font); letter-spacing: .08em; }
+  .demo-login { max-width: 460px; margin: 40px auto; }
+  .demo-login h1 { font-size: 1.6rem; margin-bottom: 6px; }
+  .demo-login .pwrow { display: flex; gap: 8px; align-items: center; }
+  .demo-login .pwrow input { flex: 1; }
+</style>
+</head>
+<body>
+<div class="topbar"><span class="brand"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="1.5" y="1.5" width="29" height="29" rx="7" fill="none" stroke="#fff" stroke-opacity=".4" stroke-width="1.5"/><path d="M16 5v22M5 16h22" stroke="#fff" stroke-opacity=".25" stroke-width="1.2"/><circle cx="9.5" cy="21.5" r="2" fill="#fff" fill-opacity=".6"/><circle cx="11.5" cy="10.5" r="2" fill="#fff" fill-opacity=".6"/><circle cx="21" cy="22" r="2" fill="#fff" fill-opacity=".6"/><circle cx="19" cy="13.5" r="1.6" fill="#fff" fill-opacity=".6"/><circle cx="23.5" cy="9" r="3.2" fill="#35D4C0"/></svg><span class="bname">AITO Map<small>AI Transformation &amp; Adoption Map</small></span></span><span class="sub">DEMO · comitato scientifico</span></div>
+<main class="wrap narrow" id="app">
+  <div class="card lift demo-login">
+    <span class="tag gold">Ambiente dimostrativo</span>
+    <h1 style="margin-top:10px">Accesso per il comitato scientifico</h1>
+    <p class="ink2">Qui si esplora la piattaforma con dati inventati: un'azienda fittizia nelle quattro sessioni, mappe, report e allineamento finale. I dati reali delle aziende non sono raggiungibili da questo accesso.</p>
+    <div id="state" role="status" class="small muted">Verifico che l'accesso sia attivo…</div>
+    <form id="f" autocomplete="off" hidden>
+      <label class="f" for="code">Password DEMO ricevuta da ELIS</label>
+      <div class="pwrow"><input type="text" id="code" name="demo-code" class="masked" autocomplete="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore maxlength="200" required>
+        <button type="button" class="ghost sm" id="show" aria-pressed="false">Mostra</button></div>
+      <p id="err" class="field-err" role="alert" hidden></p>
+      <button class="big" id="go" style="margin-top:14px">Entra nella DEMO</button>
+    </form>
+    <p class="small muted" style="margin-top:16px">Sei del team ELIS? La console è su <a href="/admin">/admin</a>.</p>
+  </div>
+</main>
+<script type="module">
+import { api, $ } from '/static/js/ui.js';
+const st = $('#state'), f = $('#f'), err = $('#err'), code = $('#code');
+try {
+  const s = await api('/api/demo/status');
+  if (s.active) { st.textContent = ''; st.hidden = true; f.hidden = false; code.focus(); }
+  else st.innerHTML = '<div class="banner warn">L\'accesso DEMO non è ancora attivo: il team ELIS deve impostare la password (Impostazioni → Accesso DEMO). Riprova più tardi.</div>';
+} catch { st.innerHTML = '<div class="banner risk">Connessione non disponibile: ricarica la pagina tra qualche secondo.</div>'; }
+$('#show').onclick = (e) => { const on = code.classList.toggle('masked'); e.target.setAttribute('aria-pressed', String(!on)); e.target.textContent = on ? 'Mostra' : 'Nascondi'; code.focus(); };
+f.onsubmit = async (e) => {
+  e.preventDefault(); err.hidden = true;
+  try { await api('/api/admin/login', { method: 'POST', body: { password: code.value, demo: true } }); location.href = '/admin'; }
+  catch (x) { err.textContent = ''; err.hidden = false; setTimeout(() => { err.textContent = x.status === 401 ? 'Password non corretta: controlla maiuscole, numeri e simboli.' : x.message; }, 30); code.setAttribute('aria-invalid', 'true'); code.focus(); }
+};
+</script>
+</body>
+</html>
