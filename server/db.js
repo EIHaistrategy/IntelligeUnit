@@ -208,7 +208,9 @@ for (const sql of ["ALTER TABLE commitments ADD COLUMN status_note TEXT", "ALTER
   // registro modifiche separato per ambiente: le righe già presenti sono di Produzione, tranne quelle del caricamento DEMO
   "ALTER TABLE audit ADD COLUMN seeded INTEGER NOT NULL DEFAULT 0",
   // report unificato dell'allineamento finale: una versione congelata come le altre, distinta per tipo
-  "ALTER TABLE report_snapshots ADD COLUMN kind TEXT NOT NULL DEFAULT 'sessione'"]) {
+  "ALTER TABLE report_snapshots ADD COLUMN kind TEXT NOT NULL DEFAULT 'sessione'",
+  // accesso solo DEMO (comitato scientifico): il ruolo sta nel gettone di accesso
+  "ALTER TABLE admin_tokens ADD COLUMN role TEXT NOT NULL DEFAULT 'admin'"]) {
   try { db.exec(sql); } catch { /* colonna già presente */ }
 }
 db.exec("UPDATE audit SET seeded = 1 WHERE seeded = 0 AND actor LIKE 'demo%'");

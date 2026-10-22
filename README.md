@@ -38,6 +38,16 @@ La console ELIS è su `http://localhost:3000/admin`. La finestra mostra anche l'
 - **Aziende e referenti**: per ogni azienda il percorso nelle 4 sessioni, i consensi (concessi di default alla creazione; si toglie la spunta se l'azienda ne nega uno), i referenti, i report rilasciati.
 - In fondo: *Registro modifiche* e *Impostazioni* (divise in *Per la sala* e *Sistema*).
 
+### Accesso DEMO per il comitato scientifico
+
+Per far validare il modello senza mostrare i dati reali c'è una seconda password, che apre **solo l'ambiente DEMO**.
+1. In **Impostazioni → Accesso DEMO per il comitato scientifico** imposta la password (almeno 8 caratteri) e comunicala al comitato per un canale riservato.
+2. Il comitato entra da `/admin` con quella password: vede ed esplora tutta la DEMO (percorso guidato, mappe, plenaria, report, allineamento, viste azienda e telefono). In alto compare «Accesso DEMO · comitato scientifico» al posto del selettore.
+3. Con questo accesso non si vede né si raggiunge la Produzione (il server rifiuta anche i tentativi diretti), né le Impostazioni, né l'export. I dati DEMO sono condivisi: se un membro fa «Riparti da zero», gli altri lo vedono.
+4. Cambiando la password o con «Disattiva l'accesso DEMO» chi era dentro esce.
+
+Sul piano gratuito di Render la password impostata da Impostazioni si perde a ogni riavvio: per tenerla, impostala anche come variabile `DEMO_PASSWORD` del servizio su Render (Environment). La variabile vale finché da Impostazioni non se ne imposta un'altra.
+
 ### Allineamento finale (settembre 2027)
 
 Nel menu, *Programma → Allineamento finale*.

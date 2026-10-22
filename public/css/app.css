@@ -932,3 +932,7 @@ input::placeholder, textarea::placeholder { color: #6B7788; }
 .grid > * { min-width: 0; }
 /* pulsanti di scelta (filtri): quello scelto si vede */
 button.ghost[aria-pressed="true"], .btn.ghost[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent-strong); color: var(--night); font-weight: 700; }
+/* accesso DEMO del comitato scientifico: al posto del selettore, un'etichetta fissa */
+.rolebadge { display: inline-flex; align-items: center; min-height: 34px; padding: 4px 12px; border-radius: 999px; background: var(--gold); color: #1F1804; font-weight: 700; font-size: .82rem; white-space: nowrap; }
+.rolebadge .rb-short { display: none; }
+@media (max-width: 640px) { .rolebadge { font-size: .74rem; padding: 4px 10px; } .rolebadge .rb-long { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); } .rolebadge .rb-short { display: inline; } }

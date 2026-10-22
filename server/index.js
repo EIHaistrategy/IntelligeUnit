@@ -83,6 +83,7 @@ app.use((req, res, next) => envStore.run({ seeded: isProva(req) ? 1 : 0 }, next)
 const entityEnv = (table) => (req, res, next) => {
   const row = /^\d+$/.test(req.params.id) ? q.get(`SELECT seeded FROM ${table} WHERE id = ?`, req.params.id) : null;
   if (!row) return next();
+  if (isDemoViewer(req) && !row.seeded) return res.status(404).json({ error: 'Non trovato' });
   if (req.method !== 'GET' && row.seeded !== (isProva(req) ? 1 : 0)) return res.status(409).json({ error: 'Hai cambiato ambiente (DEMO/Produzione) in un\'altra scheda: ricarica la pagina e riprova.' });
   setRequestEnv(row.seeded); next();
 };
@@ -97,6 +98,8 @@ const ownerEnv = (sql) => (req, res, next) => {
   setRequestEnv(row.seeded); next();
 };
 app.use('/api/admin/referents/:id', ownerEnv('SELECT c.seeded FROM referents r JOIN companies c ON c.id = r.company_id WHERE r.id = ?'));
+app.use('/api/admin/roster/:id', ownerEnv('SELECT c.seeded FROM roster r JOIN companies c ON c.id = r.company_id WHERE r.id = ?'));
+app.use('/api/admin/live/:id', entityEnv('sessions'));
 app.use('/api/admin/commitments/:id', ownerEnv('SELECT c.seeded FROM commitments m JOIN companies c ON c.id = m.company_id WHERE m.id = ?'));
 // azienda dentro una sessione: deve esistere ed essere dello stesso ambiente della sessione
 app.use('/api/admin/sessions/:sid/companies/:cid', (req, res, next) => {
@@ -106,7 +109,7 @@ app.use('/api/admin/sessions/:sid/companies/:cid', (req, res, next) => {
   next();
 });
 // lettura per azienda (versioni dei report, percorso): solo dell'ambiente corrente
-app.use('/api/admin/companies/:cid/:what(reports|journey)', (req, res, next) => (q.get('SELECT 1 FROM companies WHERE id = ? AND seeded = ?', req.params.cid, isProva(req) ? 1 : 0) ? next() : res.status(404).json({ error: 'Azienda non trovata' })));
+app.use('/api/admin/companies/:cid/:what(reports|journey|commitments)', (req, res, next) => (q.get('SELECT 1 FROM companies WHERE id = ? AND seeded = ?', req.params.cid, isProva(req) ? 1 : 0) ? next() : res.status(404).json({ error: 'Azienda non trovata' })));
 app.get('/healthz', (req, res) => res.send('ok'));
 // la trascrizione di una call Teams può essere lunga: solo quella rotta accetta fino a 1 MB
 const jsonSmall = express.json({ limit: '200kb' }), jsonBig = express.json({ limit: '1mb' });
@@ -467,16 +470,27 @@ function cookie(req, name) {
   const m = (req.headers.cookie || '').split(';').map((x) => x.trim().split('=')).find(([k]) => k === name);
   return m ? decodeURIComponent(m[1]) : null;
 }
-function isAdmin(req) {
+// Ruolo dell'accesso: "admin" (team ELIS) oppure "demo" (comitato scientifico: vede e usa solo l'ambiente DEMO)
+function roleOf(req) {
   const t = cookie(req, 'aito_admin');
-  return t && q.get("SELECT 1 FROM admin_tokens WHERE token = ? AND created_at > datetime('now', '-14 days')", t);
+  return t ? q.get("SELECT role FROM admin_tokens WHERE token = ? AND created_at > datetime('now', '-14 days')", t)?.role || null : null;
 }
-// Ambiente della console: "prova" (dati dimostrativi) o produzione. Si sceglie nel browser con un cookie.
-const isProva = (req) => cookie(req, 'aito_mode') === 'prova';
+const isAdmin = (req) => !!roleOf(req);
+const isDemoViewer = (req) => roleOf(req) === 'demo';
+// Ambiente della console: "prova" (dati dimostrativi) o produzione. Si sceglie nel browser con un cookie;
+// con l'accesso DEMO è sempre DEMO, qualunque sia il cookie.
+const isProva = (req) => isDemoViewer(req) || cookie(req, 'aito_mode') === 'prova';
 const envOf = (req) => (isProva(req) ? 1 : 0);
 function requireAdmin(req, res, next) { if (isAdmin(req)) return next(); bad(res, 'Accesso admin richiesto', 401); }
 const ADMIN = 'admin';
 
+async function demoPwOk(pw) {
+  if (!pw || getSetting('demo_access') === '0') return false;
+  const h = getSetting('demo_pw');
+  if (h) return checkPw(pw, h);
+  const env = process.env.DEMO_PASSWORD;
+  return !!env && env.length >= 8 && crypto.timingSafeEqual(Buffer.from(crypto.createHash('sha256').update(pw).digest()), Buffer.from(crypto.createHash('sha256').update(env).digest()));
+}
 const loginFails = new Map(); // limite ai tentativi: 10 errori ogni 15 minuti per indirizzo e 50 in totale
 let globalFails = [];
 app.post('/api/admin/login', wrap(async (req, res) => {
@@ -484,7 +498,9 @@ app.post('/api/admin/login', wrap(async (req, res) => {
   globalFails = globalFails.filter((t) => now - t < win);
   const f = (loginFails.get(req.ip) || []).filter((t) => now - t < win);
   if (f.length >= 10 || globalFails.length >= 50) return bad(res, 'Troppi tentativi: riprova tra qualche minuto', 429);
-  if (!(await checkPw(String(req.body?.password || '').slice(0, 200), getSetting('admin_pw')))) {
+  const pw = String(req.body?.password || '').slice(0, 200);
+  const role = (await checkPw(pw, getSetting('admin_pw'))) ? 'admin' : (await demoPwOk(pw)) ? 'demo' : null;
+  if (!role) {
     f.push(now); globalFails.push(now);
     if (loginFails.size > 1000) loginFails.clear();
     loginFails.set(req.ip, f);
@@ -492,17 +508,45 @@ app.post('/api/admin/login', wrap(async (req, res) => {
   }
   loginFails.delete(req.ip);
   const t = token(24);
-  q.run('INSERT INTO admin_tokens (token) VALUES (?)', t);
-  res.setHeader('Set-Cookie', `aito_admin=${t}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 14}${req.secure ? '; Secure' : ''}`);
-  return { ok: true };
+  q.run('INSERT INTO admin_tokens (token, role) VALUES (?, ?)', t, role);
+  const sec = req.secure ? '; Secure' : '';
+  res.setHeader('Set-Cookie', [`aito_admin=${t}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${60 * 60 * 24 * 14}${sec}`,
+    ...(role === 'demo' ? [`aito_mode=prova; Path=/; SameSite=Lax; Max-Age=${60 * 60 * 24 * 14}${sec}`] : [])]);
+  if (role === 'demo') audit('demo:comitato', 'access', '', 'login', null, null);
+  return { ok: true, role };
 }));
 app.post('/api/admin/logout', wrap((req, res) => {
   q.run('DELETE FROM admin_tokens WHERE token = ?', cookie(req, 'aito_admin') || '');
   res.setHeader('Set-Cookie', 'aito_admin=; Path=/; Max-Age=0');
   return { ok: true };
 }));
-app.get('/api/admin/me', wrap((req) => ({ admin: !!isAdmin(req) })));
+app.get('/api/admin/me', wrap((req) => ({ admin: isAdmin(req), role: roleOf(req) })));
 app.use('/api/admin', requireAdmin);
+// Accesso DEMO: niente Produzione, niente impostazioni di sistema, niente export (che è solo di Produzione)
+app.use('/api/admin', (req, res, next) => {
+  if (!isDemoViewer(req)) return next();
+  if (/^\/(export|password|network|options|demo-access)/.test(req.path) && !(req.method === 'GET' && /^\/(network|options)/.test(req.path))) return bad(res, 'Non disponibile con l\'accesso DEMO', 403);
+  next();
+});
+// Password dell'accesso DEMO: la imposta il team ELIS da Impostazioni (riserva: variabile DEMO_PASSWORD)
+app.get('/api/admin/demo-access', wrap(() => ({ enabled: getSetting('demo_access') !== '0', hasPassword: !!getSetting('demo_pw') || !!process.env.DEMO_PASSWORD, fromEnv: !getSetting('demo_pw') && !!process.env.DEMO_PASSWORD })));
+app.put('/api/admin/demo-access', wrap((req, res) => {
+  const { password, enabled } = req.body || {};
+  if (password != null && password !== '') {
+    const pw = String(password);
+    if (pw.length < 8) return bad(res, 'Almeno 8 caratteri');
+    if (pw.length > 200) return bad(res, 'Al massimo 200 caratteri');
+    setSetting('demo_pw', hashPw(pw));
+    q.run("DELETE FROM admin_tokens WHERE role = 'demo'"); // la vecchia password non vale più: si esce dagli accessi DEMO aperti
+    audit(ADMIN, 'settings', 'demo_pw', 'change', null, null);
+  }
+  if (enabled != null) {
+    setSetting('demo_access', enabled ? '1' : '0');
+    if (!enabled) q.run("DELETE FROM admin_tokens WHERE role = 'demo'");
+    audit(ADMIN, 'settings', 'demo_access', enabled ? 'enable' : 'disable', null, null);
+  }
+  return { ok: true };
+}));
 
 app.put('/api/admin/password', wrap((req, res) => {
   const pw = String(req.body?.password || '');

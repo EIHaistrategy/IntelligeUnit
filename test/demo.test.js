@@ -161,3 +161,29 @@ test('mappe: una sessione mostra solo le dimensioni delle sessioni precedenti, m
     assert.deepEqual(M.others.map((d) => d.dimension).sort(), prev, `${base}: solo le sessioni precedenti`);
   }
 });
+
+test('accesso DEMO (comitato scientifico): solo DEMO, niente Produzione, impostazioni o export', async () => {
+  const A = { ...H(), Cookie: cookie };
+  assert.equal((await fetch(`${base}/api/admin/demo-access`, { method: 'PUT', headers: A, body: JSON.stringify({ password: 'comitato2027', enabled: true }) })).status, 200);
+  const lg = await fetch(`${base}/api/admin/login`, { method: 'POST', headers: H(), body: JSON.stringify({ password: 'comitato2027' }) });
+  assert.equal((await lg.json()).role, 'demo');
+  const dc = lg.headers.getSetCookie().find((c) => c.startsWith('aito_admin=')).split(';')[0];
+  // anche con il cookie di Produzione vede solo la DEMO
+  const V = { ...H(), Cookie: `${dc}; aito_mode=prod` };
+  const cs = await (await fetch(`${base}/api/admin/companies`, { headers: V })).json();
+  assert.ok(cs.length > 0 && !cs.some((c) => c.name === 'Reale S.p.A.'), 'nessuna azienda di Produzione');
+  const prodSess = q.get('SELECT id FROM sessions WHERE seeded = 0 LIMIT 1');
+  if (prodSess) assert.equal((await fetch(`${base}/api/admin/sessions/${prodSess.id}/control`, { headers: V })).status, 404);
+  assert.equal((await fetch(`${base}/api/admin/export.xlsx`, { headers: V })).status, 403);
+  assert.equal((await fetch(`${base}/api/admin/password`, { method: 'PUT', headers: V, body: JSON.stringify({ password: 'xxxxxxxxxx' }) })).status, 403);
+  assert.equal((await fetch(`${base}/api/admin/demo-access`, { method: 'PUT', headers: V, body: JSON.stringify({ enabled: false }) })).status, 403);
+  const real = q.get("SELECT id FROM companies WHERE name = 'Reale S.p.A.'").id;
+  assert.equal((await fetch(`${base}/api/admin/report/${real}`, { headers: V })).status, 404);
+  // la DEMO si usa: il percorso guidato avanza
+  assert.equal((await fetch(`${base}/api/admin/demo/advance`, { method: 'POST', headers: V, body: '{}' })).status, 200);
+  // disattivato l'accesso: chi era dentro esce e la password non vale più
+  await fetch(`${base}/api/admin/demo-access`, { method: 'PUT', headers: A, body: JSON.stringify({ enabled: false }) });
+  assert.equal((await fetch(`${base}/api/admin/companies`, { headers: V })).status, 401);
+  assert.equal((await fetch(`${base}/api/admin/login`, { method: 'POST', headers: H(), body: JSON.stringify({ password: 'comitato2027' }) })).status, 401);
+  assert.equal(prod().companies, 1);
+});
