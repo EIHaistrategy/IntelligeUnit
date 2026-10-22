@@ -1230,6 +1230,9 @@ async function viewSettings() {
       <div class="card"><h3>Ambiente DEMO</h3><p class="small ink2">I dati dimostrativi vivono in un ambiente separato. Per vederli, caricarli o cancellarli scegli <b>DEMO</b> nel selettore in alto; per tornare ai dati reali scegli <b>Produzione</b>.</p></div>
       <div class="card"><h3>Accesso DEMO per il comitato scientifico</h3>
         <p class="small ink2">Una password che apre solo l'ambiente DEMO: chi entra con questa vede ed esplora la DEMO (percorso guidato, mappe, report, allineamento) ma non può vedere né raggiungere la Produzione, le impostazioni o l'export. Il comitato entra da un indirizzo proprio: <a href="/demo" target="_blank" class="mono">${esc(NET.baseUrl)}/demo</a> <button type="button" class="sm ghost" id="dcopy">Copia l'indirizzo</button></p>
+        ${DA.stablePassword ? `<div class="stablepw"><p class="small" style="margin:0 0 6px"><b>Password del comitato, sempre valida</b> (resta uguale dopo ogni riavvio e aggiornamento):</p>
+          <div class="row" style="margin:0"><span class="mono stablepw-code" id="dstable">${esc(DA.stablePassword)}</span><button type="button" class="sm ghost" id="dstcopy">Copia la password</button></div>
+          <p class="small muted" style="margin:6px 0 0">Comunicala per un canale riservato. Per cambiarla: su Render genera un nuovo valore di SESSION_SECRET (escono tutti), oppure imposta la variabile DEMO_PASSWORD con una password scelta da voi.</p></div>` : ''}
         <p class="small"><b>Stato:</b> ${!DA.hasPassword ? 'nessuna password valida (accesso non attivo)' : DA.enabled ? 'attivo' : 'disattivato'}<br>
           <b>Variabile DEMO_PASSWORD sul server:</b> ${DA.envStatus === 'attiva' ? 'letta, valida' : DA.envStatus === 'troppo corta' ? 'presente ma con meno di 8 caratteri: non vale' : 'non presente (su Render: Environment, poi «Save, rebuild and deploy»)'}<br>
           ${DA.envStatus !== 'attiva' ? `<b>Variabili con nomi simili lette dal server:</b> ${DA.envNames?.length ? DA.envNames.map((n) => `<code>${esc(n)}</code>`).join(', ') : 'nessuna'}<br>` : ''}
@@ -1254,6 +1257,7 @@ async function viewSettings() {
     if (!await ask('Comunicala al comitato scientifico per un canale riservato. Chi è entrato con la password precedente esce.', { title: 'Impostare la password DEMO?', ok: 'Imposta la password' })) return;
     try { await api('/api/admin/demo-access', { method: 'PUT', body: { password: v, enabled: true } }); toast(`Password DEMO impostata: «${v}». Accesso attivo`); viewSettings(); } catch (e) { toast(e.message, true); }
   };
+  if ($('#dstcopy')) $('#dstcopy').onclick = async () => { try { await navigator.clipboard.writeText(DA.stablePassword); toast('Password copiata'); } catch { await askText('Seleziona il testo e copialo.', DA.stablePassword, { label: 'Password DEMO', ok: 'Chiudi' }); } };
   $('#dcopy').onclick = async () => { try { await navigator.clipboard.writeText(`${NET.baseUrl}/demo`); toast('Indirizzo copiato'); } catch { await askText('Seleziona il testo e copialo.', `${NET.baseUrl}/demo`, { label: 'Indirizzo', ok: 'Chiudi' }); } };
   if ($('#dtoggle')) $('#dtoggle').onclick = async () => {
     if (DA.enabled && !await ask('Chi è entrato con la password DEMO esce e non può rientrare finché non riattivi l\'accesso.', { title: 'Disattivare l\'accesso DEMO?', ok: 'Disattiva' })) return;

@@ -482,7 +482,7 @@ if (envSecret.length < 16 && !getSetting('session_secret')) setSetting('session_
 const sessionSecret = () => (envSecret.length >= 16 ? envSecret : getSetting('session_secret'));
 function sessionKey(role) {
   const src = role === 'admin' ? (process.env.ADMIN_PASSWORD || getSetting('admin_pw'))
-    : role === 'demo' ? (envDemoPw().length >= 8 ? envDemoPw() : getSetting('demo_pw')) : null;
+    : role === 'demo' ? (envDemoPw().length >= 8 ? envDemoPw() : stableDemoPw() || getSetting('demo_pw')) : null;
   if (!src) return null;
   // la password e l'epoca entrano nella chiave: cambiare la password, o l'epoca da Impostazioni, annulla i cookie firmati prima
   return crypto.createHmac('sha256', sessionSecret()).update(`${role}|${src}|${getSetting(`sess_epoch_${role}`) || ''}`).digest();
@@ -522,7 +522,16 @@ const ADMIN = 'admin';
 
 // valore della variabile DEMO_PASSWORD senza spazi e virgolette messi per errore nel pannello di Render
 const envDemoPw = () => String(process.env.DEMO_PASSWORD || '').trim().replace(/^(["'])(.*)\1$/, '$2').trim();
-const demoActive = () => getSetting('demo_access') !== '0' && (!!getSetting('demo_pw') || envDemoPw().length >= 8);
+// Password DEMO stabile: ricavata da SESSION_SECRET (che sta su Render, non nel codice), quindi uguale dopo ogni
+// riavvio senza bisogno di altre variabili. Vale quando DEMO_PASSWORD non c'è; il team ELIS la legge in Impostazioni.
+const STABLE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const stableDemoPw = () => {
+  if (envSecret.length < 16 || envDemoPw().length >= 8) return '';
+  const b = crypto.createHmac('sha256', envSecret).update('aito-demo-password').digest();
+  const c = [...b.subarray(0, 12)].map((x) => STABLE_ALPHABET[x % 32]).join('');
+  return `${c.slice(0, 4)}-${c.slice(4, 8)}-${c.slice(8, 12)}`;
+};
+const demoActive = () => getSetting('demo_access') !== '0' && (!!getSetting('demo_pw') || envDemoPw().length >= 8 || !!stableDemoPw());
 async function demoPwOk(pw) {
   pw = String(pw || '').trim(); // uno spazio copiato per errore insieme alla password non deve bloccare il comitato
   if (!pw || getSetting('demo_access') === '0') return false;
@@ -531,7 +540,10 @@ async function demoPwOk(pw) {
   if (h && await checkPw(pw, h)) return true;
   const env = envDemoPw();
   const sha = (x) => crypto.createHash('sha256').update(x).digest();
-  return env.length >= 8 && crypto.timingSafeEqual(sha(pw), sha(env));
+  if (env.length >= 8 && crypto.timingSafeEqual(sha(pw), sha(env))) return true;
+  // password stabile: maiuscole o minuscole e trattini indifferenti
+  const st = stableDemoPw(), norm = (x) => x.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return !!st && crypto.timingSafeEqual(sha(norm(pw)), sha(norm(st)));
 }
 const loginFails = new Map(); // limite ai tentativi: 10 errori ogni 15 minuti per indirizzo e 50 in totale
 let globalFails = [];
@@ -580,7 +592,8 @@ app.use('/api/admin', (req, res, next) => {
 // Password dell'accesso DEMO: la imposta il team ELIS da Impostazioni (riserva: variabile DEMO_PASSWORD)
 app.get('/api/admin/demo-access', wrap(() => {
   const env = envDemoPw();
-  return { enabled: getSetting('demo_access') !== '0', hasPassword: !!getSetting('demo_pw') || env.length >= 8, fromSettings: !!getSetting('demo_pw'),
+  return { enabled: getSetting('demo_access') !== '0', hasPassword: !!getSetting('demo_pw') || env.length >= 8 || !!stableDemoPw(), fromSettings: !!getSetting('demo_pw'),
+    stablePassword: stableDemoPw() || null, // solo per il team ELIS: il ruolo demo non raggiunge questa API
     envStatus: !process.env.DEMO_PASSWORD ? 'assente' : env.length < 8 ? 'troppo corta' : 'attiva',
     sessionSecret: envSecret.length >= 16,
     // solo i nomi (mai i valori) delle variabili simili: rivela un errore di battitura nel pannello di Render

@@ -78,7 +78,7 @@ Limiti noti:
 ```
 git clone https://github.com/EIHaistrategy/IntelligeUnit.git && cd IntelligeUnit
 npm install
-npm test                                   # 39 test (17 motore + 12 DEMO + 10 allineamento, protezioni e accesso firmato)
+npm test                                   # 40 test (17 motore + 12 DEMO + 11 allineamento, protezioni, accesso firmato e password DEMO stabile)
 ADMIN_PASSWORD=una-password npm start      # console su http://localhost:3000/admin
 ```
 

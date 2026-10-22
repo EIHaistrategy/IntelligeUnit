@@ -9,7 +9,7 @@ Gli utenti sono il team AI Strategy di ELIS: non sono sviluppatori. Rispondi in 
 | Ruolo | Accesso | Pagine |
 |---|---|---|
 | Team ELIS (admin) | password, cookie `aito_admin` firmato (ruolo e data, chiave da `SESSION_SECRET`) | `/admin` (console), `/live/:sid`, `/plenaria/:base`, `/mappe/:base`, `/report/:cid` |
-| Comitato scientifico | pagina `/demo` con la password DEMO (Impostazioni o variabile `DEMO_PASSWORD`), cookie `aito_admin` con ruolo `demo` | la console solo in DEMO: niente Produzione, impostazioni, export (`roleOf`/`isDemoViewer` in `index.js`) |
+| Comitato scientifico | pagina `/demo` con la password DEMO (variabile `DEMO_PASSWORD`; senza, una password stabile ricavata da `SESSION_SECRET` e mostrata in Impostazioni; oppure Impostazioni, fino al riavvio), cookie `aito_admin` con ruolo `demo` | la console solo in DEMO: niente Produzione, impostazioni, export (`roleOf`/`isDemoViewer` in `index.js`) |
 | Facilitatore ELIS | come il team ELIS (console) | `/tavolo-elis/:cid`: la vista del referente per un'azienda; conduce confronto e consolidamento, corregge o rimuove i partecipanti in ogni fase |
 | Referente aziendale | link personale `/r/:token` | scheda pre-sessione, confronto, consolidamento, commitment, report rilasciati |
 | Partecipante | QR `/j/:code`, codice azienda, nessun account | risposte individuali dal telefono |
@@ -19,7 +19,7 @@ Gli utenti sono il team AI Strategy di ELIS: non sono sviluppatori. Rispondi in 
 - Node.js ≥ 22.13 con `node:sqlite` (nessun ORM), Express 4, ES modules. Front-end senza framework né build: HTML + JS moduli in `public/`.
 - Dipendenze **con versione esatta** (`package.json`): non usare `^` o `~`.
 - `npm install` · `npm start` (porta 3000; `PORT`, `AITO_DATA_DIR`, `ADMIN_PASSWORD`, `PUBLIC_URL`, `DEMO_DATA=1`, `DEMO_PASSWORD`, `SESSION_SECRET` facoltative; con `SESSION_SECRET` i cookie d'accesso firmati restano validi dopo i riavvii).
-- `npm test`: 39 test: 17 del motore di calcolo (`test/engine.test.js`), 12 dell'ambiente DEMO (`test/demo.test.js`: caricamento ripetibile, avanzamento, reset, separazione da Produzione anche via API, accesso del comitato) e 10 dell'allineamento finale e delle protezioni del server (compreso l'accesso firmato) (`test/alignment.test.js`). Devono passare tutti prima di ogni commit.
+- `npm test`: 40 test: 17 del motore di calcolo (`test/engine.test.js`), 12 dell'ambiente DEMO (`test/demo.test.js`: caricamento ripetibile, avanzamento, reset, separazione da Produzione anche via API, accesso del comitato) e 11 dell'allineamento finale e delle protezioni del server (compreso l'accesso firmato e la password DEMO stabile) (`test/alignment.test.js`). Devono passare tutti prima di ogni commit.
 - Prova completa nel browser: `test/e2e/e2e.mjs`. Le istruzioni sono in testa al file: server su database vuoto, porta 3100, password `testpass123`. Il messaggio di console "400 Bad Request" del referente è atteso (Chrome può scriverlo due volte, ma la richiesta è una sola): è la prova dell'override senza motivazione. Le richieste che modificano dati fatte da script (test, curl) devono mandare l'intestazione `Origin` del server: senza `Origin` né `Sec-Fetch-Site` il server le rifiuta (403).
 - Per controllare la grafica fai sempre schermate con Playwright, a 1440 px per la console e a 390 px per il telefono.
 

@@ -9,6 +9,8 @@ import path from 'node:path';
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aito-align-test-'));
 process.env.AITO_DATA_DIR = dir;
 process.env.ADMIN_PASSWORD = 'testpass123';
+process.env.SESSION_SECRET = 'segreto-di-prova-per-i-test';
+delete process.env.DEMO_PASSWORD;
 const { q } = await import('../server/db.js');
 const D = await import('../server/demo.js');
 const L = await import('../server/logic.js');
@@ -171,4 +173,21 @@ test('accesso firmato: resta valido dopo un riavvio a database vuoto, non si fal
   const c4 = ch.headers.get('set-cookie').split(';')[0];
   assert.equal(await me(c3), null); assert.equal(await me(cookie), null); assert.equal(await me(c4), 'admin');
   cookie = c4;
+});
+
+test('password DEMO stabile da SESSION_SECRET: attiva senza impostarla, uguale dopo i riavvii, solo per il team ELIS', async () => {
+  const A = { ...H(), Cookie: cookie };
+  const wipe = () => q.run("DELETE FROM settings WHERE key IN ('demo_pw', 'demo_access', 'sess_epoch_demo')");
+  wipe(); // server appena avviato: nessuna password impostata da Impostazioni
+  const da = await (await fetch(`${base}/api/admin/demo-access`, { headers: A })).json();
+  assert.match(da.stablePassword, /^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/);
+  // anche scritta in minuscolo e senza trattini
+  const lg = await fetch(`${base}/api/admin/login`, { method: 'POST', headers: H(), body: JSON.stringify({ password: da.stablePassword.toLowerCase().replace(/-/g, ''), demo: true }) });
+  assert.equal((await lg.json()).role, 'demo');
+  const dc = lg.headers.getSetCookie().find((c) => c.startsWith('aito_admin=')).split(';')[0];
+  // come dopo un riavvio a database vuoto: impostazioni cancellate, accesso e password restano
+  wipe();
+  assert.equal((await (await fetch(`${base}/api/demo/status`)).json()).active, true);
+  assert.equal((await (await fetch(`${base}/api/admin/me`, { headers: { Cookie: dc } })).json()).role, 'demo');
+  assert.equal((await fetch(`${base}/api/admin/demo-access`, { headers: { Cookie: dc } })).status, 403, 'il comitato non legge la password');
 });

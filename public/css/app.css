@@ -940,3 +940,6 @@ button.ghost[aria-pressed="true"], .btn.ghost[aria-pressed="true"] { background:
 .console .demo-card { margin-bottom: 18px; box-shadow: inset 4px 0 0 var(--gold); }
 .console .demo-card h2 { font-size: 1.15rem; margin-bottom: 6px; }
 .console .demo-card p { margin: 0 0 12px; }
+/* Impostazioni: password DEMO stabile, da copiare */
+.stablepw { border: 1px solid var(--gold); border-radius: 10px; padding: 12px 14px; margin: 0 0 12px; background: var(--surface, #fff); }
+.stablepw-code { font-size: 1.15rem; font-weight: 700; letter-spacing: .06em; }
