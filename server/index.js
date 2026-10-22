@@ -487,6 +487,7 @@ const ADMIN = 'admin';
 // valore della variabile DEMO_PASSWORD senza spazi e virgolette messi per errore nel pannello di Render
 const envDemoPw = () => String(process.env.DEMO_PASSWORD || '').trim().replace(/^(["'])(.*)\1$/, '$2').trim();
 async function demoPwOk(pw) {
+  pw = String(pw || '').trim(); // uno spazio copiato per errore insieme alla password non deve bloccare il comitato
   if (!pw || getSetting('demo_access') === '0') return false;
   // valgono sia la password impostata da Impostazioni sia quella della variabile (che resta dopo i riavvii)
   const h = getSetting('demo_pw');
@@ -538,12 +539,14 @@ app.get('/api/admin/demo-access', wrap(() => {
   return { enabled: getSetting('demo_access') !== '0', hasPassword: !!getSetting('demo_pw') || env.length >= 8, fromSettings: !!getSetting('demo_pw'),
     envStatus: !process.env.DEMO_PASSWORD ? 'assente' : env.length < 8 ? 'troppo corta' : 'attiva' };
 }));
-app.put('/api/admin/demo-access', wrap((req, res) => {
+app.put('/api/admin/demo-access', wrap(async (req, res) => {
   const { password, enabled } = req.body || {};
   if (password != null && password !== '') {
-    const pw = String(password);
+    const pw = String(password).trim();
     if (pw.length < 8) return bad(res, 'Almeno 8 caratteri');
     if (pw.length > 200) return bad(res, 'Al massimo 200 caratteri');
+    // spesso il browser riempie da solo il campo con la password admin salvata: non deve diventare la password del comitato
+    if (await checkPw(pw, getSetting('admin_pw'))) return bad(res, 'La password DEMO deve essere diversa da quella admin (forse il browser ha riempito il campo da solo): scrivila di nuovo');
     setSetting('demo_pw', hashPw(pw));
     q.run("DELETE FROM admin_tokens WHERE role = 'demo'"); // la vecchia password non vale più: si esce dagli accessi DEMO aperti
     audit(ADMIN, 'settings', 'demo_pw', 'change', null, null);

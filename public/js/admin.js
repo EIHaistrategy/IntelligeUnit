@@ -1233,7 +1233,7 @@ async function viewSettings() {
         <p class="small"><b>Stato:</b> ${!DA.hasPassword ? 'nessuna password valida (accesso non attivo)' : DA.enabled ? 'attivo' : 'disattivato'}<br>
           <b>Variabile DEMO_PASSWORD sul server:</b> ${DA.envStatus === 'attiva' ? 'letta, valida' : DA.envStatus === 'troppo corta' ? 'presente ma con meno di 8 caratteri: non vale' : 'non presente (su Render: Environment, poi «Save, rebuild and deploy»)'}<br>
           <b>Password impostata da qui:</b> ${DA.fromSettings ? 'sì (vale insieme a quella della variabile)' : 'no'}</p>
-        <div class="row"><label class="f" for="dpw" style="flex-basis:100%;margin:0">${DA.hasPassword ? 'Nuova password DEMO' : 'Password DEMO'} (almeno 8 caratteri)</label><input type="password" id="dpw" name="demo-access-new" autocomplete="off" data-lpignore="true" data-1p-ignore readonly style="max-width:280px"><button class="sm" id="dpwgo">${DA.hasPassword ? 'Cambia' : 'Imposta e attiva'}</button></div>
+        <div class="row"><label class="f" for="dpw" style="flex-basis:100%;margin:0">${DA.hasPassword ? 'Nuova password DEMO' : 'Password DEMO'} (almeno 8 caratteri)</label><input type="text" id="dpw" name="demo-access-code" autocomplete="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore maxlength="200" style="max-width:280px"><button class="sm" id="dpwgo">${DA.hasPassword ? 'Cambia' : 'Imposta e attiva'}</button></div>
         ${DA.hasPassword ? `<div class="row" style="margin-top:10px"><button class="sm ghost" id="dtoggle">${DA.enabled ? 'Disattiva l\'accesso DEMO' : 'Riattiva l\'accesso DEMO'}</button></div>` : ''}
         <p class="small muted">Cambiando la password o disattivando l'accesso, chi era entrato con la password DEMO esce. Sul piano gratuito di Render la password impostata qui si perde a ogni riavvio: per tenerla, impostala anche nella variabile DEMO_PASSWORD del servizio.</p></div>
       <div class="card"><h3>Password admin</h3><div class="row"><label class="f" for="pw1" style="flex-basis:100%;margin:0">Nuova password (almeno 8 caratteri)</label><input type="password" id="pw1" name="admin-new" autocomplete="new-password" data-lpignore="true" readonly style="max-width:280px"><button class="sm" id="pwgo">Cambia</button></div></div>
@@ -1245,12 +1245,12 @@ async function viewSettings() {
   $('#savecustom').onclick = async () => { await api('/api/admin/network', { method: 'PUT', body: { url: $('#custom').value } }); viewSettings(); };
   $('#auto').onclick = async () => { await api('/api/admin/network', { method: 'PUT', body: { url: '' } }); viewSettings(); };
   // i campi password partono in sola lettura: il browser non li riempie con la password salvata; al primo clic si sbloccano vuoti
-  for (const id of ['#dpw', '#pw1']) { const el = $(id); const free = () => { if (el.readOnly) { el.readOnly = false; el.value = ''; } }; el.addEventListener('focus', free); el.addEventListener('pointerdown', free); }
+  for (const id of ['#pw1']) { const el = $(id); const free = () => { if (el.readOnly) { el.readOnly = false; el.value = ''; } }; el.addEventListener('focus', free); el.addEventListener('pointerdown', free); }
   $('#dpwgo').onclick = async () => {
-    const v = $('#dpw').value;
+    const v = $('#dpw').value.trim();
     if (v.length < 8) return toast('Almeno 8 caratteri', true);
     if (!await ask('Comunicala al comitato scientifico per un canale riservato. Chi è entrato con la password precedente esce.', { title: 'Impostare la password DEMO?', ok: 'Imposta la password' })) return;
-    try { await api('/api/admin/demo-access', { method: 'PUT', body: { password: v, enabled: true } }); toast('Password DEMO impostata: accesso attivo'); viewSettings(); } catch (e) { toast(e.message, true); }
+    try { await api('/api/admin/demo-access', { method: 'PUT', body: { password: v, enabled: true } }); toast(`Password DEMO impostata: «${v}». Accesso attivo`); viewSettings(); } catch (e) { toast(e.message, true); }
   };
   if ($('#dtoggle')) $('#dtoggle').onclick = async () => {
     if (DA.enabled && !await ask('Chi è entrato con la password DEMO esce e non può rientrare finché non riattivi l\'accesso.', { title: 'Disattivare l\'accesso DEMO?', ok: 'Disattiva' })) return;
