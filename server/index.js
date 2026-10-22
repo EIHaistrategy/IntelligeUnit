@@ -484,12 +484,16 @@ const envOf = (req) => (isProva(req) ? 1 : 0);
 function requireAdmin(req, res, next) { if (isAdmin(req)) return next(); bad(res, 'Accesso admin richiesto', 401); }
 const ADMIN = 'admin';
 
+// valore della variabile DEMO_PASSWORD senza spazi e virgolette messi per errore nel pannello di Render
+const envDemoPw = () => String(process.env.DEMO_PASSWORD || '').trim().replace(/^(["'])(.*)\1$/, '$2').trim();
 async function demoPwOk(pw) {
   if (!pw || getSetting('demo_access') === '0') return false;
+  // valgono sia la password impostata da Impostazioni sia quella della variabile (che resta dopo i riavvii)
   const h = getSetting('demo_pw');
-  if (h) return checkPw(pw, h);
-  const env = process.env.DEMO_PASSWORD;
-  return !!env && env.length >= 8 && crypto.timingSafeEqual(Buffer.from(crypto.createHash('sha256').update(pw).digest()), Buffer.from(crypto.createHash('sha256').update(env).digest()));
+  if (h && await checkPw(pw, h)) return true;
+  const env = envDemoPw();
+  const sha = (x) => crypto.createHash('sha256').update(x).digest();
+  return env.length >= 8 && crypto.timingSafeEqual(sha(pw), sha(env));
 }
 const loginFails = new Map(); // limite ai tentativi: 10 errori ogni 15 minuti per indirizzo e 50 in totale
 let globalFails = [];
@@ -529,7 +533,11 @@ app.use('/api/admin', (req, res, next) => {
   next();
 });
 // Password dell'accesso DEMO: la imposta il team ELIS da Impostazioni (riserva: variabile DEMO_PASSWORD)
-app.get('/api/admin/demo-access', wrap(() => ({ enabled: getSetting('demo_access') !== '0', hasPassword: !!getSetting('demo_pw') || !!process.env.DEMO_PASSWORD, fromEnv: !getSetting('demo_pw') && !!process.env.DEMO_PASSWORD })));
+app.get('/api/admin/demo-access', wrap(() => {
+  const env = envDemoPw();
+  return { enabled: getSetting('demo_access') !== '0', hasPassword: !!getSetting('demo_pw') || env.length >= 8, fromSettings: !!getSetting('demo_pw'),
+    envStatus: !process.env.DEMO_PASSWORD ? 'assente' : env.length < 8 ? 'troppo corta' : 'attiva' };
+}));
 app.put('/api/admin/demo-access', wrap((req, res) => {
   const { password, enabled } = req.body || {};
   if (password != null && password !== '') {
