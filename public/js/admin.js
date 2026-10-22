@@ -485,6 +485,7 @@ async function viewProgram() {
 
   app.innerHTML = `
     ${NET.baseUrl.includes('localhost') ? '<div class="banner risk">Non è stato trovato un indirizzo di rete: i telefoni non potranno collegarsi. Verifica in Impostazioni.</div>' : ''}
+    ${PROVA ? '<div class="card demo-card" id="demo"><p class="muted small">…</p></div>' : ''}
     <section class="hero" aria-labelledby="ph-t">
       <div class="hero-main">
         <p class="eyebrow">${PROVA ? 'Ambiente DEMO · dati dimostrativi' : 'AITO 2026-27 · ELIS Innovation Hub'}</p>
@@ -529,7 +530,6 @@ async function viewProgram() {
           <a class="stage-go" href="#/allineamento">Apri<span class="sr-only"> l'allineamento finale</span>${icon('arrow', 'thin')}</a></li></ol>
     </section>
 
-    ${PROVA ? '<div class="card" id="demo"><p class="muted small">…</p></div>' : ''}
 
     <div class="split">
       <section class="panel" aria-labelledby="todo-t">

@@ -936,3 +936,7 @@ button.ghost[aria-pressed="true"], .btn.ghost[aria-pressed="true"] { background:
 .rolebadge { display: inline-flex; align-items: center; min-height: 34px; padding: 4px 12px; border-radius: 999px; background: var(--gold); color: #1F1804; font-weight: 700; font-size: .82rem; white-space: nowrap; }
 .rolebadge .rb-short { display: none; }
 @media (max-width: 640px) { .rolebadge { font-size: .74rem; padding: 4px 10px; } .rolebadge .rb-long { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); } .rolebadge .rb-short { display: inline; } }
+/* Programma in DEMO: il riquadro dei dati dimostrativi sta in cima */
+.console .demo-card { margin-bottom: 18px; box-shadow: inset 4px 0 0 var(--gold); }
+.console .demo-card h2 { font-size: 1.15rem; margin-bottom: 6px; }
+.console .demo-card p { margin: 0 0 12px; }
