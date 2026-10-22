@@ -581,7 +581,10 @@ app.use('/api/admin', (req, res, next) => {
 app.get('/api/admin/demo-access', wrap(() => {
   const env = envDemoPw();
   return { enabled: getSetting('demo_access') !== '0', hasPassword: !!getSetting('demo_pw') || env.length >= 8, fromSettings: !!getSetting('demo_pw'),
-    envStatus: !process.env.DEMO_PASSWORD ? 'assente' : env.length < 8 ? 'troppo corta' : 'attiva' };
+    envStatus: !process.env.DEMO_PASSWORD ? 'assente' : env.length < 8 ? 'troppo corta' : 'attiva',
+    sessionSecret: envSecret.length >= 16,
+    // solo i nomi (mai i valori) delle variabili simili: rivela un errore di battitura nel pannello di Render
+    envNames: Object.keys(process.env).filter((k) => /demo|session_?secret/i.test(k)).sort() };
 }));
 app.put('/api/admin/demo-access', wrap(async (req, res) => {
   const { password, enabled } = req.body || {};
@@ -1014,6 +1017,7 @@ process.on('unhandledRejection', (e) => console.error('Errore non gestito:', e))
 process.on('uncaughtException', (e) => console.error('Eccezione non gestita:', e));
 
 export function start(port = PORT) {
+  console.log(`  Accesso DEMO: ${envDemoPw().length >= 8 ? 'variabile DEMO_PASSWORD letta' : 'variabile DEMO_PASSWORD assente o corta'} · SESSION_SECRET ${envSecret.length >= 16 ? 'letta' : 'assente'}`);
   if (process.env.DEMO_DATA === '1' && !hasDemo()) { try { const d = loadDemoComplete(); console.log(`  Dati DEMO caricati, programma concluso: ${d.company?.name}, ${d.sessions?.length} sessioni chiuse`); } catch (e) { console.error('Dati dimostrativi non caricati:', e.message); } }
   return app.listen(port, '0.0.0.0', () => {
     console.log('\n  AITO — AI Transformation & Adoption Map');
