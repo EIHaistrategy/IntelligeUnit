@@ -60,7 +60,7 @@
       },
       "consolidamento": {
         "Q5": { "livello": 2, "sotto": "B" },
-        "Q6": { "livello": 2, "sotto": "A" },
+        "Q6": { "livello": 2, "sotto": "A", "divergenza": "L'IT vede la base documentale già indicizzata (livello 3); le funzioni di business la usano poco e restano al livello 1. Il gruppo ha scelto 2, da riverificare a settembre." },
         "Q13": { "livello": 3, "sotto": "A" },
         "Q14": { "livello": 3, "sotto": "B" }
       },
@@ -142,11 +142,12 @@
   "allineamento": {
     "data": "2027-09-20",
     "modifiche": {
-      "Q2": { "livello": 3, "sotto": "B", "evidenza": "Mandato AI approvato dal CdA il 12/03/2027, con budget e un comitato AI che si riunisce ogni mese" },
-      "Q5": { "livello": 3, "sotto": "A", "evidenza": "Catalogo dei dati critici pubblicato: 22 dataset descritti, un responsabile per dominio" },
-      "Q16": { "livello": 2, "sotto": "A", "evidenza": "Il primo caso d'uso è stato replicato negli acquisti con il metodo definito a Crescere" },
-      "Q13": { "livello": 2, "sotto": "B", "evidenza": "Verifica dei percorsi formativi: quelli per ruolo coprono solo l'IT, non ancora le funzioni di business" }
+      "Q2": { "livello": 3, "sotto": "B", "motivo": "evoluzione", "evidenza": "Mandato AI approvato dal CdA il 12/03/2027, con budget e un comitato AI che si riunisce ogni mese" },
+      "Q5": { "livello": 3, "sotto": "A", "motivo": "evoluzione", "evidenza": "Catalogo dei dati critici pubblicato: 22 dataset descritti, un responsabile per dominio" },
+      "Q16": { "livello": 2, "sotto": "A", "motivo": "evoluzione", "evidenza": "Il primo caso d'uso è stato replicato negli acquisti con il metodo definito a Crescere" },
+      "Q13": { "livello": 2, "sotto": "B", "motivo": "revisione", "evidenza": "Verifica dei percorsi formativi: quelli per ruolo coprono solo l'IT, non ancora le funzioni di business" }
     },
+    "speravamo": ["Q7", "Q12", "Q14"],
     "priorita": ["F", "H", "G"],
     "nota_priorita": "Industrializzare i rilasci, misurare il valore dei casi replicati e allargare le competenze alle funzioni di business."
   },

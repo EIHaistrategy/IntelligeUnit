@@ -46,7 +46,9 @@ export async function buildExport() {
   sheet(wb, 'Scheda pre-sessione', preRows);
   sheet(wb, 'Benchmark congelati', q.all('SELECT id, base, kind AS tipo, label AS versione, n_companies AS n_aziende, instrument_version, scoring_version, created_at FROM benchmark_versions'));
   sheet(wb, 'Allineamento (storico)', q.all(`SELECT x.id, c.name AS azienda, x.item_id AS item, x.action AS scelta, x.level AS livello, x.sub AS sotto, x.score,
-    x.base_level AS livello_sessione, x.base_sub AS sotto_sessione, x.base_score AS score_sessione, x.evidence AS evidenza, x.is_current AS corrente, x.created_by AS autore, x.created_at
+    x.base_level AS livello_sessione, x.base_sub AS sotto_sessione, x.base_score AS score_sessione,
+    CASE x.motive WHEN 'evoluzione' THEN 'cambiamento reale' WHEN 'revisione' THEN 'revisione della risposta' END AS motivo,
+    CASE x.judgment WHEN 'soddisfatti' THEN 'soddisfatti' WHEN 'speravamo' THEN 'speravamo in un miglioramento' END AS giudizio_conferma, x.evidence AS evidenza, x.is_current AS corrente, x.created_by AS autore, x.created_at
     FROM alignment_items x JOIN companies c ON c.id = x.company_id WHERE c.seeded = 0 ORDER BY c.name, x.item_id, x.id`));
   sheet(wb, 'Allineamento priorità', q.all(`SELECT p.id, c.name AS azienda, p.priorities_json AS priorita, p.note AS nota, p.is_current AS corrente, p.created_by AS autore, p.created_at,
     a.confirmed_at AS confermato FROM alignment_priorities p JOIN companies c ON c.id = p.company_id LEFT JOIN alignment a ON a.company_id = p.company_id WHERE c.seeded = 0 ORDER BY c.name, p.id`));

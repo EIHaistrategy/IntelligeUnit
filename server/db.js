@@ -210,7 +210,11 @@ for (const sql of ["ALTER TABLE commitments ADD COLUMN status_note TEXT", "ALTER
   // report unificato dell'allineamento finale: una versione congelata come le altre, distinta per tipo
   "ALTER TABLE report_snapshots ADD COLUMN kind TEXT NOT NULL DEFAULT 'sessione'",
   // accesso solo DEMO (comitato scientifico): il ruolo sta nel gettone di accesso
-  "ALTER TABLE admin_tokens ADD COLUMN role TEXT NOT NULL DEFAULT 'admin'"]) {
+  "ALTER TABLE admin_tokens ADD COLUMN role TEXT NOT NULL DEFAULT 'admin'",
+  // allineamento finale: perché cambia il livello (evoluzione | revisione) e giudizio sulla conferma (soddisfatti | speravamo)
+  "ALTER TABLE alignment_items ADD COLUMN motive TEXT", "ALTER TABLE alignment_items ADD COLUMN judgment TEXT",
+  // consolidamento: posizioni rimaste divergenti dopo la discussione, annotate per il report
+  "ALTER TABLE consolidated ADD COLUMN dissent_note TEXT"]) {
   try { db.exec(sql); } catch { /* colonna già presente */ }
 }
 db.exec("UPDATE audit SET seeded = 1 WHERE seeded = 0 AND actor LIKE 'demo%'");

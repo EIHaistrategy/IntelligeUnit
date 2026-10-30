@@ -9,6 +9,10 @@ const ITEMS = Object.keys(I.items);
 const sessOf = (itemId) => I.sessions.find((s) => s.items.includes(itemId));
 // le 12 capacità misurate prima di luglio: la nota chiede di riallinearle; Scalare (luglio) si può comunque correggere
 export const preJuly = (itemId) => sessOf(itemId)?.id !== 'SCALE';
+// Perché cambia il livello: la situazione è cambiata dopo la sessione (evoluzione) oppure la risposta di allora
+// era da rivedere (revisione). Per le conferme: l'azienda è soddisfatta o sperava in un miglioramento.
+export const MOTIVES = { evoluzione: 'Cambiamento reale', revisione: 'Revisione della risposta' };
+export const JUDGMENTS = { soddisfatti: 'Soddisfatti', speravamo: 'Speravamo in un miglioramento' };
 
 const openKey = (seeded) => `alignment_open_${seeded ? 'demo' : 'prod'}`;
 export const isOpen = (seeded) => getSetting(openKey(seeded)) === '1';
@@ -34,10 +38,11 @@ export function alignmentState(companyId, seeded) {
     // "confermo" vale sempre il valore corrente della sessione: se ELIS lo corregge dopo, la conferma lo segue
     const cur = a && (a.action === 'conferma' && b ? { ...a, level: b.level, sub: b.sub, score: b.score } : a);
     return {
-      itemId: k, title: I.items[k].title, statement: I.items[k].statement, dimension: I.items[k].dimension, session: s.id, sessionName: s.name, preJuly: preJuly(k),
+      itemId: k, title: I.items[k].title, statement: I.items[k].statement, dimension: I.items[k].dimension, session: s.id, sessionName: s.name, sessionDate: s.date, preJuly: preJuly(k),
       levels: I.items[k].levels.map((l) => ({ level: l.level, descriptor: l.descriptor, sub: l.sub || [] })),
       base: b ? { level: b.level, sub: b.sub, score: b.score, sessionTitle: b.session_title, descriptor: lv(b.level)?.descriptor || null } : null,
       current: cur ? { action: cur.action, level: cur.level, sub: cur.sub, score: cur.score, evidence: cur.evidence, by: cur.created_by, at: cur.created_at,
+        motive: cur.action === 'modifica' ? cur.motive || null : null, judgment: cur.action === 'conferma' ? cur.judgment || null : null,
         // la sessione è stata corretta dopo la modifica: lo spostamento si calcola sul valore corrente, ma va ricontrollato
         baseChanged: cur.action === 'modifica' && b != null && cur.base_score !== b.score } : null,
       shift: cur && b && cur.score != null && b.score != null ? Math.round((cur.score - b.score) * 10) / 10 : null,
@@ -79,16 +84,19 @@ export function saveItem(companyId, itemId, body, actor) {
   }
   const evidence = String(body.evidence || '').trim().slice(0, 2000);
   if (action === 'modifica' && !evidence) return { ok: false, errors: [`${itemId}: per modificare il livello indica l'evidenza (che cosa è cambiato, con un fatto osservabile)`] };
+  const motive = action === 'modifica' && MOTIVES[body.motive] ? body.motive : null;
+  if (action === 'modifica' && !motive) return { ok: false, errors: [`${itemId}: indica perché cambia il livello: cambiamento reale dopo la sessione o revisione della risposta di allora`] };
+  const judgment = action === 'conferma' && JUDGMENTS[body.judgment] ? body.judgment : null;
   const score = level == null ? null : E.itemScore(itemId, level, sub);
   tx(() => {
     const prev = q.get('SELECT * FROM alignment_items WHERE company_id = ? AND item_id = ? AND is_current = 1', companyId, itemId);
     if (prev) q.run('UPDATE alignment_items SET is_current = 0 WHERE id = ?', prev.id);
-    q.run(`INSERT INTO alignment_items (company_id, item_id, action, level, sub, score, base_level, base_sub, base_score, base_session_id, evidence, created_by)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`, companyId, itemId, action, level, sub, score, b?.level ?? null, b?.sub ?? null, b?.score ?? null, b?.session_id ?? null, evidence, actor);
+    q.run(`INSERT INTO alignment_items (company_id, item_id, action, level, sub, score, base_level, base_sub, base_score, base_session_id, evidence, motive, judgment, created_by)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, companyId, itemId, action, level, sub, score, b?.level ?? null, b?.sub ?? null, b?.score ?? null, b?.session_id ?? null, evidence, motive, judgment, actor);
     q.run(`INSERT INTO alignment (company_id, updated_at) VALUES (?, datetime('now')) ON CONFLICT(company_id) DO UPDATE SET updated_at = excluded.updated_at`, companyId);
     audit(actor, 'alignment_item', `${companyId}/${itemId}`, action,
       prev ? { level: prev.level, sub: prev.sub, score: prev.score } : (b ? { level: b.level, sub: b.sub, score: b.score, fonte: 'sessione' } : null),
-      { level, sub, score }, evidence || null);
+      { level, sub, score, ...(motive ? { motivo: MOTIVES[motive] } : {}), ...(judgment ? { giudizio: JUDGMENTS[judgment] } : {}) }, evidence || null);
   });
   return { ok: true };
 }
@@ -140,7 +148,8 @@ export function overview(seeded) {
     const st = alignmentState(c.id, seeded);
     const rel = q.get("SELECT id, version, created_at FROM report_snapshots WHERE company_id = ? AND kind = 'finale' ORDER BY id DESC LIMIT 1", c.id);
     return { id: c.id, name: c.name, kind: c.kind, reviewed: st.reviewed, total: st.total, changed: st.changed, confirmedAt: st.confirmedAt,
-      priorities: st.priorities, dims: st.dims, up: st.items.filter((i) => i.shift > 0).length, down: st.items.filter((i) => i.shift < 0).length, released: rel || null };
+      priorities: st.priorities, dims: st.dims, up: st.items.filter((i) => i.shift > 0).length, down: st.items.filter((i) => i.shift < 0).length, released: rel || null,
+      items: st.items };
   }).filter((r) => r.total > 0);
   // le aziende TEST (es. l'azienda amica) restano nell'elenco ma non entrano negli aggregati (regola 7)
   const agg = rows.filter((r) => r.kind !== 'TEST');
@@ -150,8 +159,26 @@ export function overview(seeded) {
     return { id: d.id, name: d.name, n: pairs.length, before: avg('before'), after: avg('after'), up: pairs.filter((x) => x.shift > 0).length, down: pairs.filter((x) => x.shift < 0).length,
       shift: pairs.length ? Math.round((avg('after') - avg('before')) * 10) / 10 : null };
   });
+  // per sessione: quanto si è spostato e perché. Con più mesi tra sessione e allineamento ci si aspettano più cambiamenti reali;
+  // molte revisioni sulla stessa capacità indicano un descrittore da chiarire nella versione successiva dello strumento
+  const reviewedItems = agg.flatMap((r) => r.items.filter((i) => i.current && i.base));
+  const sessions = I.sessions.map((s) => {
+    const its = reviewedItems.filter((i) => i.session === s.id);
+    const n = (f) => its.filter(f).length;
+    const avg = (arr) => (arr.length ? Math.round((arr.reduce((a, i) => a + i.shift, 0) / arr.length) * 10) / 10 : null);
+    return { id: s.id, name: s.name, date: s.date, reviewed: its.length,
+      evoluzioneUp: n((i) => i.current.motive === 'evoluzione' && i.shift > 0), evoluzioneDown: n((i) => i.current.motive === 'evoluzione' && i.shift < 0),
+      revisioneUp: n((i) => i.current.motive === 'revisione' && i.shift > 0), revisioneDown: n((i) => i.current.motive === 'revisione' && i.shift < 0),
+      senzaMotivo: n((i) => i.current.action === 'modifica' && !i.current.motive),
+      confermeSoddisfatti: n((i) => i.current.action === 'conferma' && i.current.judgment === 'soddisfatti'),
+      confermeSperavamo: n((i) => i.current.action === 'conferma' && i.current.judgment === 'speravamo'),
+      confermeSenzaGiudizio: n((i) => i.current.action === 'conferma' && !i.current.judgment),
+      shiftEvoluzione: avg(its.filter((i) => i.current.motive === 'evoluzione')), shiftRevisione: avg(its.filter((i) => i.current.motive === 'revisione')) };
+  });
+  const revisions = {};
+  for (const i of reviewedItems.filter((x) => x.current.motive === 'revisione')) revisions[i.itemId] = (revisions[i.itemId] || 0) + 1;
   const prio = {};
   for (const r of agg.filter((x) => x.confirmedAt)) r.priorities.forEach((p) => { prio[p] = (prio[p] || 0) + 1; });
-  return { open: isOpen(seeded), companies: rows, dims, priorityCount: prio,
+  return { open: isOpen(seeded), companies: rows.map(({ items, ...r }) => r), dims, sessions, revisions: Object.entries(revisions).sort((a, b) => b[1] - a[1]).map(([itemId, n]) => ({ itemId, title: I.items[itemId].title, n })), priorityCount: prio,
     confirmed: rows.filter((r) => r.confirmedAt).length, started: rows.filter((r) => r.reviewed).length, testExcluded: rows.length - agg.length };
 }

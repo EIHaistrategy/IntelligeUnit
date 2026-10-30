@@ -842,6 +842,9 @@ app.get('/api/admin/sessions/:id/control', wrap((req, res) => {
       commitment: !!q.get('SELECT 1 FROM commitments WHERE session_id = ? AND company_id = ?', s.id, c.id),
       referents: q.all('SELECT id, name, email, token FROM referents WHERE company_id = ?', c.id), leader_call_note: sc?.leader_call_note || '', transcript_chars: sc?.leader_call_transcript?.length || 0, transcript_date: sc?.leader_call_at || null,
       invited_at: sc?.invited_at || null, qr_generated_at: sc?.qr_generated_at || null,
+      // tutte le capacità della sessione al livello 5: segnale per la call (chiedere esempi concreti), solo per il team ELIS
+      allTop: (() => { const lv = q.all('SELECT level FROM consolidated WHERE session_id = ? AND company_id = ? AND is_current = 1 AND level IS NOT NULL', s.id, c.id);
+        return lv.length >= 2 && lv.every((x) => x.level === 5); })(),
       roster: q.all('SELECT name, func FROM roster WHERE company_id = ? ORDER BY name', c.id) };
   });
   const phaseSince = q.get("SELECT ts FROM audit WHERE entity = 'session' AND entity_id = ? AND action = 'phase' ORDER BY id DESC LIMIT 1", String(s.id))?.ts || null;

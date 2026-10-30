@@ -17,18 +17,19 @@ async function boot() {
   const AL = R.alignment;
   const shiftTag = (x) => (x == null ? '—' : x === 0 ? '<span class="shift zero">invariato</span>' : `<span class="shift ${x > 0 ? 'up' : 'down'}">${x > 0 ? '▲ +' : '▼ '}${fmtScore(x).replace('-', '−')}</span>`);
   const alignHtml = AL ? `<div class="card"><h2>Allineamento finale: che cosa è cambiato</h2>
-    <div class="explain">A settembre 2027 l'azienda ha rivisto le capacità misurate nelle quattro sessioni: le ha confermate o modificate indicando un'evidenza. I valori delle sessioni non sono stati sovrascritti: qui accanto a ciascuno c'è il valore allineato e lo spostamento. Tutte le sezioni seguenti usano i valori allineati.</div>
+    <div class="explain">A settembre 2027 l'azienda ha rivisto le capacità misurate nelle quattro sessioni: le ha confermate o modificate indicando un'evidenza. I valori delle sessioni non sono stati sovrascritti: qui accanto a ciascuno c'è il valore allineato e lo spostamento. Per ogni modifica l'azienda ha indicato se è un cambiamento reale avvenuto dopo la sessione o una revisione della risposta di allora; per ogni conferma, se è soddisfatta o sperava in un miglioramento. Tutte le sezioni seguenti usano i valori allineati.</div>
+    ${AL.evoluzione != null ? `<p class="small">Delle modifiche, <b>${AL.evoluzione}</b> ${AL.evoluzione === 1 ? 'è un cambiamento reale' : 'sono cambiamenti reali'} avvenuti dopo la sessione e <b>${AL.revisione}</b> ${AL.revisione === 1 ? 'è una revisione' : 'sono revisioni'} della risposta data allora. Delle conferme, <b>${AL.soddisfatti}</b> con soddisfazione e <b>${AL.speravamo}</b> con l'attesa di un miglioramento.</p>` : ''}
     <p class="small"><b>${AL.reviewed} di ${AL.total}</b> capacità riviste · <b>${AL.changed}</b> ${AL.changed === 1 ? 'modificata' : 'modificate'}${AL.confirmedAt ? ` · confermato il ${fmtDate(AL.confirmedAt)}` : ' · <span class="tag warn">non ancora confermato</span>'}${AL.overallBefore != null ? ` · indicatore complessivo ${fmtScore(AL.overallBefore)} → <b>${fmtScore(AL.overallAfter)}</b>` : ''}</p>
     <h3>Per dimensione</h3>
     <div class="tablewrap"><table><thead><tr><th>Dimensione</th><th class="num">In sessione</th><th class="num">Allineamento</th><th>Spostamento</th></tr></thead><tbody>
       ${AL.dims.map((d) => `<tr><td><span class="dim-letter">${d.id}</span>${esc(d.name)}</td><td class="num">${fmtScore(d.before)}</td><td class="num"><b>${fmtScore(d.after)}</b></td><td>${d.before == null ? '—' : shiftTag(d.shift)}</td></tr>`).join('')}
     </tbody></table></div>
     <h3>Per capacità</h3>
-    <div class="tablewrap"><table><thead><tr><th>Capacità</th><th>Prima rilevazione</th><th>Allineamento</th><th>Spostamento</th><th>Evidenza</th></tr></thead><tbody>
+    <div class="tablewrap"><table><thead><tr><th>Capacità</th><th>Prima rilevazione</th><th>Allineamento</th><th>Spostamento</th><th>Perché · evidenza</th></tr></thead><tbody>
       ${AL.items.map((i) => `<tr><td><b>${esc(i.itemId)}</b> ${esc(i.title)}<div class="small muted">Dim. ${i.dimension} · ${esc(i.session)}</div></td>
         <td>${i.before ? `<b>${levelLabel(i.before.level, i.before.sub)}</b> <span class="small muted">${fmtScore(i.before.score)}</span>` : '—'}</td>
         <td>${i.after ? `<b>${levelLabel(i.after.level, i.after.sub)}</b> <span class="small muted">${fmtScore(i.after.score)}</span>${i.action === 'conferma' ? '<div class="small muted">confermato</div>' : ''}` : '<span class="muted">non rivisto</span>'}</td>
-        <td>${i.after ? shiftTag(i.shift) : '—'}</td><td class="small">${esc(i.evidence || '')}</td></tr>`).join('')}
+        <td>${i.after ? shiftTag(i.shift) : '—'}</td><td class="small">${i.motive ? `<b>${i.motive === 'evoluzione' ? 'Cambiamento reale' : 'Revisione della risposta'}</b>${i.evidence ? ': ' : ''}` : ''}${i.judgment ? `<span class="muted">${i.judgment === 'soddisfatti' ? 'Confermato con soddisfazione' : 'Confermato, si sperava in un miglioramento'}</span>` : ''}${esc(i.evidence || '')}</td></tr>`).join('')}
     </tbody></table></div></div>` : '';
 
   const names = SC.quadrantNames[SC.quadrantNamesInUse];
@@ -87,7 +88,9 @@ async function boot() {
     <div class="tablewrap"><table><thead><tr><th>Item</th><th>Posizione</th><th class="num">Score</th><th>Qualità del dato</th>${anyItemBench ? `<th>Benchmark AITO${stab(R.items.map((i) => i.bench))}</th>` : ''}</tr></thead><tbody>
     ${R.items.map((it) => `<tr><td><b>${esc(it.itemId)}</b> ${esc(it.title)}<div class="small muted">Dim. ${it.dimension}</div></td>
       <td><b>${levelLabel(it.level, it.sub)}</b> ${it.valoriale ? '<span class="tag gold">valoriale</span>' : ''}<div class="small">${esc(it.descriptor || '')}${it.subText ? `<br><i>${esc(it.subText)}</i>` : ''}</div>
-        ${it.override ? `<div class="small"><span class="tag warn">override</span> ${esc(it.overrideReason || '')}</div>` : ''}</td>
+        ${it.override ? `<div class="small"><span class="tag warn">override</span> ${esc(it.overrideReason || '')}</div>` : ''}
+        ${it.dissentNote ? `<div class="small"><span class="tag warn">posizioni divergenti</span> ${esc(it.dissentNote)}</div>` : ''}
+        ${it.ndNote ? `<div class="small">${esc(it.ndNote)}</div>` : ''}</td>
       <td class="num"><b>${fmtScore(it.score)}</b></td>
       <td class="small">${it.kind === 'allineato' ? `<b>Modificato nell'allineamento finale</b><br><span class="muted">${esc(it.confidenceReason || '')}</span>` : `${esc(it.confidence || '')}<br><span class="muted">${it.validN} ${it.validN === 1 ? 'risposta valida' : 'risposte valide'} · ${it.ndN} N.D. · range ${it.range ?? '—'}</span>`}</td>
       ${anyItemBench ? `<td class="small">${it.bench?.available ? `${benchStrip(it.bench, it.score)}<br>` : ''}${benchTxt(it.bench)}</td>` : ''}</tr>`).join('')}

@@ -124,8 +124,9 @@ export function buildCompanyPdf(R) {
   const sh = (x) => (x == null ? '—' : x === 0 ? 'invariato' : `${x > 0 ? '+' : '−'}${n1(Math.abs(x))}`);
   if (AL) {
     h2('Allineamento finale: che cosa è cambiato', 160);
-    explain(`L'azienda ha rivisto le capacità misurate nelle quattro sessioni, confermandole o modificandole con un'evidenza. I valori delle sessioni non sono stati sovrascritti: accanto a ciascuno c'è il valore allineato e lo spostamento. Le sezioni seguenti usano i valori allineati.`);
+    explain(`L'azienda ha rivisto le capacità misurate nelle quattro sessioni, confermandole o modificandole con un'evidenza. I valori delle sessioni non sono stati sovrascritti: accanto a ciascuno c'è il valore allineato e lo spostamento. Per ogni modifica l'azienda ha indicato se è un cambiamento reale avvenuto dopo la sessione o una revisione della risposta di allora; per ogni conferma, se è soddisfatta o sperava in un miglioramento. Le sezioni seguenti usano i valori allineati.`);
     para(`${AL.reviewed} di ${AL.total} capacità riviste · ${AL.changed} ${AL.changed === 1 ? 'modificata' : 'modificate'}${AL.confirmedAt ? ` · confermato il ${dateIt(AL.confirmedAt.replace(' ', 'T') + 'Z')}` : ' · non ancora confermato'}${AL.overallBefore != null ? ` · indicatore complessivo da ${n1(AL.overallBefore)} a ${n1(AL.overallAfter)}` : ''}`, { size: 8.6, bold: true });
+    if (AL.evoluzione != null) para(`Delle modifiche, ${AL.evoluzione} ${AL.evoluzione === 1 ? 'è un cambiamento reale' : 'sono cambiamenti reali'} avvenuti dopo la sessione e ${AL.revisione} ${AL.revisione === 1 ? 'è una revisione' : 'sono revisioni'} della risposta data allora. Delle conferme, ${AL.soddisfatti} con soddisfazione e ${AL.speravamo} con l'attesa di un miglioramento.`, { size: 8.4 });
     doc.moveDown(0.4);
     // tabella per dimensione
     const cols = [[X0, 'Dimensione', 210], [X0 + 220, 'In sessione', 70], [X0 + 300, 'Allineamento', 80], [X0 + 390, 'Spostamento', 90]];
@@ -139,7 +140,9 @@ export function buildCompanyPdf(R) {
     doc.moveDown(0.8);
     doc.font('Bold').fontSize(10).fillColor(C.deep).text('Per capacità', X0, doc.y, { width: W }); doc.moveDown(0.3);
     for (const i of AL.items) {
-      const ev = i.evidence ? `Evidenza: ${i.evidence}` : i.action === 'conferma' ? 'Confermato' : '';
+      const why = i.motive === 'evoluzione' ? 'Cambiamento reale' : i.motive === 'revisione' ? 'Revisione della risposta' : '';
+      const ev = i.evidence ? `${why ? `${why}. ` : ''}Evidenza: ${i.evidence}`
+        : i.action === 'conferma' ? (i.judgment === 'soddisfatti' ? 'Confermato con soddisfazione' : i.judgment === 'speravamo' ? 'Confermato, si sperava in un miglioramento' : 'Confermato') : '';
       doc.font('Body').fontSize(8);
       const hEv = doc.heightOfString(ev, { width: W - 258 }) + 10;
       doc.font('Bold').fontSize(8.6); const hT = doc.heightOfString(`${i.itemId} ${i.title}`, { width: 160 }) + 18;
@@ -218,7 +221,7 @@ export function buildCompanyPdf(R) {
   explain(`Il numero è il livello consolidato in sala, la lettera la sotto-opzione scelta con una scelta forzata tra fatti osservabili. Lo stesso "2B" non vale lo stesso in tutti gli item (dipende da quante sotto-opzioni ha il livello), per questo è indicato anche il valore 0–100.${anyItemBench ? ' Nella barra: il punto blu è l\'azienda, la fascia azzurra va dal primo al terzo quartile delle altre aziende, il trattino è la mediana.' : ''}`);
   if (!anyItemBench) { para(noBench('Confronto con il benchmark'), { size: 8.2, color: C.ink3 }); doc.moveDown(0.4); }
   for (const it of R.items) {
-    const desc = `${it.descriptor || ''}${it.subText ? `\n${it.subText}` : ''}${it.override ? `\nOverride: ${it.overrideReason || ''}` : ''}`;
+    const desc = `${it.descriptor || ''}${it.subText ? `\n${it.subText}` : ''}${it.override ? `\nOverride: ${it.overrideReason || ''}` : ''}${it.dissentNote ? `\nPosizioni rimaste divergenti: ${it.dissentNote}` : ''}${it.ndNote ? `${it.descriptor ? '\n' : ''}${it.ndNote}` : ''}`;
     doc.font('Body').fontSize(8.3);
     const hDesc = doc.heightOfString(desc, { width: 215, lineGap: 1 });
     doc.font('Bold').fontSize(9);

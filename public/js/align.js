@@ -6,6 +6,13 @@ import { api, esc, $, $$, toast, ask, fmtScore, fmtDate, levelLabel, icon } from
 const shiftTag = (x) => (x == null || x === 0 ? '<span class="shift zero">invariato</span>'
   : `<span class="shift ${x > 0 ? 'up' : 'down'}">${x > 0 ? '▲ +' : '▼ '}${fmtScore(x).replace('-', '−')}</span>`);
 
+// perché cambia il livello (modifica) e giudizio sul valore confermato (conferma)
+const MOTIVES = [['evoluzione', 'Cambiamento reale', 'Il valore della sessione era giusto: dopo la sessione la situazione è cambiata'],
+  ['revisione', 'Revisione della risposta', 'Il valore giusto era già questo al momento della sessione']];
+const JUDGMENTS = [['soddisfatti', 'Confermo: siamo soddisfatti'], ['speravamo', 'Confermo, ma speravamo in un miglioramento']];
+const motiveLabel = (m) => MOTIVES.find((x) => x[0] === m)?.[1] || '';
+const judgmentLabel = (j) => (j === 'soddisfatti' ? 'soddisfatti' : j === 'speravamo' ? 'speravamo in un miglioramento' : '');
+
 export async function renderAlignment(app, { API, FAC }) {
   let S = await api(`${API}/alignment`);
   const editing = new Map(); // item aperti in modifica: livello, sotto-opzione ed evidenza non ancora salvati
@@ -36,7 +43,7 @@ export async function renderAlignment(app, { API, FAC }) {
       <div class="al-compare">
         <div><span class="small muted">In sessione</span><b>${it.base ? levelLabel(it.base.level, it.base.sub) : '—'}</b><span class="small">${it.base ? `${fmtScore(it.base.score)} · ${esc(it.base.descriptor || '')}` : 'non misurata'}</span></div>
         <div aria-hidden="true" class="al-arrow">${icon('arrow')}</div>
-        <div><span class="small muted">Allineamento</span><b>${done ? levelLabel(it.current.level, it.current.sub) : '—'}</b><span class="small">${done ? `${fmtScore(it.current.score)}${it.current.evidence ? ` · ${esc(it.current.evidence)}` : ''}` : 'da scegliere'}</span></div>
+        <div><span class="small muted">Allineamento</span><b>${done ? levelLabel(it.current.level, it.current.sub) : '—'}</b><span class="small">${done ? `${fmtScore(it.current.score)}${it.current.motive ? ` · <b>${esc(motiveLabel(it.current.motive))}</b>` : ''}${it.current.judgment ? ` · ${esc(judgmentLabel(it.current.judgment))}` : ''}${it.current.evidence ? ` · ${esc(it.current.evidence)}` : ''}` : 'da scegliere'}</span></div>
       </div>
       ${it.current?.baseChanged ? '<div class="banner warn small" style="margin-top:10px">Il valore della sessione è stato corretto da ELIS dopo questa modifica: lo spostamento è calcolato sul valore corretto. Ricontrollate la modifica.</div>' : ''}
       ${locked ? '' : ed ? `
@@ -44,11 +51,15 @@ export async function renderAlignment(app, { API, FAC }) {
           <p class="statement small">${esc(it.statement)}</p>
           <div class="levels" role="group" aria-label="Nuovo livello ${esc(it.itemId)}">${it.levels.map((l) => `<button type="button" class="level ${ed.level === l.level ? 'sel' : ''}" data-al-l="${it.itemId}:${l.level}" aria-pressed="${ed.level === l.level}"><span class="n">${l.level}</span><span>${esc(l.descriptor)}</span></button>`).join('')}</div>
           ${lvDef?.sub?.length ? `<div class="subchoice" role="group" aria-label="Sotto-opzione ${esc(it.itemId)}">${lvDef.sub.map((x) => `<button type="button" class="level ${ed.sub === x.key ? 'sel' : ''}" data-al-s="${it.itemId}:${x.key}" aria-pressed="${ed.sub === x.key}"><span class="n">${ed.level}${x.key}</span><span>${esc(x.text)}</span></button>`).join('')}</div>` : ''}
-          <label class="f" for="ev-${it.itemId}">Evidenza: che cosa è cambiato rispetto alla sessione, con un fatto osservabile *</label>
+          <fieldset class="al-motive"><legend class="f">Perché cambia il livello? *</legend>
+            <div class="al-motive-opts" role="group">${MOTIVES.map(([k, t, d]) => `<button type="button" class="level ${ed.motive === k ? 'sel' : ''}" data-al-m="${it.itemId}:${k}" aria-pressed="${ed.motive === k}" aria-describedby="mverr-${it.itemId}"><span><b>${t}</b><br><span class="small">${d}</span></span></button>`).join('')}</div>
+            <p id="mverr-${it.itemId}" class="field-err" ${ed.mErr ? '' : 'hidden'}>${esc(ed.mErr || '')}</p></fieldset>
+          <label class="f" for="ev-${it.itemId}">${ed.motive === 'revisione' ? 'Evidenza: perché la risposta della sessione era da rivedere, con un fatto osservabile *' : 'Evidenza: che cosa è cambiato dopo la sessione, con un fatto osservabile *'}</label>
           <textarea id="ev-${it.itemId}" maxlength="2000" data-al-ev="${it.itemId}" aria-required="true" aria-describedby="everr-${it.itemId}" ${ed.err ? 'aria-invalid="true"' : ''}>${esc(ed.evidence || '')}</textarea>
           <p id="everr-${it.itemId}" class="field-err" ${ed.err ? '' : 'hidden'}>${esc(ed.err || '')}</p>
           <div class="row" style="margin-top:10px"><button type="button" class="primary" data-al-save="${it.itemId}">Salva la modifica</button><button type="button" class="ghost" data-al-cancel="${it.itemId}">Annulla</button></div>
-        </div>` : `<div class="row" style="margin-top:12px">${it.base ? `<button type="button" class="${done && it.current.action === 'conferma' ? 'ghost' : ''}" data-al-ok="${it.itemId}" ${done && it.current.action === 'conferma' ? 'disabled' : ''}>${!done ? 'Confermo il valore' : it.current.action === 'conferma' ? 'Confermato' : 'Torna al valore della sessione'}</button>` : ''}<button type="button" class="ghost" data-al-mod="${it.itemId}">${done && it.current.action === 'modifica' ? 'Cambia la modifica' : 'Modifico'}</button></div>`}
+        </div>` : `<div class="row" style="margin-top:12px">${it.base ? JUDGMENTS.map(([k, t]) => { const on = done && it.current.action === 'conferma' && it.current.judgment === k;
+          return `<button type="button" class="${on ? 'pressed ghost' : done && it.current.action === 'conferma' ? 'ghost' : ''}" data-al-ok="${it.itemId}:${k}" aria-pressed="${on}">${done && it.current.action === 'modifica' ? (k === 'soddisfatti' ? 'Torna al valore della sessione: soddisfatti' : 'Torna al valore della sessione, ma speravamo in un miglioramento') : t}</button>`; }).join('') : ''}<button type="button" class="ghost" data-al-mod="${it.itemId}">${done && it.current.action === 'modifica' ? 'Cambia la modifica' : 'Modifico'}</button></div>`}
     </section>`;
   }
 
@@ -60,7 +71,7 @@ export async function renderAlignment(app, { API, FAC }) {
     const locked = isLocked();
     app.innerHTML = `<a class="back" href="#/">${icon('back')} ${FAC ? 'Tavolo dell\'azienda' : 'Le vostre sessioni'}</a>
       <div class="pagehead"><div><h1>Allineamento finale</h1>
-        <p>${FAC ? 'Con l\'azienda, rivedi le 16 capacità misurate nelle quattro sessioni: per ognuna conferma il valore o modificalo indicando un\'evidenza.' : 'Rivedete le 16 capacità misurate nelle quattro sessioni: per ognuna confermate il valore o modificatelo indicando un\'evidenza.'} I valori delle sessioni non si cancellano: il report unificato mostra lo spostamento rispetto alla prima rilevazione. Le 12 capacità misurate prima di luglio sono da riallineare; quelle di Scalare si possono correggere.</p></div></div>
+        <p>${FAC ? 'Con l\'azienda, rivedi le 16 capacità misurate nelle quattro sessioni: per ognuna conferma il valore, dicendo se l\'azienda è soddisfatta o sperava in un miglioramento, oppure modificalo indicando se è un cambiamento reale o una revisione della risposta, con un\'evidenza.' : 'Rivedete le 16 capacità misurate nelle quattro sessioni: per ognuna confermate il valore, dicendo se siete soddisfatti o speravate in un miglioramento, oppure modificatelo indicando se è un cambiamento reale avvenuto dopo la sessione o una revisione della risposta di allora, con un\'evidenza.'} I valori delle sessioni non si cancellano: il report unificato mostra lo spostamento rispetto alla prima rilevazione. Le 12 capacità misurate prima di luglio sono da riallineare; quelle di Scalare si possono correggere.</p></div></div>
       ${!S.open ? (FAC ? '<div class="banner info">L\'allineamento non è ancora aperto alle aziende: come facilitatore puoi già prepararlo; il referente lo vedrà quando lo apri dalla console.</div>' : '<div class="banner warn">L\'allineamento finale non è ancora aperto: ELIS lo aprirà a settembre 2027. Intanto potete vedere i valori.</div>') : ''}
       ${S.confirmedAt ? `<div class="banner ok">Allineamento confermato il ${esc(fmtDate(S.confirmedAt))}. ${S.released ? 'Il report unificato è disponibile tra i report riservati.' : 'ELIS rilascerà il report unificato.'} ${FAC ? 'Per una correzione riaprilo dalla console (Allineamento finale → Riapri).' : 'Per una correzione contattate ELIS.'}</div>` : ''}
       <div class="card"><div class="row between"><h2 style="margin:0">Vista d'insieme</h2><span class="small"><b>${S.reviewed} di ${S.total}</b> capacità riviste · ${S.changed} ${S.changed === 1 ? 'modificata' : 'modificate'}</span></div>
@@ -84,25 +95,27 @@ export async function renderAlignment(app, { API, FAC }) {
 
   const focusIn = (id, sel) => { const el = $(`#al-${id} ${sel}`) || $(`#al-${id}`); el?.focus({ preventScroll: false }); };
   function bind() {
-    $$('[data-al-ok]').forEach((b) => b.onclick = async () => { const id = b.dataset.alOk; if (await save(`/alignment/item/${id}`, { action: 'conferma' })) { editing.delete(id); draw(); focusIn(id, '[data-al-mod]'); } });
+    $$('[data-al-ok]').forEach((b) => b.onclick = async () => { const [id, judgment] = b.dataset.alOk.split(':'); if (await save(`/alignment/item/${id}`, { action: 'conferma', judgment })) { editing.delete(id); draw(); focusIn(id, `[data-al-ok="${id}:${judgment}"]`); } });
     $$('[data-al-mod]').forEach((b) => b.onclick = () => {
       const id = b.dataset.alMod, it = S.items.find((x) => x.itemId === id), src = it.current || it.base;
-      editing.set(id, { level: src?.level ?? null, sub: src?.sub ?? null, evidence: it.current?.action === 'modifica' ? it.current.evidence : '' });
+      editing.set(id, { level: src?.level ?? null, sub: src?.sub ?? null, evidence: it.current?.action === 'modifica' ? it.current.evidence : '', motive: it.current?.motive || null });
       draw(); focusIn(id, '.level.sel, .level');
     });
     $$('[data-al-cancel]').forEach((b) => b.onclick = () => { editing.delete(b.dataset.alCancel); draw(); focusIn(b.dataset.alCancel, '[data-al-mod]'); });
     $$('[data-al-l]').forEach((b) => b.onclick = () => { const [id, l] = b.dataset.alL.split(':'); const e = editing.get(id); e.level = Number(l);
       // la prima sotto-opzione si vede già selezionata: niente scelte implicite
       e.sub = S.items.find((x) => x.itemId === id).levels.find((x) => x.level === e.level)?.sub?.[0]?.key || null; draw(); focusIn(id, `[data-al-l="${id}:${l}"]`); });
+    $$('[data-al-m]').forEach((b) => b.onclick = () => { const [id, k] = b.dataset.alM.split(':'); const e = editing.get(id); e.motive = k; e.mErr = null; draw(); focusIn(id, `[data-al-m="${id}:${k}"]`); });
     $$('[data-al-s]').forEach((b) => b.onclick = () => { const [id, k] = b.dataset.alS.split(':'); editing.get(id).sub = k; draw(); focusIn(id, `[data-al-s="${id}:${k}"]`); });
     $$('[data-al-ev]').forEach((t) => t.oninput = () => { editing.get(t.dataset.alEv).evidence = t.value; });
     $$('[data-al-save]').forEach((b) => b.onclick = async () => {
       const id = b.dataset.alSave, e = editing.get(id);
       if (e.level == null) return toast('Scegli il livello', true);
+      if (!e.motive) { e.mErr = 'Scegli perché cambia il livello: cambiamento reale o revisione della risposta.'; draw(); focusIn(id, `[data-al-m="${id}:evoluzione"]`); return; }
       // evidenza mancante: messaggio fisso sotto il campo, focus sul campo
-      if (!String(e.evidence || '').trim()) { e.err = 'Scrivi l\'evidenza: che cosa è cambiato rispetto alla sessione, con un fatto osservabile.'; draw(); focusIn(id, `#ev-${id}`); return; }
+      if (!String(e.evidence || '').trim()) { e.err = e.motive === 'revisione' ? 'Scrivi l\'evidenza: perché la risposta della sessione era da rivedere, con un fatto osservabile.' : 'Scrivi l\'evidenza: che cosa è cambiato dopo la sessione, con un fatto osservabile.'; draw(); focusIn(id, `#ev-${id}`); return; }
       e.err = null;
-      if (await save(`/alignment/item/${id}`, { action: 'modifica', level: e.level, sub: e.sub, evidence: e.evidence })) {
+      if (await save(`/alignment/item/${id}`, { action: 'modifica', level: e.level, sub: e.sub, motive: e.motive, evidence: e.evidence })) {
         editing.delete(id);
         toast(S.items.find((x) => x.itemId === id)?.current?.action === 'conferma' ? 'Il valore scelto è uguale a quello della sessione: registrato come conferma' : 'Modifica salvata');
         draw(); focusIn(id, '[data-al-mod]');

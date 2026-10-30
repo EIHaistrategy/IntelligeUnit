@@ -138,14 +138,14 @@ function enterFinal(S) {
   const g = guided(); if (!g) return;
   const A = S.allineamento || {};
   AL.setOpen(1, true, ACTOR, 'Percorso guidato DEMO');
-  const align = (cid, itemId, ch, evidence) => {
-    const out = AL.saveItem(cid, itemId, ch ? { action: 'modifica', level: ch.livello, sub: ch.sotto, evidence } : { action: 'conferma' }, ACTOR);
+  const align = (cid, itemId, ch, evidence, judgment) => {
+    const out = AL.saveItem(cid, itemId, ch ? { action: 'modifica', level: ch.livello, sub: ch.sotto, motive: ch.motivo, evidence } : { action: 'conferma', judgment }, ACTOR);
     if (!out.ok) throw new Error(`Allineamento demo non riuscito: ${out.errors.join(' · ')}`);
   };
   const fixSub = (itemId, ch) => { const subs = E.subOptions(itemId, ch.livello); return { ...ch, sotto: subs.length ? (subs.some((x) => x.key === ch.sotto) ? ch.sotto : subs[0].key) : null }; };
   for (const itemId of Object.keys(L.currentValues(g.id))) {
     const ch = A.modifiche?.[itemId];
-    align(g.id, itemId, ch && fixSub(itemId, ch), ch?.evidenza);
+    align(g.id, itemId, ch && fixSub(itemId, ch), ch?.evidenza, (A.speravamo || []).includes(itemId) ? 'speravamo' : 'soddisfatti');
   }
   AL.savePriorities(g.id, A.priorita || AL.alignmentState(g.id, 1).suggestedPriorities, A.nota_priorita || '', ACTOR);
   const c1 = AL.confirm(g.id, 1, ACTOR); if (!c1.ok) throw new Error(c1.errors.join(' · '));
@@ -155,7 +155,10 @@ function enterFinal(S) {
     for (const [itemId, v] of Object.entries(L.currentValues(c.id))) {
       const r = rnd();
       const lv = v.level == null ? null : r < 0.18 ? clamp(v.level + 1) : r < 0.24 ? clamp(v.level - 1) : v.level;
-      align(c.id, itemId, lv != null && lv !== v.level ? fixSub(itemId, { livello: lv }) : null, 'Dato dimostrativo');
+      // più mesi dalla sessione, più cambiamenti reali; da Scalare (luglio) soprattutto revisioni
+      const sIdx = I.sessions.findIndex((s) => s.items.includes(itemId)), r2 = rnd();
+      const motivo = r2 < [0.85, 0.7, 0.55, 0.3][sIdx] ? 'evoluzione' : 'revisione';
+      align(c.id, itemId, lv != null && lv !== v.level ? { ...fixSub(itemId, { livello: lv }), motivo } : null, 'Dato dimostrativo', r2 < 0.75 ? 'soddisfatti' : 'speravamo');
     }
     AL.savePriorities(c.id, AL.alignmentState(c.id, 1).suggestedPriorities, '', ACTOR);
     AL.confirm(c.id, 1, ACTOR);
@@ -269,7 +272,7 @@ function consolidate(sess, g, sc) {
     const subs = E.subOptions(it.itemId, level);
     const sub = subs.length ? (subs.some((x) => x.key === want.sotto) ? want.sotto : subs[0].key) : null;
     const override = it.summary.medianIsInteger && level !== it.summary.median;
-    items[it.itemId] = { level, sub, overrideReason: override ? (want.motivo || 'Scelta discussa al tavolo (dato dimostrativo)') : '' };
+    items[it.itemId] = { level, sub, overrideReason: override ? (want.motivo || 'Scelta discussa al tavolo (dato dimostrativo)') : '', dissentNote: want.divergenza || '' };
   }
   const out = L.confirmConsolidation(sess.id, g.id, { items }, FAC);
   if (!out.ok) throw new Error(`Consolidamento demo non riuscito: ${(out.errors || []).join(' · ')}`);

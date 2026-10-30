@@ -56,12 +56,16 @@ Sul piano gratuito di Render la password impostata da Impostazioni si perde a og
 
 Nel menu, *Programma → Allineamento finale*.
 1. Il team ELIS preme **Apri l'allineamento alle aziende**: da quel momento ogni referente lo trova in cima al suo link. Il facilitatore può lavorarci anche dal tavolo dell'azienda (*Apri il tavolo*).
-2. Per ciascuna delle 16 capacità l'azienda vede il valore della sessione e sceglie **Confermo il valore** oppure **Modifico**: nuovo livello, sotto-opzione ed **evidenza obbligatoria** (che cosa è cambiato, con un fatto osservabile). Le 12 capacità misurate prima di luglio sono segnate «da riallineare».
+2. Per ciascuna delle 16 capacità l'azienda vede il valore della sessione e sceglie:
+   - **Confermo: siamo soddisfatti** oppure **Confermo, ma speravamo in un miglioramento**;
+   - oppure **Modifico**: nuovo livello, sotto-opzione, **perché cambia** (obbligatorio: *cambiamento reale*, cioè il valore della sessione era giusto e poi la situazione è cambiata, oppure *revisione della risposta*, cioè il valore giusto era già questo al momento della sessione) ed **evidenza obbligatoria** con un fatto osservabile.
+
+   Le 12 capacità misurate prima di luglio sono segnate «da riallineare».
 3. I valori delle sessioni **non si cancellano**: ogni scelta è una riga nuova, la precedente resta nello storico e nel registro modifiche. La pagina mostra lo spostamento (▲ in su, ▼ in giù) per capacità e per dimensione.
 4. L'azienda sceglie **le tre priorità finali** (dimensioni A–H, in ordine; la piattaforma propone le tre della regola della nota) e preme **Conferma l'allineamento**. Dopo la conferma non si modifica più: ELIS può riaprire, con un motivo.
 5. ELIS preme **Rilascia il report unificato**: un report con tutte le sessioni, i valori allineati, una sezione con gli spostamenti rispetto alla prima rilevazione e le priorità finali, web e PDF. È una copia congelata come gli altri report; le correzioni diventano una nuova versione.
 
-La pagina della console dà la **vista d'insieme**: aziende confermate e in corso, capacità salite e scese, spostamento medio per dimensione, priorità più scelte. I valori allineati non entrano nel benchmark delle sessioni né nei report di sessione.
+La pagina della console dà la **vista d'insieme**: aziende confermate e in corso, capacità salite e scese, spostamento medio per dimensione, priorità più scelte. La tabella **Perché cambiano i valori, per sessione** separa cambiamenti reali e revisioni (in su e in giù) e conta le conferme soddisfatte e quelle che speravano in un miglioramento: con più mesi tra sessione e allineamento ci si aspettano più cambiamenti reali; molte revisioni sulla stessa capacità (elenco *Capacità con più revisioni*) indicano una domanda da chiarire nella versione successiva dello strumento. Le aziende TEST non entrano nei conteggi. I valori allineati non entrano nel benchmark delle sessioni né nei report di sessione.
 
 ### Percorso guidato (ambiente DEMO)
 
@@ -90,7 +94,9 @@ La control room segue la sessione in sette passi: **Prima della sessione** (Prep
 
 Il pulsante *Tavolo* apre, in una nuova scheda, la pagina dell'azienda per il facilitatore: chi si è registrato e chi ha inviato, il confronto, il consolidamento. Da lì, in ogni fase della sessione aperta, il facilitatore corregge nome o funzione di un partecipante o rimuove una registrazione sbagliata (resta nel registro).
 
-Dopo la sessione: *Rilascia* il report al referente (lo vede dal suo link), registra l'esito della *call con il leader* e incolla la **trascrizione di Teams**: salvandola si rilascia una nuova versione del report con la trascrizione integrale in appendice.
+Nel consolidamento, se tra le risposte ci sono 2 o più livelli di distanza, compare un campo facoltativo **«Le posizioni sono rimaste divergenti?»**: quello che si scrive va nel report, accanto alla capacità. Se nessuno ha visibilità su un tema (tutte N.D.), il report lo spiega come un'informazione da discutere nella call (chi presidia il tema?), non come un vuoto.
+
+Dopo la sessione: *Rilascia* il report al referente (lo vede dal suo link), registra l'esito della *call con il leader* e incolla la **trascrizione di Teams**: salvandola si rilascia una nuova versione del report con la trascrizione integrale in appendice. In *Report e call con i leader* un'azienda con tutte le capacità della sessione al livello 5 ha l'avviso **«tutto al livello 5»**, visibile solo al team ELIS: nella call chiedete un esempio concreto per ogni capacità.
 
 ## 4. Dashboard live, report e PDF
 

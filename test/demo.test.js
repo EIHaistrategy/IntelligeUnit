@@ -148,6 +148,11 @@ test('«Carica i dati DEMO» mostra il programma concluso; «Riparti da zero» t
   assert.equal(st.done, true);
   assert.ok(st.sessions.every((s) => s.phase === 'chiusa'));
   assert.equal(q.get("SELECT COUNT(*) n FROM report_snapshots WHERE company_id = ? AND kind = 'sessione'", st.company.id).n, 4);
+  // allineamento DEMO: ogni modifica ha il motivo, le conferme il giudizio; la vista per sessione ha dati da mostrare
+  assert.equal(q.get("SELECT COUNT(*) n FROM alignment_items WHERE is_current = 1 AND action = 'modifica' AND motive IS NULL").n, 0);
+  assert.equal(q.get("SELECT COUNT(*) n FROM alignment_items WHERE is_current = 1 AND action = 'conferma' AND judgment IS NULL").n, 0);
+  const ov = await (await fetch(`${base}/api/admin/alignment`, { headers: C })).json();
+  assert.ok(ov.sessions.some((s) => s.evoluzioneUp + s.evoluzioneDown > 0) && ov.sessions.some((s) => s.revisioneUp + s.revisioneDown > 0));
   const z = await (await fetch(`${base}/api/admin/demo/reset`, { method: 'POST', headers: C, body: '{}' })).json();
   assert.equal(z.done, false); assert.ok(z.sessions.every((s) => s.phase === 'preparazione'));
   assert.equal(prod().companies, 1);
@@ -192,4 +197,23 @@ test('accesso DEMO (comitato scientifico): solo DEMO, niente Produzione, imposta
   // la password admin non entra da /demo
   assert.equal((await fetch(`${base}/api/admin/login`, { method: 'POST', headers: H(), body: JSON.stringify({ password: 'testpass123', demo: true }) })).status, 403);
   assert.equal(prod().companies, 1);
+});
+
+test('report e console: posizioni divergenti annotate, tema senza visibilità spiegato, avviso «tutto al livello 5»', async () => {
+  D.removeDemo(); D.loadDemoComplete();
+  const st = D.tourState();
+  // Q6 nel percorso guidato: range 2, il gruppo ha annotato perché le posizioni restano distanti
+  const R = L.companyReport(st.company.id);
+  assert.ok(R.items.find((i) => i.itemId === 'Q6').dissentNote);
+  // un'azienda DEMO senza nessuna risposta valida su un tema: il report lo spiega invece di lasciare un vuoto
+  const c = q.get("SELECT id FROM companies WHERE seeded = 1 AND kind = 'DEMO' ORDER BY id LIMIT 1").id;
+  q.run("UPDATE consolidated SET level = NULL, sub = NULL, score = NULL, valid_n = 0 WHERE company_id = ? AND item_id = 'Q1' AND is_current = 1", c);
+  assert.match(L.companyReport(c).items.find((i) => i.itemId === 'Q1').ndNote, /Nessun partecipante/);
+  // tutte le capacità di Governare al livello 5: avviso per il team ELIS nella console
+  const sid = st.sessions[0].id;
+  q.run("UPDATE consolidated SET level = 5 WHERE company_id = ? AND session_id = ? AND is_current = 1", c, sid);
+  const C = await (await fetch(`${base}/api/admin/sessions/${sid}/control`, { headers: { Cookie: `${cookie}; aito_mode=prova` } })).json();
+  assert.equal(C.companies.find((x) => x.id === c).allTop, true);
+  assert.equal(C.companies.find((x) => x.id === st.company.id).allTop, false);
+  D.removeDemo();
 });

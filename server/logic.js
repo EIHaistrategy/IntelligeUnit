@@ -206,7 +206,9 @@ export function confirmConsolidation(sessionId, companyId, payload, actor) {
     const override = level != null && E.isOverride(s, level);
     if (override && !String(p.overrideReason || '').trim()) errors.push(`${itemId}: il livello differisce dalla mediana (${s.median}): indicare la motivazione`);
     const conf = E.confidence(s, 'consolidato');
-    return { itemId, level, sub, score: level == null ? null : E.itemScore(itemId, level, sub), conf, s, override, overrideReason: override ? String(p.overrideReason).slice(0, 1000) : null };
+    // posizioni rimaste distanti dopo la discussione (range ≥ 2): nota facoltativa, riportata nel report
+    const dissentNote = s.divergent ? String(p.dissentNote || '').trim().slice(0, 1000) || null : null;
+    return { itemId, level, sub, score: level == null ? null : E.itemScore(itemId, level, sub), conf, s, override, overrideReason: override ? String(p.overrideReason).slice(0, 1000) : null, dissentNote };
   });
   if (errors.length) return { ok: false, errors };
   tx(() => {
@@ -214,10 +216,10 @@ export function confirmConsolidation(sessionId, companyId, payload, actor) {
       const prev = q.get('SELECT * FROM consolidated WHERE company_id = ? AND item_id = ? AND is_current = 1', companyId, r.itemId);
       if (prev) q.run('UPDATE consolidated SET is_current = 0 WHERE id = ?', prev.id);
       q.run(`INSERT INTO consolidated (session_id, company_id, item_id, kind, level, sub, score, confidence, confidence_label, confidence_reason,
-             median, valid_n, nd_n, range_, perspectives, override, override_reason, instrument_version, scoring_version, created_by)
-             VALUES (?,?,?,'sessione',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+             median, valid_n, nd_n, range_, perspectives, override, override_reason, dissent_note, instrument_version, scoring_version, created_by)
+             VALUES (?,?,?,'sessione',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         sessionId, companyId, r.itemId, r.level, r.sub, r.score, r.conf.code, r.conf.label, r.conf.reason,
-        r.s.median, r.s.valid, r.s.nd, r.s.range, r.s.perspectives, r.override ? 1 : 0, r.overrideReason,
+        r.s.median, r.s.valid, r.s.nd, r.s.range, r.s.perspectives, r.override ? 1 : 0, r.overrideReason, r.dissentNote,
         session.instrument_version, session.scoring_version, actor);
       audit(actor, 'consolidated', `${companyId}/${r.itemId}`, prev ? 'reconsolidate' : 'consolidate',
         prev ? { level: prev.level, sub: prev.sub, score: prev.score } : null, { level: r.level, sub: r.sub, score: r.score },
@@ -257,10 +259,10 @@ export function adminCorrect(companyId, itemId, level, sub, reason, actor) {
   tx(() => {
     q.run('UPDATE consolidated SET is_current = 0 WHERE id = ?', prev.id);
     q.run(`INSERT INTO consolidated (session_id, company_id, item_id, kind, level, sub, score, confidence, confidence_label, confidence_reason,
-           median, valid_n, nd_n, range_, perspectives, override, override_reason, instrument_version, scoring_version, created_by)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+           median, valid_n, nd_n, range_, perspectives, override, override_reason, dissent_note, instrument_version, scoring_version, created_by)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       prev.session_id, companyId, itemId, prev.kind, L, sk, score, prev.confidence, prev.confidence_label, prev.confidence_reason,
-      prev.median, prev.valid_n, prev.nd_n, prev.range_, prev.perspectives, prev.override, `Correzione admin: ${reason}`,
+      prev.median, prev.valid_n, prev.nd_n, prev.range_, prev.perspectives, prev.override, `Correzione admin: ${reason}`, prev.dissent_note,
       prev.instrument_version, prev.scoring_version, actor);
     audit(actor, 'consolidated', `${companyId}/${itemId}`, 'correct', { level: prev.level, sub: prev.sub, score: prev.score }, { level: L, sub: sk, score }, reason);
   });
@@ -426,6 +428,9 @@ export function companyReport(companyId, { preview = false, final = false } = {}
       level: r.level, sub: r.sub, score: r.score, confidence: r.confidence_label, confidenceReason: r.confidence_reason,
       descriptor: lvl?.descriptor || null, subText: lvl?.sub?.find((s) => s.key === r.sub)?.text || null, valoriale: !!lvl?.valoriale,
       override: !!r.override, overrideReason: r.override_reason, validN: r.valid_n, ndN: r.nd_n, range: r.range_, median: r.median,
+      dissentNote: r.kind === 'allineato' ? null : r.dissent_note || null,
+      // nessuno dei partecipanti ha visibilità sul tema: è un'informazione in sé, non solo un dato mancante
+      ndNote: r.level == null && !r.valid_n ? 'Nessun partecipante ha visibilità su questo tema: è un\'informazione in sé, da discutere nella call con il leader (chi lo presidia?). Il valore resta N.D. e la dimensione non si calcola.' : null,
       when: r.created_at, kind: r.kind, bench: stats,
     };
   });
@@ -481,7 +486,11 @@ function finalPart(companyId, company) {
       items: st.items.filter((i) => i.base || i.current).map((i) => ({ itemId: i.itemId, title: i.title, dimension: i.dimension, session: i.sessionName, preJuly: i.preJuly,
         before: i.base ? { level: i.base.level, sub: i.base.sub, score: i.base.score } : null,
         after: i.current ? { level: i.current.level, sub: i.current.sub, score: i.current.score } : null,
-        action: i.current?.action || null, evidence: i.current?.evidence || '', shift: i.shift })),
+        action: i.current?.action || null, evidence: i.current?.evidence || '', shift: i.shift,
+        motive: i.current?.motive || null, judgment: i.current?.judgment || null })),
+      // quante modifiche sono cambiamenti reali e quante revisioni; come l'azienda giudica le conferme
+      evoluzione: st.items.filter((i) => i.current?.motive === 'evoluzione').length, revisione: st.items.filter((i) => i.current?.motive === 'revisione').length,
+      soddisfatti: st.items.filter((i) => i.current?.judgment === 'soddisfatti').length, speravamo: st.items.filter((i) => i.current?.judgment === 'speravamo').length,
       dims: st.dims,
     },
     finalPriorities: st.priorities.map((id) => ({ id, name: dimName(id), score: st.dims.find((d) => d.id === id)?.after ?? null })),

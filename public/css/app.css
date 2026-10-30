@@ -943,3 +943,8 @@ button.ghost[aria-pressed="true"], .btn.ghost[aria-pressed="true"] { background:
 /* Impostazioni: password DEMO stabile, da copiare */
 .stablepw { border: 1px solid var(--gold); border-radius: 10px; padding: 12px 14px; margin: 0 0 12px; background: var(--surface, #fff); }
 .stablepw-code { font-size: 1.15rem; font-weight: 700; letter-spacing: .06em; }
+/* Allineamento finale: perché cambia il livello */
+.al-motive { border: 0; padding: 0; margin: 12px 0 0; min-width: 0; }
+.al-motive legend { padding: 0; }
+.al-motive-opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px; }
+.al-motive-opts .level { grid-template-columns: 1fr; padding: 12px 16px; align-items: start; }

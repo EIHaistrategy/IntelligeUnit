@@ -237,8 +237,8 @@ function syncDraft() {
   for (const it of sess.consolidation.items) {
     const x = d.items?.[it.itemId]; const f = form[it.itemId];
     if (!x || !f || dirty.has(it.itemId)) continue;
-    if (x.level !== f.level || (x.sub ?? null) !== (f.sub ?? null) || (x.overrideReason || '') !== (f.overrideReason || '')) {
-      form[it.itemId] = { level: x.level ?? null, sub: x.sub ?? null, overrideReason: x.overrideReason || '' };
+    if (x.level !== f.level || (x.sub ?? null) !== (f.sub ?? null) || (x.overrideReason || '') !== (f.overrideReason || '') || (x.dissentNote || '') !== (f.dissentNote || '')) {
+      form[it.itemId] = { level: x.level ?? null, sub: x.sub ?? null, overrideReason: x.overrideReason || '', dissentNote: x.dissentNote || '' };
       drawItem(it, sess.session.phase === 'consolidamento'); changed.push(it.itemId);
     }
   }
@@ -337,8 +337,8 @@ function drawConsolidation() {
   for (const it of C.items) {
     const d = it.draft || {};
     const cur = C.current[it.itemId];
-    const fromCur = done && cur ? { level: cur.level, sub: cur.sub, overrideReason: cur.override_reason } : null;
-    form[it.itemId] = fromCur || { level: d.level ?? it.proposed ?? null, sub: d.sub ?? null, overrideReason: d.overrideReason ?? '' };
+    const fromCur = done && cur ? { level: cur.level, sub: cur.sub, overrideReason: cur.override_reason, dissentNote: cur.dissent_note || '' } : null;
+    form[it.itemId] = fromCur || { level: d.level ?? it.proposed ?? null, sub: d.sub ?? null, overrideReason: d.overrideReason ?? '', dissentNote: d.dissentNote ?? '' };
   }
   $('#body').innerHTML = `
     ${done ? `<div class="banner ok">Consolidamento confermato il ${fmtDate(C.consolidatedAt)}. ${editable ? 'Finché la fase è aperta potete correggerlo e confermare di nuovo: la versione precedente resta nello storico.' : ''}</div>` : ''}
@@ -408,6 +408,7 @@ function drawItem(it, editable) {
     <h4 class="stepnum"><span>1</span>Livello ufficiale</h4>
     <div class="levels" role="group" aria-label="Livello ufficiale ${esc(it.itemId)}" ${dis}>${it.levels.map((l) => `<button type="button" class="level ${f.level === l.level ? 'sel' : ''}" data-l="${l.level}" aria-pressed="${f.level === l.level}" ${editable ? '' : 'disabled'}><span class="n" aria-hidden="true">${l.level}${alt(l.level)}</span><span><span class="sr-only">Livello ${l.level}: </span>${esc(l.descriptor)} ${l.valoriale ? '<span class="tag gold">valoriale</span>' : ''}</span></button>`).join('')}</div>
     ${override ? `<label class="f" for="reason-${it.itemId}">Motivazione dell'override (il livello differisce dalla mediana) *</label><textarea id="reason-${it.itemId}" data-reason maxlength="1000" ${editable ? '' : 'disabled'}>${esc(f.overrideReason || '')}</textarea>` : ''}
+    ${s.divergent ? `<label class="f" for="dissent-${it.itemId}">Le posizioni sono rimaste divergenti dopo la discussione? Annotate quali e perché (facoltativo, compare nel report)</label><textarea id="dissent-${it.itemId}" data-dissent maxlength="1000" ${editable ? '' : 'disabled'}>${esc(f.dissentNote || '')}</textarea>` : ''}
     ${subs.length ? `<h4 class="stepnum" style="margin-top:20px"><span>2</span>Sotto-opzione (scelta forzata)</h4>
       ${lv.suggestion ? (lv.suggestion.value != null && lv.suggestion.value !== '' && !(Array.isArray(lv.suggestion.value) && !lv.suggestion.value.length) ? `<div class="fact">Dalla scheda pre-sessione: «${esc(Array.isArray(lv.suggestion.value) ? lv.suggestion.value.join(', ') : lv.suggestion.value)}» → indica <b>${f.level}${esc(lv.suggestion.maps || '')}</b></div>` : '') : ''}
       <div class="subchoice" role="group" aria-label="Sotto-opzione ${esc(it.itemId)}" ${dis}>${subs.map((x) => `<button type="button" class="level ${f.sub === x.key ? 'sel' : ''}" data-s="${x.key}" aria-pressed="${f.sub === x.key}" ${editable ? '' : 'disabled'}><span class="n" aria-hidden="true">${f.level}${x.key}</span><span><span class="sr-only">Opzione ${f.level}${x.key}: </span>${esc(x.text)}</span></button>`).join('')}</div>
@@ -417,6 +418,7 @@ function drawItem(it, editable) {
   $$('[data-l]', host).forEach((b) => b.onclick = () => { f.level = Number(b.dataset.l); f.sub = null; drawItem(it, editable); saveDraftSoon(it.itemId); refocus(`[data-l="${f.level}"]`); });
   $$('[data-s]', host).forEach((b) => b.onclick = () => { f.sub = b.dataset.s; drawItem(it, editable); saveDraftSoon(it.itemId); refocus(`[data-s="${f.sub}"]`); });
   const r = $('[data-reason]', host); if (r) r.oninput = () => { f.overrideReason = r.value; saveDraftSoon(it.itemId); };
+  const dn = $('[data-dissent]', host); if (dn) dn.oninput = () => { f.dissentNote = dn.value; saveDraftSoon(it.itemId); };
 }
 
 function drawSummary() {
