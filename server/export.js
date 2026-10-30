@@ -31,7 +31,7 @@ export async function buildExport() {
     FROM pair_answers x JOIN participants p ON p.id = x.participant_id JOIN sessions s ON s.id = p.session_id JOIN companies c ON c.id = p.company_id WHERE p.removed = 0 AND c.seeded = 0`));
   sheet(wb, 'Consolidato (storico)', q.all(`SELECT k.id, s.title AS sessione, c.name AS azienda, k.item_id AS item, k.kind AS tipo,
     COALESCE(CAST(k.level AS TEXT), 'N.D.') AS livello, k.sub AS sotto_opzione, ROUND(k.score, 2) AS score, k.confidence_label AS confidence,
-    k.median AS mediana, k.valid_n AS risposte_valide, k.nd_n AS nd, k.range_ AS range, k.override, k.override_reason AS motivo_override,
+    k.median AS mediana, k.valid_n AS risposte_valide, k.nd_n AS nd, k.range_ AS range, k.override, k.override_reason AS motivo_override, k.dissent_note AS posizioni_divergenti,
     k.is_current AS corrente, k.instrument_version, k.scoring_version, k.created_at, k.created_by
     FROM consolidated k JOIN sessions s ON s.id = k.session_id JOIN companies c ON c.id = k.company_id WHERE c.seeded = 0 ORDER BY c.name, k.item_id, k.id`));
   sheet(wb, 'Commitment', q.all(`SELECT s.title AS sessione, c.name AS azienda, m.priority_item AS priorita, m.action AS azione, m.owner, m.due_date AS scadenza,

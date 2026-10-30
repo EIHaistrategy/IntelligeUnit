@@ -86,6 +86,7 @@ export function saveItem(companyId, itemId, body, actor) {
   if (action === 'modifica' && !evidence) return { ok: false, errors: [`${itemId}: per modificare il livello indica l'evidenza (che cosa è cambiato, con un fatto osservabile)`] };
   const motive = action === 'modifica' && MOTIVES[body.motive] ? body.motive : null;
   if (action === 'modifica' && !motive) return { ok: false, errors: [`${itemId}: indica perché cambia il livello: cambiamento reale dopo la sessione o revisione della risposta di allora`] };
+  // anche una modifica uguale al valore della sessione diventata conferma tiene il giudizio, se indicato
   const judgment = action === 'conferma' && JUDGMENTS[body.judgment] ? body.judgment : null;
   const score = level == null ? null : E.itemScore(itemId, level, sub);
   tx(() => {
@@ -165,7 +166,8 @@ export function overview(seeded) {
   const sessions = I.sessions.map((s) => {
     const its = reviewedItems.filter((i) => i.session === s.id);
     const n = (f) => its.filter(f).length;
-    const avg = (arr) => (arr.length ? Math.round((arr.reduce((a, i) => a + i.shift, 0) / arr.length) * 10) / 10 : null);
+    // gli item N.D. in sessione non hanno spostamento: fuori dalla media
+    const avg = (all) => { const arr = all.filter((i) => i.shift != null); return arr.length ? Math.round((arr.reduce((a, i) => a + i.shift, 0) / arr.length) * 10) / 10 : null; };
     return { id: s.id, name: s.name, date: s.date, reviewed: its.length,
       evoluzioneUp: n((i) => i.current.motive === 'evoluzione' && i.shift > 0), evoluzioneDown: n((i) => i.current.motive === 'evoluzione' && i.shift < 0),
       revisioneUp: n((i) => i.current.motive === 'revisione' && i.shift > 0), revisioneDown: n((i) => i.current.motive === 'revisione' && i.shift < 0),

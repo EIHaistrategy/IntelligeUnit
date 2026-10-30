@@ -386,7 +386,7 @@ function drawConsolidation() {
 // dopo la conferma: la capacità è stata cambiata qui ma non ancora riconfermata?
 function isChanged(itemId) {
   const cur = sess.consolidation.current[itemId], f = form[itemId];
-  return !!(sess.consolidation.consolidatedAt && cur && f && (f.level !== cur.level || (f.sub || null) !== (cur.sub || null)));
+  return !!(sess.consolidation.consolidatedAt && cur && f && (f.level !== cur.level || (f.sub || null) !== (cur.sub || null) || (f.dissentNote || '') !== (cur.dissent_note || '')));
 }
 function drawItem(it, editable) {
   let host = $(`#it-${it.itemId}`);

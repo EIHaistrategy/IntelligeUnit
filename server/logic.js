@@ -222,7 +222,8 @@ export function confirmConsolidation(sessionId, companyId, payload, actor) {
         r.s.median, r.s.valid, r.s.nd, r.s.range, r.s.perspectives, r.override ? 1 : 0, r.overrideReason, r.dissentNote,
         session.instrument_version, session.scoring_version, actor);
       audit(actor, 'consolidated', `${companyId}/${r.itemId}`, prev ? 'reconsolidate' : 'consolidate',
-        prev ? { level: prev.level, sub: prev.sub, score: prev.score } : null, { level: r.level, sub: r.sub, score: r.score },
+        prev ? { level: prev.level, sub: prev.sub, score: prev.score, ...(prev.dissent_note ? { divergenza: prev.dissent_note } : {}) } : null,
+        { level: r.level, sub: r.sub, score: r.score, ...(r.dissentNote ? { divergenza: r.dissentNote } : {}) },
         [r.overrideReason, sc0.consolidated_at ? `Modifica: ${String(payload.changeReason).slice(0, 1000)}` : null].filter(Boolean).join(' · ') || null);
     }
     q.run(`UPDATE session_company SET consolidated_at = datetime('now'), consolidated_by = ?, draft_json = ? WHERE session_id = ? AND company_id = ?`,
@@ -491,6 +492,8 @@ function finalPart(companyId, company) {
       // quante modifiche sono cambiamenti reali e quante revisioni; come l'azienda giudica le conferme
       evoluzione: st.items.filter((i) => i.current?.motive === 'evoluzione').length, revisione: st.items.filter((i) => i.current?.motive === 'revisione').length,
       soddisfatti: st.items.filter((i) => i.current?.judgment === 'soddisfatti').length, speravamo: st.items.filter((i) => i.current?.judgment === 'speravamo').length,
+      senzaMotivo: st.items.filter((i) => i.current?.action === 'modifica' && !i.current.motive).length,
+      conferme: st.items.filter((i) => i.current?.action === 'conferma').length,
       dims: st.dims,
     },
     finalPriorities: st.priorities.map((id) => ({ id, name: dimName(id), score: st.dims.find((d) => d.id === id)?.after ?? null })),

@@ -126,7 +126,8 @@ export function buildCompanyPdf(R) {
     h2('Allineamento finale: che cosa è cambiato', 160);
     explain(`L'azienda ha rivisto le capacità misurate nelle quattro sessioni, confermandole o modificandole con un'evidenza. I valori delle sessioni non sono stati sovrascritti: accanto a ciascuno c'è il valore allineato e lo spostamento. Per ogni modifica l'azienda ha indicato se è un cambiamento reale avvenuto dopo la sessione o una revisione della risposta di allora; per ogni conferma, se è soddisfatta o sperava in un miglioramento. Le sezioni seguenti usano i valori allineati.`);
     para(`${AL.reviewed} di ${AL.total} capacità riviste · ${AL.changed} ${AL.changed === 1 ? 'modificata' : 'modificate'}${AL.confirmedAt ? ` · confermato il ${dateIt(AL.confirmedAt.replace(' ', 'T') + 'Z')}` : ' · non ancora confermato'}${AL.overallBefore != null ? ` · indicatore complessivo da ${n1(AL.overallBefore)} a ${n1(AL.overallAfter)}` : ''}`, { size: 8.6, bold: true });
-    if (AL.evoluzione != null) para(`Delle modifiche, ${AL.evoluzione} ${AL.evoluzione === 1 ? 'è un cambiamento reale' : 'sono cambiamenti reali'} avvenuti dopo la sessione e ${AL.revisione} ${AL.revisione === 1 ? 'è una revisione' : 'sono revisioni'} della risposta data allora. Delle conferme, ${AL.soddisfatti} con soddisfazione e ${AL.speravamo} con l'attesa di un miglioramento.`, { size: 8.4 });
+    if (AL.evoluzione != null && AL.changed) para(`Delle ${AL.changed} modifiche: ${AL.evoluzione} ${AL.evoluzione === 1 ? 'cambiamento reale' : 'cambiamenti reali'} avvenuti dopo la sessione, ${AL.revisione} ${AL.revisione === 1 ? 'revisione' : 'revisioni'} della risposta data allora${AL.senzaMotivo ? `, ${AL.senzaMotivo} senza motivo indicato` : ''}.`, { size: 8.4 });
+    if (AL.evoluzione != null && AL.soddisfatti + AL.speravamo) para(`Delle ${AL.conferme} conferme: ${AL.soddisfatti} con soddisfazione, ${AL.speravamo} con l'attesa di un miglioramento${AL.conferme - AL.soddisfatti - AL.speravamo ? `, ${AL.conferme - AL.soddisfatti - AL.speravamo} senza giudizio` : ''}.`, { size: 8.4 });
     doc.moveDown(0.4);
     // tabella per dimensione
     const cols = [[X0, 'Dimensione', 210], [X0 + 220, 'In sessione', 70], [X0 + 300, 'Allineamento', 80], [X0 + 390, 'Spostamento', 90]];
@@ -141,8 +142,8 @@ export function buildCompanyPdf(R) {
     doc.font('Bold').fontSize(10).fillColor(C.deep).text('Per capacità', X0, doc.y, { width: W }); doc.moveDown(0.3);
     for (const i of AL.items) {
       const why = i.motive === 'evoluzione' ? 'Cambiamento reale' : i.motive === 'revisione' ? 'Revisione della risposta' : '';
-      const ev = i.evidence ? `${why ? `${why}. ` : ''}Evidenza: ${i.evidence}`
-        : i.action === 'conferma' ? (i.judgment === 'soddisfatti' ? 'Confermato con soddisfazione' : i.judgment === 'speravamo' ? 'Confermato, si sperava in un miglioramento' : 'Confermato') : '';
+      const conf = i.action === 'conferma' ? (i.judgment === 'soddisfatti' ? 'Confermato con soddisfazione' : i.judgment === 'speravamo' ? 'Confermato, si sperava in un miglioramento' : 'Confermato') : '';
+      const ev = [why || conf, i.evidence ? `Evidenza: ${i.evidence}` : ''].filter(Boolean).join('. ');
       doc.font('Body').fontSize(8);
       const hEv = doc.heightOfString(ev, { width: W - 258 }) + 10;
       doc.font('Bold').fontSize(8.6); const hT = doc.heightOfString(`${i.itemId} ${i.title}`, { width: 160 }) + 18;

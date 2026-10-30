@@ -95,7 +95,8 @@ export async function renderAlignment(app, { API, FAC }) {
 
   const focusIn = (id, sel) => { const el = $(`#al-${id} ${sel}`) || $(`#al-${id}`); el?.focus({ preventScroll: false }); };
   function bind() {
-    $$('[data-al-ok]').forEach((b) => b.onclick = async () => { const [id, judgment] = b.dataset.alOk.split(':'); if (await save(`/alignment/item/${id}`, { action: 'conferma', judgment })) { editing.delete(id); draw(); focusIn(id, `[data-al-ok="${id}:${judgment}"]`); } });
+    // la scelta già registrata non crea un'altra riga nello storico
+    $$('[data-al-ok]').forEach((b) => b.onclick = async () => { if (b.getAttribute('aria-pressed') === 'true') return; const [id, judgment] = b.dataset.alOk.split(':'); if (await save(`/alignment/item/${id}`, { action: 'conferma', judgment })) { editing.delete(id); draw(); focusIn(id, `[data-al-ok="${id}:${judgment}"]`); } });
     $$('[data-al-mod]').forEach((b) => b.onclick = () => {
       const id = b.dataset.alMod, it = S.items.find((x) => x.itemId === id), src = it.current || it.base;
       editing.set(id, { level: src?.level ?? null, sub: src?.sub ?? null, evidence: it.current?.action === 'modifica' ? it.current.evidence : '', motive: it.current?.motive || null });
@@ -117,7 +118,7 @@ export async function renderAlignment(app, { API, FAC }) {
       e.err = null;
       if (await save(`/alignment/item/${id}`, { action: 'modifica', level: e.level, sub: e.sub, motive: e.motive, evidence: e.evidence })) {
         editing.delete(id);
-        toast(S.items.find((x) => x.itemId === id)?.current?.action === 'conferma' ? 'Il valore scelto è uguale a quello della sessione: registrato come conferma' : 'Modifica salvata');
+        toast(S.items.find((x) => x.itemId === id)?.current?.action === 'conferma' ? 'Il valore scelto è uguale a quello della sessione: registrato come conferma. Indicate se siete soddisfatti o speravate in un miglioramento' : 'Modifica salvata');
         draw(); focusIn(id, '[data-al-mod]');
       }
     });
