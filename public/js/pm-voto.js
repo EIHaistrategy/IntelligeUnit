@@ -71,7 +71,7 @@ function renderPeople(cc, P) {
     <div id="newp" class="hidden">
       <label class="f" for="name">Nome e cognome</label><input type="text" id="name" autocomplete="name" maxlength="120">
       <label class="f" for="func">Funzione</label><select id="func"><option value="">— Seleziona —</option>${P.functions.map((f) => `<option value="${esc(f.id)}">${esc(f.label)}</option>`).join('')}</select></div>
-      <div id="ackbox" class="hidden"><div class="card flat" style="margin:16px 0 0"><p class="small ink2" style="margin:0">Di te restano solo nome e funzione. ELIS e il referente della tua azienda vedono il tuo nome e i need che hai votato; in plenaria si vedono solo conteggi anonimi.${P.privacyUrl ? ` <a href="${esc(P.privacyUrl)}" target="_blank" rel="noopener">Informativa privacy ELIS</a>.` : ''}</p>
+      <div id="ackbox" class="hidden"><div class="card flat" style="margin:16px 0 0"><p class="small ink2" style="margin:0">Di te restano solo nome e funzione, perché tu possa votare una volta sola. Il voto è anonimo: il referente della tua azienda, il report e la plenaria vedono solo quante persone hanno scelto ogni need.${P.privacyUrl ? ` <a href="${esc(P.privacyUrl)}" target="_blank" rel="noopener">Informativa privacy ELIS</a>.` : ''}</p>
         <label class="check" style="margin-top:8px"><input type="checkbox" id="ack"> <span>Ho letto come viene usato il mio voto</span></label></div></div>
     <p id="err" class="banner risk hidden" role="alert"></p>
     <button class="big" id="go" style="margin-top:14px">Entra</button></div>`;
@@ -149,7 +149,7 @@ function drawVote() {
         ${on ? `<div class="pm-q"><p class="pm-ql" id="pr-${n.id}">${esc(V.texts.priority)}</p>${mp ? '<p class="field-err">Manca la priorità</p>' : ''}<div class="pm-opts ${mp ? 'miss' : ''}" role="group" aria-labelledby="pr-${n.id}">${V.priority.map((p) => opt('pr', n.id, p.value, `${p.value} · ${p.label}`, a.priority === p.value)).join('')}</div>
           <p class="pm-ql" id="ho-${n.id}">${esc(V.texts.horizon)}</p>${mh ? '<p class="field-err">Manca l\'orizzonte</p>' : ''}<div class="pm-opts ${mh ? 'miss' : ''}" role="group" aria-labelledby="ho-${n.id}">${V.horizon.map((h) => opt('ho', n.id, h.value, h.label, a.horizon === h.value)).join('')}</div></div>` : ''}</div>`;
     }).join('')}</div>
-    <p class="small ink2" style="margin-top:14px">Il referente della tua azienda vedrà il tuo nome e il tuo voto. In plenaria si vedono solo conteggi anonimi per tavolo.</p>
+    <p class="small ink2" style="margin-top:14px">Il tuo voto è anonimo: il referente della tua azienda, il report e la plenaria vedono solo quante persone hanno scelto ogni need.</p>
     <p id="err" class="banner risk hidden" role="alert"></p>
     <div class="pm-send"><button class="big" id="send" ${pick.length ? '' : 'disabled'}>Rivedi e invia il voto</button>
       ${pick.length ? '<button class="ghost" id="clear">Togli le scelte</button>' : '<button class="ghost" id="none">Non scelgo nessuno</button>'}</div></div>`;

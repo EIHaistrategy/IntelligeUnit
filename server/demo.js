@@ -327,7 +327,7 @@ function afternoon(sess, g, S) {
   for (const c of [g, ...comps]) {
     const st = PM.choiceState(sess.id, c.id);
     if (!st.available) continue;
-    const all = st.groups.flatMap((x) => x.needs).sort((a, b) => b.voters.length - a.voters.length || a.key.localeCompare(b.key));
+    const all = st.groups.flatMap((x) => x.needs).sort((a, b) => b.votes - a.votes || a.key.localeCompare(b.key));
     const items = all.slice(0, st.required).map((x, i) => ({ needId: x.needId, ask: i === 0 && c.id === g.id ? 'Un responsabile e un budget dedicati per i prossimi sei mesi' : '' }));
     must(PM.saveChoice(sess.id, c.id, { items }, c.id === g.id ? FAC : ACTOR, true));
   }

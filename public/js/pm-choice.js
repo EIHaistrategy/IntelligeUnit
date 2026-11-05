@@ -26,11 +26,11 @@ export async function renderPmChoice(app, { API, FAC, sid }) {
       ${S.available && S.available < S.finalChoices ? `<div class="banner warn">Le persone dell'azienda hanno votato ${S.available} ${S.available === 1 ? 'need' : 'need'}: ${S.available === 1 ? 'si sceglie quello' : 'si scelgono tutti'}, e il report lo segnala.</div>` : ''}
       <section class="card" aria-labelledby="ch-t"><h2 id="ch-t">I need scelti</h2>${chosenHtml}
         ${L ? '' : `<div class="row" style="margin-top:12px;gap:8px"><button class="ghost" id="save">Salva</button><button class="primary" id="confirm" ${sel.length === req && req ? '' : 'aria-disabled="true"'}>${req < S.finalChoices ? `Conferma i ${req} need (votati solo ${req})` : `Conferma i ${req} need`}</button></div>`}</section>
-      <section class="card" aria-labelledby="vt-t"><h2 id="vt-t">Need votati dalle persone dell'azienda</h2>
+      <section class="card" aria-labelledby="vt-t"><h2 id="vt-t">Need votati dalle persone dell'azienda</h2><p class="small muted">Voti anonimi: per ogni need, quante persone l'hanno scelto e con quale priorità e orizzonte.</p>
         ${S.groups.length ? S.groups.map((g) => `<h3 style="margin:14px 0 6px">Tavolo ${esc(g.label)} · ${esc(g.title)}</h3>
           ${g.needs.map((n) => { const on = sel.some((x) => x.needId === n.needId); return `<div class="pm-nrow">
             <button type="button" class="level ${on ? 'sel' : ''}" data-pick="${n.needId}" aria-pressed="${on}" ${L ? 'disabled' : ''}><span class="n">${esc(n.code)}</span><span><b>${esc(n.title)}</b>${n.descr ? `<br><span class="small">${esc(n.descr)}</span>` : ''}</span></button>
-            <ul class="small" style="margin:8px 0 0;padding-left:18px">${n.voters.map((v) => `<li><b>${esc(v.name)}</b>: ${esc(v.priorityLabel)}, ${esc(v.horizonLabel.toLowerCase())}</li>`).join('')}</ul></div>`; }).join('')}`).join('')
+            <p class="small" style="margin:8px 0 0"><b>${n.votes} ${n.votes === 1 ? 'voto' : 'voti'}</b> · priorità: ${n.priority.map((x) => `${esc(x.label.toLowerCase())} ${x.n}`).join(', ')} · orizzonte: ${n.horizon.map((x) => `${esc(x.label.toLowerCase())} ${x.n}`).join(', ')}</p></div>`; }).join('')}`).join('')
           : '<p class="muted" style="margin:0">Nessuna persona dell\'azienda ha scelto un need al pomeriggio.</p>'}
       </section>`;
     bind();

@@ -117,7 +117,7 @@ Ogni tavolo ha anche un proprio stato: `bozza` (need in inserimento) → `voto` 
 ### 4.5 Scelta finale dei 3 need (referente o facilitatore)
 
 - **SCE-01 Chi.** La registra il **referente** dal suo link (`/r/:token`) oppure il **facilitatore** dalla console (vista `/tavolo-elis/:azienda`), come per il consolidamento della Map. È disponibile solo nella fase `scelta`.
-- **SCE-02 Che cosa vede.** Tutti i need votati dalle persone dell'azienda, raggruppati per tavolo. Per ciascuno: chi l'ha votato (nome), con quale priorità e orizzonte, e il titolo del tavolo. Non vede nessun dato della Map (R1).
+- **SCE-02 Che cosa vede.** Tutti i need votati dalle persone dell'azienda, raggruppati per tavolo. Per ciascuno: *(modificato il 5/11/2026: voti anonimi)* quante persone l'hanno votato, con quale priorità e orizzonte, e il titolo del tavolo; nessun nome. Non vede nessun dato della Map (R1).
 - **SCE-03 Che cosa sceglie.** Esattamente 3 need, solo tra quelli votati dalle proprie persone. Se i need votati sono meno di 3 (per esempio delegazione di una persona, o persone che non hanno scelto nulla), si scelgono tutti quelli disponibili e il report lo segnala.
 - **SCE-04 Campo facoltativo.** Per ogni need scelto: *"Che cosa chiediamo al vertice?"* (massimo 300 caratteri, con l'avviso di non inserire dati personali o informazioni riservate). È facoltativo per non rallentare la chiusura.
 - **SCE-05 Una scelta per azienda.** Il pulsante «Conferma i 3 need» chiude la scelta. Dopo, solo la regia può riaprirla con un motivo, e la scelta precedente resta nello storico.

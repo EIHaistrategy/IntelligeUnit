@@ -319,18 +319,23 @@ export function plenary(sessionId) {
 // ---------- Scelta finale dei 3 need (referente o facilitatore) ----------
 // need votati dalle persone dell'azienda, per tavolo, con chi li ha votati (SCE-02): nessun dato della Map
 export function companyVotes(sessionId, companyId) {
-  const rows = q.all(`SELECT n.id need_id, n.code, n.title, n.descr, t.id table_id, t.label, t.title table_title, p.name, i.priority, i.horizon
+  const rows = q.all(`SELECT n.id need_id, n.code, n.title, n.descr, t.id table_id, t.label, t.title table_title, i.priority, i.horizon
     FROM pm_vote_items i JOIN pm_votes v ON v.id = i.vote_id AND v.is_current = 1 JOIN pm_people p ON p.id = v.person_id
     JOIN pm_needs n ON n.id = i.need_id JOIN pm_tables t ON t.id = n.table_id
-    WHERE p.session_id = ? AND p.company_id = ? ORDER BY p.name`, sessionId, companyId);
+    WHERE p.session_id = ? AND p.company_id = ?`, sessionId, companyId);
   const tables = new Map();
   for (const r of rows) {
     if (!tables.has(r.table_id)) tables.set(r.table_id, { label: r.label, title: r.table_title, needs: new Map() });
     const T = tables.get(r.table_id);
-    if (!T.needs.has(r.need_id)) T.needs.set(r.need_id, { needId: r.need_id, code: r.code, key: `${r.label}-${r.code}`, title: r.title, descr: r.descr, voters: [] });
-    T.needs.get(r.need_id).voters.push({ name: r.name, priority: r.priority, priorityLabel: priorityLabel(r.priority), horizon: r.horizon, horizonLabel: horizonLabel(r.horizon) });
+    if (!T.needs.has(r.need_id)) T.needs.set(r.need_id, { needId: r.need_id, code: r.code, key: `${r.label}-${r.code}`, title: r.title, descr: r.descr, votes: 0, priority: {}, horizon: {} });
+    // voti anonimi (decisione del team, 5/11/2026): solo conteggi, nessun nome
+    const N = T.needs.get(r.need_id); N.votes++;
+    const pl = priorityLabel(r.priority).replace(/^Priorità /, ''), hl = horizonLabel(r.horizon);
+    N.priority[pl] = (N.priority[pl] || 0) + 1; N.horizon[hl] = (N.horizon[hl] || 0) + 1;
   }
-  return [...tables.values()].sort(byLabel).map((T) => ({ label: T.label, title: T.title, needs: [...T.needs.values()].sort((a, b) => a.code.localeCompare(b.code, 'it', { numeric: true })) }));
+  const order = (obj, list, f) => list.map((x) => f(x.label)).filter((l) => obj[l]).map((l) => ({ label: l, n: obj[l] }));
+  return [...tables.values()].sort(byLabel).map((T) => ({ label: T.label, title: T.title, needs: [...T.needs.values()].sort((a, b) => a.code.localeCompare(b.code, 'it', { numeric: true }))
+    .map((n) => ({ ...n, priority: order(n.priority, PM.priority, (l) => l.replace(/^Priorità /, '')), horizon: order(n.horizon, PM.horizon, (l) => l) })) }));
 }
 const choiceRow = (sessionId, companyId) => q.get('SELECT * FROM pm_choices WHERE session_id = ? AND company_id = ? AND is_current = 1', sessionId, companyId) || null;
 export function choiceState(sessionId, companyId) {

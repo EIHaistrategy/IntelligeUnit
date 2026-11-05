@@ -158,6 +158,8 @@ test('scelta finale: solo nella fase giusta, solo need votati dall\'azienda, esa
   await admin('POST', `/api/admin/sessions/${sid}/pm/phase`, { phase: 'scelta' });
   r = await call('GET', R);
   assert.equal(r.body.available, 2); assert.equal(r.body.required, 2, 'Alfa ha votato 2 need');
+  assert.ok(!/Anna|Bruno|Elena/.test(JSON.stringify(r.body)), 'voti anonimi anche nella pagina di scelta');
+  assert.equal(r.body.groups[0].needs[0].votes, 2);
   assert.ok(!MAP_WORDS.test(JSON.stringify(r.body)), 'nessun dato della Map nella scelta');
   const [a, b] = r.body.groups[0].needs;
   const foreign = q.get("SELECT n.id FROM pm_needs n JOIN pm_tables t ON t.id = n.table_id WHERE t.label = '5' LIMIT 1").id;
