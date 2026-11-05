@@ -334,14 +334,14 @@ export function buildCompanyPdf(R) {
     });
     if (D.fewer) para(`Le persone dell'azienda hanno votato ${D.available} ${D.available === 1 ? 'need' : 'need'}: i need scelti sono meno di 3.`, { size: 8, color: C.ink3 });
     doc.moveDown(0.5);
-    para('Che cosa ha votato ogni persona', { size: 9, bold: true });
+    para('Come hanno votato le persone dell\'azienda (voti anonimi)', { size: 9, bold: true });
     doc.moveDown(0.2);
-    for (const p of D.people) {
-      ensure(30 + p.needs.length * 12);
-      para(`${p.name} · tavolo ${p.table}`, { size: 8.8, bold: true });
-      if (p.none) para('Nessun need scelto.', { size: 8.2, color: C.ink3 });
-      // i need votati in grassetto con priorità e orizzonte; gli altri del tavolo in grigio
-      for (const n of p.needs) para(`${n.code} ${n.title}${n.chosen ? ` · votato: ${n.priority}, ${n.horizon.toLowerCase()}` : ''}`, { size: 8.2, color: n.chosen ? C.ink : C.ink3, bold: n.chosen, x: X0 + 10, w: W - 10 });
+    const dl = (arr) => arr.map((x) => `${x.label.toLowerCase()} ${x.n}`).join(', ');
+    for (const T of D.tables) {
+      ensure(30 + T.needs.length * 14);
+      para(`Tavolo ${T.table} · ${T.voters} ${T.voters === 1 ? 'persona ha votato' : 'persone hanno votato'}${T.none ? `, ${T.none} senza scegliere nessun need` : ''}`, { size: 8.8, bold: true });
+      // i need votati in grassetto con il numero di voti, priorità e orizzonte; gli altri del tavolo in grigio
+      for (const n of T.needs) para(`${n.code} ${n.title}${n.votes ? ` · ${n.votes} ${n.votes === 1 ? 'voto' : 'voti'} · priorità: ${dl(n.priority)} · orizzonte: ${dl(n.horizon)}` : ' · nessun voto'}`, { size: 8.2, color: n.votes ? C.ink : C.ink3, bold: !!n.votes, x: X0 + 10, w: W - 10 });
       doc.moveDown(0.35);
     }
   }

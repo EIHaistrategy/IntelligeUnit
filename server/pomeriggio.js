@@ -409,11 +409,14 @@ export function reportPart(companyId) {
     out.push({
       session: { title: s.title, name: s.title.split(' · ')[0] }, intro: PM.texts.reportIntro, confirmed: !!ch?.confirmed_at,
       chosen, fewer: !!ch?.confirmed_at && chosen.length < PM.finalChoices, available,
-      people: votes.map(({ p, v }) => {
-        const mine = Object.fromEntries(q.all('SELECT need_id, priority, horizon FROM pm_vote_items WHERE vote_id = ?', v.id).map((i) => [i.need_id, i]));
-        return { name: p.name, table: `${v.label} · ${v.title}`, none: !!v.none,
-          needs: needsOf(v.table_id).map((n) => ({ code: n.code, title: n.title, chosen: !!mine[n.id], priority: mine[n.id] ? priorityLabel(mine[n.id].priority) : null, horizon: mine[n.id] ? horizonLabel(mine[n.id].horizon) : null })) };
-      }),
+      // voti anonimi: per tavolo, quante persone dell'azienda hanno votato e con quali priorità e orizzonti, senza nomi
+      tables: [...new Set(votes.map(({ v }) => v.table_id))].map((tid) => {
+        const t = tableRow(tid), vs = votes.filter(({ v }) => v.table_id === tid).map(({ v }) => v);
+        const its = vs.length ? q.all(`SELECT need_id, priority, horizon FROM pm_vote_items WHERE vote_id IN (${vs.map(() => '?').join(',')})`, ...vs.map((v) => v.id)) : [];
+        const dist = (list, key, rows) => list.map((x) => ({ label: x.label.replace(/^Priorità /, ''), n: rows.filter((r) => r[key] === x.value).length })).filter((x) => x.n); // «priorità: alta 2»
+        return { table: `${t.label} · ${t.title}`, label: t.label, voters: vs.length, none: vs.filter((v) => v.none).length,
+          needs: needsOf(tid).map((n) => { const rows = its.filter((i) => i.need_id === n.id); return { code: n.code, title: n.title, votes: rows.length, priority: dist(PM.priority, 'priority', rows), horizon: dist(PM.horizon, 'horizon', rows) }; }) };
+      }).sort(byLabel),
     });
   }
   return out;

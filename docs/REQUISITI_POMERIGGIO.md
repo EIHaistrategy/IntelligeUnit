@@ -128,7 +128,7 @@ Ogni tavolo ha anche un proprio stato: `bozza` (need in inserimento) → `voto` 
 - **REP-01** Il report dell'azienda ha una sezione nuova, **"Dai tavoli · sessione *Governare*"**, dopo le sezioni della Map e prima delle note metodologiche. Si congela nella stessa copia del report (`report_snapshots`), con la stessa versione e la stessa data.
 - **REP-02** In apertura una frase dichiara: *"Questi dati vengono dalla votazione del pomeriggio: non entrano nello score né nel benchmark della Map."*
 - **REP-03** **I 3 need scelti dall'azienda**, ciascuno con tavolo di provenienza e "che cosa chiediamo al vertice" se compilato. Se i need sono meno di 3, il report lo segnala.
-- **REP-04** **Che cosa ha votato ogni persona**: una riga per persona con nome, tavolo e titolo del tavolo. Sotto, i 5 need del tavolo, con i 2 votati evidenziati e, per questi, priorità e orizzonte con le etichette verbali. Chi non ha scelto nessun need lo vede scritto ("nessun need scelto").
+- **REP-04** *(modificato il 5/11/2026: i voti nel report sono anonimi; il report mostra per ogni tavolo quante persone dell'azienda hanno votato e, per ogni need, voti, priorità e orizzonte, senza nomi)*. Testo originale: **Che cosa ha votato ogni persona**: una riga per persona con nome, tavolo e titolo del tavolo. Sotto, i 5 need del tavolo, con i 2 votati evidenziati e, per questi, priorità e orizzonte con le etichette verbali. Chi non ha scelto nessun need lo vede scritto ("nessun need scelto").
 - **REP-05** Grafica distinta dalla Map (R7): niente punteggi, fasce o radar.
 - **REP-06** Se l'azienda non ha voti né scelta (nessuno al pomeriggio), la sezione non compare.
 

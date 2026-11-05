@@ -143,10 +143,10 @@ async function boot() {
     ${D.confirmed ? '' : '<p class="small muted">La scelta dei need non è stata confermata.</p>'}
     ${D.chosen.length ? `<ol>${D.chosen.map((c) => `<li><span class="pm-code">${esc(c.key)}</span> <b>${esc(c.title)}</b><div class="small muted">Tavolo ${esc(c.table)}${c.descr ? ` · ${esc(c.descr)}` : ''}</div>${c.ask ? `<p class="small" style="margin:4px 0 8px"><b>Che cosa chiediamo al vertice:</b> ${esc(c.ask)}</p>` : ''}</li>`).join('')}</ol>` : ''}
     ${D.fewer ? `<p class="small muted">Le persone dell'azienda hanno votato ${D.available} need: i need scelti sono meno di 3.</p>` : ''}
-    <h3>Che cosa ha votato ogni persona</h3>
-    ${D.people.map((p) => `<div class="pm-nrow"><b>${esc(p.name)}</b> <span class="small muted">· tavolo ${esc(p.table)}</span>
-      ${p.none ? '<p class="small muted" style="margin:4px 0 0">Nessun need scelto.</p>' : ''}
-      <ul class="small" style="margin:6px 0 0;padding-left:18px">${p.needs.map((n) => `<li class="${n.chosen ? '' : 'muted'}">${n.chosen ? '<b>' : ''}${esc(n.code)} ${esc(n.title)}${n.chosen ? `</b> · votato: ${esc(n.priority)}, ${esc(n.horizon.toLowerCase())}` : ''}</li>`).join('')}</ul></div>`).join('')}
+    <h3>Come hanno votato le persone dell'azienda</h3>
+    <p class="small muted">Voti anonimi: per ogni tavolo, quante persone dell'azienda hanno scelto ciascun need, con quale priorità e orizzonte.</p>
+    ${D.tables.map((T) => `<div class="pm-nrow"><b>Tavolo ${esc(T.table)}</b> <span class="small muted">· ${T.voters} ${T.voters === 1 ? 'persona ha votato' : 'persone hanno votato'}${T.none ? `, ${T.none} senza scegliere nessun need` : ''}</span>
+      <ul class="small" style="margin:6px 0 0;padding-left:18px">${T.needs.map((n) => `<li class="${n.votes ? '' : 'muted'}">${n.votes ? '<b>' : ''}${esc(n.code)} ${esc(n.title)}${n.votes ? `</b> · ${n.votes} ${n.votes === 1 ? 'voto' : 'voti'} · priorità: ${n.priority.map((x) => `${esc(x.label.toLowerCase())} ${x.n}`).join(', ')} · orizzonte: ${n.horizon.map((x) => `${esc(x.label.toLowerCase())} ${x.n}`).join(', ')}` : ' · nessun voto'}</li>`).join('')}</ul></div>`).join('')}
   </div>`).join('')}
 
   <div class="card"><h2>Note metodologiche e limiti</h2>

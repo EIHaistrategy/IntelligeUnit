@@ -179,12 +179,15 @@ test('report: sezione «Dai tavoli» con i need scelti e i voti per persona; sep
   assert.match(D.intro, /non entrano nello score/);
   assert.equal(D.chosen.length, 2); assert.ok(D.fewer, 'meno di 3: il report lo segnala');
   assert.equal(D.chosen[0].ask, 'Un budget dedicato');
-  const anna = D.people.find((p) => p.name === 'Anna Bianchi');
-  assert.equal(anna.needs.length, 5); assert.equal(anna.needs.filter((n) => n.chosen).length, 2);
-  assert.equal(anna.needs.find((n) => n.code === 'T1').priority, 'Priorità massima');
+  // voti anonimi: conteggi per tavolo, nessun nome
+  assert.ok(!/Anna|Bruno|Elena/.test(JSON.stringify(R.pomeriggio)), 'nessun nome di persona nel report');
+  const t4a = D.tables.find((t) => t.label === '4a');
+  assert.equal(t4a.voters, 2); assert.equal(t4a.needs.length, 5);
+  const t1 = t4a.needs.find((n) => n.code === 'T1');
+  assert.equal(t1.votes, 2); assert.deepEqual(t1.priority.map((x) => x.label), ['media', 'massima']);
   // un'azienda che non ha votato al pomeriggio: nessuna sezione
   assert.equal(L.companyReport(other).pomeriggio.length, 1, 'Beta ha votato (nessun need): la sezione c\'è');
-  assert.equal(L.companyReport(other).pomeriggio[0].people[0].none, true);
+  assert.equal(L.companyReport(other).pomeriggio[0].tables[0].none, 1);
   const pdf = await fetch(`${base}/api/admin/pdf/${comp}`, { headers: { Cookie: cookie } });
   assert.equal(pdf.status, 200);
   assert.ok((await pdf.arrayBuffer()).byteLength > 5000);
