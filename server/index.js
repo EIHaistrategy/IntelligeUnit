@@ -488,26 +488,30 @@ app.get('/api/pm/t/:code', wrap((req, res) => { const x = pmTable(req, res); if 
 // riconoscimento dal telefono del mattino o del pomeriggio: nessun dato da inserire (VOT-01)
 app.post('/api/pm/t/:code/identify', wrap((req, res) => {
   const x = pmTable(req, res); if (!x) return;
-  const me = PM.identify(x.t, { pmToken: txt(req.body?.pmToken, 64), morningToken: txt(req.body?.morningToken, 64) });
+  const me = PM.identify(x.t, { pmToken: txt(req.body?.pmToken, 64), morningTokens: req.body?.morningTokens });
   return PM.voterView(x.t, x.s, me);
 }));
 // ripiego: codice azienda e nome, come al mattino; l'elenco si vede solo con il codice giusto
+const pmJoinOpen = (x, res) => {
+  if (x.s.pm_phase === 'tavoli' && x.t.status !== 'chiuso') return true;
+  bad(res, x.s.pm_phase === 'chiuso' ? 'Il voto non è ancora aperto: riprova tra poco' : 'Il voto di questo tavolo è chiuso', 400); return false;
+};
 app.get('/api/pm/t/:code/people', wrap((req, res) => {
-  const x = pmTable(req, res); if (!x) return;
+  const x = pmTable(req, res); if (!x || !pmJoinOpen(x, res)) return;
   if (joinBlocked(req)) return bad(res, TOO_MANY, 429);
   const c = joinCompany(x.s, 'code', txt(req.query.c, 10).toUpperCase());
   if (!c) { joinFail(req); return bad(res, 'Codice azienda non riconosciuto: controlla il cartoncino del mattino o chiedilo al referente'); }
   return { company: { name: c.name }, people: PM.peopleFor(x.s.id, c.id), functions: I.functions, privacyUrl: getSetting('privacy_url') || null };
 }));
 app.post('/api/pm/t/:code/join', wrap((req, res) => {
-  const x = pmTable(req, res); if (!x) return;
+  const x = pmTable(req, res); if (!x || !pmJoinOpen(x, res)) return;
   if (joinBlocked(req)) return bad(res, TOO_MANY, 429);
   const c = joinCompany(x.s, 'code', txt(req.body?.companyCode, 10).toUpperCase());
   if (!c) { joinFail(req); return bad(res, 'Codice azienda non riconosciuto'); }
-  const isNew = !req.body?.key;
-  if (isNew && !req.body?.privacyAck) return bad(res, 'Per proseguire conferma di aver letto come vengono usate le risposte');
+  // chi ha già un profilo del mattino ha letto l'informativa allora; per ogni altro profilo serve la presa visione
+  if (!/^p\d+$/.test(String(req.body?.key || '')) && !req.body?.privacyAck) return bad(res, 'Per proseguire conferma di aver letto come viene usato il voto');
   const me = PM.joinPerson(x.s.id, c.id, { key: txt(req.body?.key, 20), name: req.body?.name, func: req.body?.func }, (f) => I.functions.some((y) => y.id === f));
-  if (me.ok === false) return bad(res, me.errors.join(' · '));
+  if (me.ok === false) return bad(res, me.errors.join(' · '), me.taken ? 409 : 400);
   return PM.voterView(x.t, x.s, me);
 }));
 app.post('/api/pm/t/:code/vote', wrap((req, res) => {
@@ -1066,6 +1070,7 @@ app.get('/api/admin/sessions/:id/pm/plenary', wrap((req, res) => (L.getSession(r
 app.put('/api/admin/pm/tables/:id', wrap((req, res) => pmOut(res, PM.updateTable(Number(req.params.id), req.body || {}, ADMIN), pmTableSid(req.params.id))));
 app.delete('/api/admin/pm/tables/:id', wrap((req, res) => { const sid = pmTableSid(req.params.id); return pmOut(res, PM.deleteTable(Number(req.params.id), ADMIN), sid); }));
 app.post('/api/admin/pm/tables/:id/regen', wrap((req, res) => pmOut(res, PM.regenFacToken(Number(req.params.id), txt(req.body?.reason, 1000), ADMIN), pmTableSid(req.params.id))));
+app.post('/api/admin/pm/tables/:id/reopen', wrap((req, res) => pmOut(res, PM.reopenVote(Number(req.params.id), txt(req.body?.reason, 1000), ADMIN), pmTableSid(req.params.id))));
 app.post('/api/admin/pm/tables/:id/close', wrap((req, res) => pmOut(res, PM.closeVote(Number(req.params.id), ADMIN), pmTableSid(req.params.id))));
 app.put('/api/admin/pm/needs/:id', wrap((req, res) => {
   const sid = q.get('SELECT t.session_id FROM pm_needs n JOIN pm_tables t ON t.id = n.table_id WHERE n.id = ?', req.params.id)?.session_id;

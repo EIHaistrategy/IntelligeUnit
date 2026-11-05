@@ -68,7 +68,7 @@ test('tavoli: creazione dalla console, link del facilitatore, need congelati all
 
 test('voto: telefono del mattino riconosciuto, al massimo 2 need, priorità e orizzonte obbligatori, un voto per persona', async () => {
   const T = `/api/pm/t/${tbl.code}`;
-  let r = await call('POST', `${T}/identify`, { morningToken: morningTok });
+  let r = await call('POST', `${T}/identify`, { morningTokens: ['altro', morningTok] });
   assert.equal(r.body.me.name, 'Anna Bianchi');
   assert.ok(!MAP_WORDS.test(JSON.stringify(r.body)), 'nessun dato della Map nella pagina di voto');
   const me = r.body.me.token;
@@ -83,15 +83,23 @@ test('voto: telefono del mattino riconosciuto, al massimo 2 need, priorità e or
   assert.equal(r.status, 409); assert.match(r.body.error, /tavolo 4a/);
   // telefono non riconosciuto: codice azienda e nome; se il nome ha un profilo del mattino, nessun secondo profilo
   r = await call('GET', `${T}/people?c=ALFA`);
-  assert.ok(r.body.people.some((p) => p.name === 'Anna Bianchi' && p.voted));
+  assert.ok(r.body.people.some((p) => p.name === 'Anna Bianchi' && p.taken));
+  assert.ok(!JSON.stringify(r.body).includes('voted'), 'dall\'elenco non si capisce chi ha votato');
+  // un nome già entrato da un telefono non si prende da un altro (nessuno vota al posto di un collega)
   r = await call('POST', `${T}/join`, { companyCode: 'ALFA', name: 'anna  bianchi', func: 'IT', privacyAck: true });
-  assert.equal(r.body.me.votedTable.split(' · ')[0], '4a', 'collegata al profilo del mattino, che ha già votato');
+  assert.equal(r.status, 409);
   assert.equal(q.get('SELECT COUNT(*) n FROM pm_people').n, 1);
+  // il nome di chi era al mattino, scelto da un telefono nuovo prima che entri: si collega al profilo del mattino
+  q.run("INSERT INTO participants (session_id, company_id, name, func, token) VALUES (?, ?, 'Elena Gialli', 'FIN', 'morning-elena')", sid, comp);
+  const pe = q.get("SELECT id FROM participants WHERE name = 'Elena Gialli'").id;
+  r = await call('POST', `${T}/join`, { companyCode: 'ALFA', key: `p${pe}` });
+  assert.equal(r.body.me.name, 'Elena Gialli');
+  assert.equal(L.activeParticipants(sid, comp).length, 2);
   // arrivato solo al pomeriggio: non entra tra i partecipanti della Map (VOT-02)
   assert.equal((await call('POST', `${T}/join`, { companyCode: 'ALFA', name: 'Bruno Verdi', func: 'HR' })).status, 400, 'serve la presa visione');
   r = await call('POST', `${T}/join`, { companyCode: 'ALFA', name: 'Bruno Verdi', func: 'HR', privacyAck: true });
   const bruno = r.body.me.token;
-  assert.equal(L.activeParticipants(sid, comp).length, 1, 'Bruno non è un partecipante della Map');
+  assert.equal(L.activeParticipants(sid, comp).length, 2, 'Bruno non è un partecipante della Map');
   assert.equal((await call('POST', `${T}/vote`, { pmToken: bruno, items: [{ needId: needs[0].id, priority: 3, horizon: '6m' }] })).status, 200);
   // Beta vota senza scegliere
   r = await call('POST', `${T}/join`, { companyCode: 'BETA', name: 'Carla Neri', func: 'OPS', privacyAck: true });
@@ -118,8 +126,16 @@ test('mappa: solo a voto chiuso; quote e soglie; nessuna azienda né persona; fa
   assert.ok(!/Anna|Bruno|Carla|Alfa|Beta/.test(txt), 'nessuna persona né azienda in plenaria');
   assert.ok(!MAP_WORDS.test(txt.replace(/"(high|highPriorityMin)"/g, '')), 'nessun dato della Map in plenaria');
   // voto chiuso: non si vota più
-  const late = await call('POST', `/api/pm/t/${tbl.code}/join`, { companyCode: 'ALFA', name: 'Dario Rossi', func: 'IT', privacyAck: true });
-  assert.equal((await call('POST', `/api/pm/t/${tbl.code}/vote`, { pmToken: late.body.me.token, none: true })).status, 400);
+  assert.equal((await call('POST', `/api/pm/t/${tbl.code}/join`, { companyCode: 'ALFA', name: 'Dario Rossi', func: 'IT', privacyAck: true })).status, 400, 'a voto chiuso non ci si registra');
+  assert.equal((await call('GET', `/api/pm/t/${tbl.code}/people?c=ALFA`)).status, 400, 'a voto chiuso l\'elenco dei nomi non si vede');
+  const bruno = q.get("SELECT token FROM pm_people WHERE name = 'Bruno Verdi'").token;
+  q.run("UPDATE pm_votes SET is_current = 0 WHERE person_id = (SELECT id FROM pm_people WHERE token = ?)", bruno);
+  assert.equal((await call('POST', `/api/pm/t/${tbl.code}/vote`, { pmToken: bruno, none: true })).status, 400, 'a voto chiuso non si vota');
+  q.run("UPDATE pm_votes SET is_current = 1 WHERE person_id = (SELECT id FROM pm_people WHERE token = ?)", bruno);
+  // voto chiuso per errore: la regia lo riapre con un motivo e lo richiude
+  assert.equal((await admin('POST', `/api/admin/pm/tables/${tbl.id}/reopen`, {})).status, 400);
+  assert.equal((await admin('POST', `/api/admin/pm/tables/${tbl.id}/reopen`, { reason: 'chiuso per errore' })).status, 200);
+  assert.equal((await admin('POST', `/api/admin/pm/tables/${tbl.id}/close`, {})).status, 200);
 });
 
 test('regia: annulla un voto con motivo (resta nello storico), la persona può rivotare', async () => {
@@ -136,11 +152,13 @@ test('regia: annulla un voto con motivo (resta nello storico), la persona può r
 test('scelta finale: solo nella fase giusta, solo need votati dall\'azienda, esattamente 3 o tutti se meno', async () => {
   const R = `/api/r/${refTok}/pm/${sid}`;
   let r = await call('GET', R);
-  assert.equal(r.body.open, false); assert.equal(r.body.available, 2); assert.equal(r.body.required, 2, 'Alfa ha votato 2 need');
-  assert.ok(!MAP_WORDS.test(JSON.stringify(r.body)), 'nessun dato della Map nella scelta');
+  assert.equal(r.body.open, false); assert.equal(r.body.groups.length, 0, 'prima della scelta i voti delle persone non si vedono');
   assert.equal((await call('PUT', R, { items: [] })).status, 400, 'fase non aperta');
   await admin('POST', `/api/admin/sessions/${sid}/pm/phase`, { phase: 'plenaria' });
   await admin('POST', `/api/admin/sessions/${sid}/pm/phase`, { phase: 'scelta' });
+  r = await call('GET', R);
+  assert.equal(r.body.available, 2); assert.equal(r.body.required, 2, 'Alfa ha votato 2 need');
+  assert.ok(!MAP_WORDS.test(JSON.stringify(r.body)), 'nessun dato della Map nella scelta');
   const [a, b] = r.body.groups[0].needs;
   const foreign = q.get("SELECT n.id FROM pm_needs n JOIN pm_tables t ON t.id = n.table_id WHERE t.label = '5' LIMIT 1").id;
   assert.equal((await call('PUT', R, { items: [{ needId: foreign }] })).status, 400, 'need non votato dall\'azienda');

@@ -146,6 +146,15 @@ export function closeVote(tableId, actor) {
   audit(actor, 'pm_table', tableId, 'close', { status: 'voto' }, { status: 'chiuso', voters: votersOf(tableId) });
   return { ok: true };
 }
+export function reopenVote(tableId, reason, actor) {
+  const t = tableRow(tableId), s = session(t.session_id);
+  if (t.status !== 'chiuso') return err('Il voto di questo tavolo non è chiuso');
+  if (s.pm_phase !== 'tavoli') return err('Il voto si riapre solo nella fase dei tavoli');
+  if (!String(reason || '').trim()) return err('Indica il motivo');
+  q.run("UPDATE pm_tables SET status = 'voto', closed_at = NULL WHERE id = ?", tableId);
+  audit(actor, 'pm_table', tableId, 'reopen_vote', { status: 'chiuso' }, { status: 'voto' }, txt(reason, 1000));
+  return { ok: true };
+}
 // dopo il congelamento solo la regia corregge il testo, con un motivo; i voti restano (NEED-04)
 export function correctNeed(needId, body, reason, actor) {
   const n = q.get('SELECT * FROM pm_needs WHERE id = ?', needId); if (!n) return err('Need non trovato');
@@ -171,22 +180,24 @@ function linkParticipant(p) {
   return q.get('SELECT * FROM pm_people WHERE token = ?', tk);
 }
 // telefono del mattino: il codice del partecipante salvato sul telefono basta a riconoscerlo (VOT-01)
-export function identify(t, { pmToken, morningToken }) {
+export function identify(t, { pmToken, morningTokens }) {
   const me = personByToken(pmToken);
-  if (me && me.session_id === t.session_id) return me;
-  if (morningToken) {
-    const p = q.get('SELECT * FROM participants WHERE token = ? AND removed = 0', String(morningToken));
+  if (me && me.session_id === t.session_id && !removedMorning(me)) return me;
+  for (const tk of (Array.isArray(morningTokens) ? morningTokens : []).slice(0, 10)) {
+    const p = q.get('SELECT * FROM participants WHERE token = ? AND removed = 0', String(tk).slice(0, 64));
     if (p && p.session_id === t.session_id) return linkParticipant(p);
   }
   return null;
 }
+// registrazione del mattino annullata dal referente: anche il profilo del pomeriggio non vale più
+const removedMorning = (me) => !!me.participant_id && !!q.get('SELECT 1 FROM participants WHERE id = ? AND removed = 1', me.participant_id);
 export function currentVote(personId) {
   return q.get('SELECT v.*, t.label, t.title FROM pm_votes v JOIN pm_tables t ON t.id = v.table_id WHERE v.person_id = ? AND v.is_current = 1', personId) || null;
 }
 // persone dell'azienda tra cui scegliere il proprio nome: profili del mattino, iscritti da ELIS, chi si è già aggiunto al pomeriggio
 export function peopleFor(sessionId, companyId) {
   const out = [], seen = new Set();
-  const push = (key, name, func, personId) => { const n = normName(name); if (seen.has(n)) return; seen.add(n); out.push({ key, name, func, voted: personId ? !!currentVote(personId) : false }); };
+  const push = (key, name, func, personId) => { const n = normName(name); if (seen.has(n)) return; seen.add(n); out.push({ key, name, func, taken: !!personId }); };
   for (const p of q.all('SELECT * FROM participants WHERE session_id = ? AND company_id = ? AND removed = 0 ORDER BY name', sessionId, companyId))
     push(`p${p.id}`, p.name, p.func, q.get('SELECT id FROM pm_people WHERE participant_id = ?', p.id)?.id);
   for (const x of q.all('SELECT * FROM pm_people WHERE session_id = ? AND company_id = ? AND participant_id IS NULL ORDER BY name', sessionId, companyId)) push(`x${x.id}`, x.name, x.func, x.id);
@@ -195,27 +206,33 @@ export function peopleFor(sessionId, companyId) {
 }
 // ripiego «Chi sei?»: se il nome aveva un profilo del mattino il voto si collega a quello, senza un secondo profilo (VOT-01).
 // Chi si registra al pomeriggio non entra tra i partecipanti della Map (VOT-02): sta solo in pm_people.
+export const TAKEN = 'Questo nome è già entrato da un altro telefono. Se sei tu, usa quel telefono oppure chiedi alla regia ELIS.';
+const MAX_NEW = 80; // persone aggiunte al pomeriggio per azienda: un limite largo contro gli inserimenti a raffica
 export function joinPerson(sessionId, companyId, { key, name, func }, validFunc) {
   const parts = q.all('SELECT * FROM participants WHERE session_id = ? AND company_id = ? AND removed = 0', sessionId, companyId);
   const pmOnly = q.all('SELECT * FROM pm_people WHERE session_id = ? AND company_id = ? AND participant_id IS NULL', sessionId, companyId);
   const byName = (n) => { const k = normName(n); return parts.find((p) => normName(p.name) === k) || null; };
   const pmByName = (n) => { const k = normName(n); return pmOnly.find((p) => normName(p.name) === k) || null; };
+  const taken = { ok: false, taken: true, errors: [TAKEN] };
+  const link = (p) => (q.get('SELECT 1 FROM pm_people WHERE participant_id = ?', p.id) ? taken : linkParticipant(p));
   const m = /^([prx])(\d+)$/.exec(String(key || ''));
   if (m) {
     const id = Number(m[2]);
-    if (m[1] === 'p') { const p = parts.find((x) => x.id === id); return p ? linkParticipant(p) : err('Nome non trovato: sceglilo di nuovo'); }
-    if (m[1] === 'x') { const x = pmOnly.find((y) => y.id === id); return x || err('Nome non trovato: sceglilo di nuovo'); }
+    if (m[1] === 'p') { const p = parts.find((x) => x.id === id); return p ? link(p) : err('Nome non trovato: sceglilo di nuovo'); }
+    if (m[1] === 'x') return pmOnly.some((y) => y.id === id) ? taken : err('Nome non trovato: sceglilo di nuovo');
     const r = q.get('SELECT * FROM roster WHERE id = ? AND company_id = ?', id, companyId);
     if (!r) return err('Nome non trovato: sceglilo di nuovo');
     const p = parts.find((x) => x.roster_id === r.id) || byName(r.name);
-    if (p) return linkParticipant(p);
+    if (p) return link(p);
+    if (pmByName(r.name)) return taken;
     ({ name, func } = r);
   }
   name = txt(name, 120);
   if (!name) return err('Scegli il tuo nome dall\'elenco o scrivi nome e cognome');
-  const p = byName(name); if (p) return linkParticipant(p);
-  const x = pmByName(name); if (x) return x;
+  const p = byName(name); if (p) return link(p);
+  if (pmByName(name)) return taken;
   if (!validFunc(func)) return err('Seleziona la funzione');
+  if (pmOnly.length >= MAX_NEW) return err('Troppe persone aggiunte per questa azienda: chiedi alla regia ELIS');
   const tk = token();
   q.run('INSERT INTO pm_people (session_id, company_id, participant_id, name, func, token) VALUES (?,?,NULL,?,?,?)', sessionId, companyId, name, func, tk);
   return q.get('SELECT * FROM pm_people WHERE token = ?', tk);
@@ -225,7 +242,7 @@ export function joinPerson(sessionId, companyId, { key, name, func }, validFunc)
 export function voterView(t, s, me) {
   const v = me ? currentVote(me.id) : null;
   return {
-    session: { title: s.title, code: s.code, demo: !!s.seeded, pmPhase: s.pm_phase },
+    session: { id: s.id, title: s.title, demo: !!s.seeded, pmPhase: s.pm_phase },
     table: { label: t.label, title: t.title, status: t.status },
     needs: t.status === 'bozza' ? [] : needsOf(t.id),
     me: me ? { token: me.token, name: me.name, company: companyName(me.company_id), votedAt: v?.created_at || null, votedTable: v ? `${v.label} · ${v.title}` : null, votedHere: v ? v.table_id === t.id : false } : null,
@@ -235,6 +252,7 @@ export function voterView(t, s, me) {
 export function castVote(me, t, body) {
   const s = session(t.session_id);
   if (me.session_id !== t.session_id) return err('Questo QR è di un\'altra sessione');
+  if (removedMorning(me)) return err('La tua registrazione è stata annullata: chiedi alla regia ELIS');
   if (s.pm_phase !== 'tavoli' || t.status !== 'voto') return err(t.status === 'chiuso' ? 'Il voto di questo tavolo è chiuso' : 'Il voto di questo tavolo non è ancora aperto');
   const prev = currentVote(me.id);
   if (prev) return { ok: false, conflict: true, errors: [`Hai già votato al tavolo ${prev.label}`] };
@@ -317,7 +335,8 @@ export function companyVotes(sessionId, companyId) {
 const choiceRow = (sessionId, companyId) => q.get('SELECT * FROM pm_choices WHERE session_id = ? AND company_id = ? AND is_current = 1', sessionId, companyId) || null;
 export function choiceState(sessionId, companyId) {
   const s = session(sessionId);
-  const groups = companyVotes(sessionId, companyId);
+  const visible = ['scelta', 'chiuso_def'].includes(s.pm_phase);
+  const groups = visible ? companyVotes(sessionId, companyId) : [];
   const available = groups.reduce((n, g) => n + g.needs.length, 0);
   const c = choiceRow(sessionId, companyId);
   return { session: { id: s.id, title: s.title, pmPhase: s.pm_phase, demo: !!s.seeded }, open: s.pm_phase === 'scelta',
@@ -349,6 +368,7 @@ export function saveChoice(sessionId, companyId, body, actor, confirm = false) {
   return { ok: true };
 }
 export function reopenChoice(sessionId, companyId, reason, actor) {
+  if (session(sessionId)?.pm_phase !== 'scelta') return err('La scelta si riapre solo nella fase «Scelta dei 3 need»');
   const c = choiceRow(sessionId, companyId);
   if (!c?.confirmed_at) return err('La scelta non è confermata');
   if (!String(reason || '').trim()) return err('Indica il motivo');

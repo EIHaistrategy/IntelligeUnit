@@ -313,7 +313,7 @@ function afternoon(sess, g, S) {
     must(PM.castVote(person, t, { items: ids.map((id) => ({ needId: id, priority: clamp(Math.round(2.4 + rnd() * 2.8)), horizon: PM.PM.horizon[Math.floor(rnd() * PM.PM.horizon.length)].value })) }));
   };
   const parts = q.all('SELECT * FROM participants WHERE session_id = ? AND company_id = ? AND removed = 0 ORDER BY id', sess.id, g.id);
-  parts.forEach((p, i) => vote(PM.identify(tables[0], { morningToken: p.token }), i));
+  parts.forEach((p, i) => vote(PM.identify(tables[0], { morningTokens: [p.token] }), i));
   const comps = q.all("SELECT * FROM companies WHERE seeded = 1 AND kind = 'DEMO' ORDER BY id");
   comps.forEach((c, n) => {
     for (const k of [1, 2]) {

@@ -982,3 +982,9 @@ button.ghost[aria-pressed="true"], .btn.ghost[aria-pressed="true"] { background:
 .pm-cardnum { font-size: 1.6rem; font-weight: 700; margin: 8px 0 4px; }
 .pm-cell { display: block; width: 100%; text-align: left; cursor: pointer; font: inherit; color: inherit; }
 .pm-cell svg { width: 100%; height: auto; margin-top: 10px; }
+.pm-need.dim .level { opacity: .55; }
+.pm-limit { color: var(--risk, #B42318); font-weight: 600; }
+.pm-opts.miss { outline: 2px solid var(--risk, #B42318); outline-offset: 4px; border-radius: 8px; }
+.pm-ok { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 50%; background: #EEF8F2; color: #15803D; margin: 14px auto 0; }
+.pm-ok .ico { width: 30px; height: 30px; }
+button.primary[aria-disabled="true"], button.big[aria-disabled="true"] { background: var(--line-2, #EDF1F6); border-color: var(--line-strong, #C9D3E0); color: var(--ink-3, #56647A); }

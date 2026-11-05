@@ -213,6 +213,8 @@ CREATE TABLE IF NOT EXISTS pm_votes (       -- un voto per persona nella session
   cancel_reason TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')), created_by TEXT
 );
+CREATE UNIQUE INDEX IF NOT EXISTS ux_pm_vote_current ON pm_votes(person_id) WHERE is_current = 1;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_pm_people_part ON pm_people(participant_id) WHERE participant_id IS NOT NULL;
 CREATE TABLE IF NOT EXISTS pm_vote_items (
   vote_id INTEGER NOT NULL REFERENCES pm_votes(id),
   need_id INTEGER NOT NULL REFERENCES pm_needs(id),

@@ -37,6 +37,7 @@ export async function renderPmConsole(host, sid) {
         <button class="sm ghost" data-copyfac="${t.id}">Copia il link del facilitatore</button>
         <a class="btn sm ghost" href="${esc(facUrl(P, t))}" target="_blank">Apri<span class="sr-only"> il telefono del facilitatore del tavolo ${esc(t.label)}</span></a>
         ${t.status === 'voto' ? `<button class="sm" data-close="${t.id}">Chiudi il voto</button>` : ''}
+        ${t.status === 'chiuso' && P.pmPhase === 'tavoli' ? `<button class="sm ghost" data-reopenv="${t.id}">Riapri il voto</button>` : ''}
         ${t.status === 'bozza' && !ed ? `<button class="sm ghost" data-edit="${t.id}">Modifica</button><button class="sm ghost" data-del="${t.id}">Togli il tavolo</button>` : ''}
         <details class="more"><summary class="btn sm ghost">Altro<span class="sr-only"> per il tavolo ${esc(t.label)}</span></summary><div class="more-menu">
           <button type="button" class="link" data-regen="${t.id}">Revoca e rigenera il link del facilitatore</button>
@@ -99,6 +100,10 @@ export async function renderPmConsole(host, sid) {
       const t = T(b.dataset.close);
       if (!await ask(`Hanno votato ${t.voters} ${t.voters === 1 ? 'persona' : 'persone'}. Dopo la chiusura nessuno del tavolo può più votare.`, { title: `Chiudere il voto del tavolo ${t.label}?`, ok: 'Chiudi il voto' })) return;
       act(`/api/admin/pm/tables/${t.id}/close`, {}, 'POST', 'Voto chiuso');
+    });
+    $$('[data-reopenv]').forEach((b) => b.onclick = async () => {
+      const reason = await askText('Le persone del tavolo che non hanno ancora votato potranno farlo. I voti già dati restano.', '', { title: 'Riaprire il voto del tavolo?', label: 'Motivo (resta nel registro)', required: true, ok: 'Riapri il voto' });
+      if (reason) act(`/api/admin/pm/tables/${b.dataset.reopenv}/reopen`, { reason }, 'POST', 'Voto riaperto');
     });
     $$('[data-edit]').forEach((b) => b.onclick = () => { editing = Number(b.dataset.edit); draw(); $('#pe-t').focus(); });
     $$('[data-ecancel]').forEach((b) => b.onclick = () => { editing = null; draw(); });

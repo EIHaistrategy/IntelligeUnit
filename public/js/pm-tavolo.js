@@ -49,31 +49,54 @@ function render() {
   }
 }
 
-function drawDraft() {
+let saveTimer = null, savedAt = '';
+// salvataggio automatico poco dopo l'ultima modifica: nulla si perde se il telefono si chiude
+function autosave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    const list = draft.filter((n) => n.title.trim() || n.descr.trim());
+    if (list.some((n) => !n.title.trim())) return; // un need senza titolo: si aspetta che venga scritto
+    try {
+      F = await api(`${API}/needs`, { method: 'PUT', body: { needs: list } }); dirty = false;
+      savedAt = new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+      const s = $('#saved'); if (s) s.textContent = `Salvato alle ${savedAt}`;
+    } catch { /* rete: si riprova alla prossima modifica */ }
+  }, 1500);
+}
+function drawDraft(focusSel) {
   const L = F.limits, max = F.maxNeeds;
   const canOpen = F.session.pmPhase === 'tavoli';
+  if (!draft.length) draft.push({ title: '', descr: '' }); // la prima riga è già aperta
   app.innerHTML = `<div class="card">${head()}
-    <p class="ink2" style="margin-top:12px">Scrivi fino a ${max} need emersi dalla discussione. Il codice (T1, T2…) segue l'ordine; puoi spostarli finché non apri il voto.</p>
+    <p class="ink2" style="margin-top:12px">Scrivi fino a ${max} need emersi dalla discussione. Il codice (T1, T2…) segue l'ordine; puoi spostarli finché non apri il voto. Si salva da solo.</p>
     <div id="list">${draft.map((n, i) => `<div class="pm-nrow">
       <div class="row between"><span class="pm-code">T${i + 1}</span><div class="row">
         <button type="button" class="sm ghost" data-up="${i}" ${i ? '' : 'disabled'} aria-label="Sposta T${i + 1} in su">↑</button>
         <button type="button" class="sm ghost" data-down="${i}" ${i < draft.length - 1 ? '' : 'disabled'} aria-label="Sposta T${i + 1} in giù">↓</button>
         <button type="button" class="sm ghost" data-del="${i}">Togli<span class="sr-only"> T${i + 1}</span></button></div></div>
       <label class="f" for="nt${i}">Titolo *</label><input type="text" id="nt${i}" data-t="${i}" maxlength="${L.needTitle}" value="${esc(n.title)}">
-      <label class="f" for="nd${i}">Descrizione (una frase, facoltativa)</label><input type="text" id="nd${i}" data-d="${i}" maxlength="${L.needDescr}" value="${esc(n.descr)}"></div>`).join('')}</div>
+      <label class="f" for="nd${i}">Descrizione (una frase, facoltativa, fino a ${L.needDescr} caratteri)</label><textarea id="nd${i}" data-d="${i}" maxlength="${L.needDescr}" rows="2">${esc(n.descr)}</textarea></div>`).join('')}</div>
     ${draft.length < max ? '<button type="button" class="ghost" id="add">+ Aggiungi un need</button>' : `<p class="small muted">Hai inserito ${max} need, il massimo.</p>`}
     <p id="err" class="banner risk hidden" role="alert"></p>
+    <p class="small muted" id="saved" aria-live="polite">${savedAt ? `Salvato alle ${savedAt}` : ''}</p>
+    ${canOpen ? '' : '<p class="banner info small">Il voto si apre quando la regia ELIS avvia la fase dei tavoli. Intanto puoi scrivere: si salva da solo.</p>'}
     <div class="pm-send"><button class="ghost" id="save">Salva</button>
-      <button class="big primary" id="open" ${canOpen ? '' : 'aria-disabled="true"'}>Conferma e apri il voto</button></div>
-    ${canOpen ? '' : '<p class="small muted">Il voto si apre quando la regia ELIS avvia la fase dei tavoli. Intanto puoi scrivere e salvare.</p>'}</div>`;
-  $$('[data-t]').forEach((x) => x.oninput = () => { draft[x.dataset.t].title = x.value; dirty = true; });
-  $$('[data-d]').forEach((x) => x.oninput = () => { draft[x.dataset.d].descr = x.value; dirty = true; });
-  const move = (i, j) => { [draft[i], draft[j]] = [draft[j], draft[i]]; dirty = true; drawDraft(); };
+      <button class="big primary" id="open" ${canOpen ? '' : 'aria-disabled="true"'}>Conferma e apri il voto</button></div></div>`;
+  if (focusSel) $(focusSel)?.focus();
+  $$('[data-t]').forEach((x) => x.oninput = () => { draft[x.dataset.t].title = x.value; dirty = true; autosave(); });
+  $$('[data-d]').forEach((x) => x.oninput = () => { draft[x.dataset.d].descr = x.value; dirty = true; autosave(); });
+  // dopo lo spostamento il fuoco resta sulla freccia del need spostato
+  const move = (i, j) => { [draft[i], draft[j]] = [draft[j], draft[i]]; dirty = true; autosave(); drawDraft(`[data-${j < i ? 'up' : 'down'}="${j}"]:not([disabled]), [data-${j < i ? 'down' : 'up'}="${j}"]`); toast(`Spostato in T${j + 1}`); };
   $$('[data-up]').forEach((b) => b.onclick = () => move(+b.dataset.up, +b.dataset.up - 1));
   $$('[data-down]').forEach((b) => b.onclick = () => move(+b.dataset.down, +b.dataset.down + 1));
-  $$('[data-del]').forEach((b) => b.onclick = () => { draft.splice(+b.dataset.del, 1); dirty = true; drawDraft(); });
+  $$('[data-del]').forEach((b) => b.onclick = async () => {
+    const i = +b.dataset.del, n = draft[i];
+    if ((n.title.trim() || n.descr.trim()) && !await ask(`«${n.title || n.descr}» si toglie dall'elenco.`, { title: `Togliere T${i + 1}?`, ok: 'Togli' })) return;
+    draft.splice(i, 1); dirty = true; autosave(); drawDraft();
+  });
   if ($('#add')) $('#add').onclick = () => { draft.push({ title: '', descr: '' }); drawDraft(); $(`#nt${draft.length - 1}`).focus(); };
   const save = async () => {
+    clearTimeout(saveTimer);
     const list = draft.filter((n) => n.title.trim() || n.descr.trim());
     if (list.some((n) => !n.title.trim())) { const e = $('#err'); e.textContent = 'Ogni need deve avere un titolo'; e.classList.remove('hidden'); return false; }
     try { F = await api(`${API}/needs`, { method: 'PUT', body: { needs: list } }); draft = F.needs.map((n) => ({ title: n.title, descr: n.descr || '' })); dirty = false; return true; }
