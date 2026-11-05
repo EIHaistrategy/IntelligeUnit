@@ -11,6 +11,7 @@ import * as E from './engine/index.js';
 import { buildExport } from './export.js';
 import { pdfBuffer, pdfFileName } from './pdf.js';
 import * as AL from './alignment.js';
+import * as PM from './pomeriggio.js';
 import { liveDashboard } from './live.js';
 import JSZip from 'jszip';
 import compression from 'compression';
@@ -100,6 +101,9 @@ const ownerEnv = (sql) => (req, res, next) => {
 app.use('/api/admin/referents/:id', ownerEnv('SELECT c.seeded FROM referents r JOIN companies c ON c.id = r.company_id WHERE r.id = ?'));
 app.use('/api/admin/roster/:id', ownerEnv('SELECT c.seeded FROM roster r JOIN companies c ON c.id = r.company_id WHERE r.id = ?'));
 app.use('/api/admin/live/:id', entityEnv('sessions'));
+app.use('/api/admin/pm/tables/:id', ownerEnv('SELECT s.seeded FROM pm_tables t JOIN sessions s ON s.id = t.session_id WHERE t.id = ?'));
+app.use('/api/admin/pm/needs/:id', ownerEnv('SELECT s.seeded FROM pm_needs n JOIN pm_tables t ON t.id = n.table_id JOIN sessions s ON s.id = t.session_id WHERE n.id = ?'));
+app.use('/api/admin/pm/votes/:id', ownerEnv('SELECT s.seeded FROM pm_votes v JOIN pm_tables t ON t.id = v.table_id JOIN sessions s ON s.id = t.session_id WHERE v.id = ?'));
 app.use('/api/admin/commitments/:id', ownerEnv('SELECT c.seeded FROM commitments m JOIN companies c ON c.id = m.company_id WHERE m.id = ?'));
 // azienda dentro una sessione: deve esistere ed essere dello stesso ambiente della sessione
 app.use('/api/admin/sessions/:sid/companies/:cid', (req, res, next) => {
@@ -139,6 +143,10 @@ app.get('/plenaria/:base', page('plenaria.html'));
 app.get('/mappe/:base', page('mappe.html'));
 app.get('/live/:sid', page('live.html'));
 app.get('/anteprima/:base', page('anteprima.html'));
+// pomeriggio: QR del tavolo (partecipante), link del facilitatore del tavolo, plenaria riservata al team ELIS
+app.get('/t/:code', page('pm-voto.html'));
+app.get('/ft/:token', page('pm-tavolo.html'));
+app.get('/plenaria-pomeriggio/:sid', (req, res) => (isAdmin(req) ? page('pm-plenaria.html')(req, res) : res.redirect('/admin')));
 
 const wrap = (fn) => async (req, res) => {
   try { const r = await fn(req, res); if (r !== undefined && !res.headersSent) res.json(r); }
@@ -465,6 +473,87 @@ app.post(['/api/r/:t/alignment/confirm', '/api/f/:c/alignment/confirm'], wrap((r
   const r = referent(req, res); if (!r || !alignGate(r, res)) return;
   const out = AL.confirm(r.company_id, r.company_seeded, refActor(r));
   return out.ok ? AL.alignmentState(r.company_id, r.company_seeded) : bad(res, out.errors.join(' · '));
+}));
+
+// ---------- Pomeriggio: votazione dei need (docs/REQUISITI_POMERIGGIO.md) ----------
+// Nessuna di queste API legge o restituisce dati della Map (R1).
+const pmTable = (req, res) => {
+  const t = PM.tableByCode(txt(req.params.code, 12));
+  if (!t) { bad(res, 'Tavolo non trovato: controlla il QR o chiedi al facilitatore', 404); return null; }
+  const s = q.get('SELECT * FROM sessions WHERE id = ?', t.session_id);
+  setRequestEnv(s.seeded);
+  return { t, s };
+};
+app.get('/api/pm/t/:code', wrap((req, res) => { const x = pmTable(req, res); if (!x) return; return PM.voterView(x.t, x.s, null); }));
+// riconoscimento dal telefono del mattino o del pomeriggio: nessun dato da inserire (VOT-01)
+app.post('/api/pm/t/:code/identify', wrap((req, res) => {
+  const x = pmTable(req, res); if (!x) return;
+  const me = PM.identify(x.t, { pmToken: txt(req.body?.pmToken, 64), morningToken: txt(req.body?.morningToken, 64) });
+  return PM.voterView(x.t, x.s, me);
+}));
+// ripiego: codice azienda e nome, come al mattino; l'elenco si vede solo con il codice giusto
+app.get('/api/pm/t/:code/people', wrap((req, res) => {
+  const x = pmTable(req, res); if (!x) return;
+  if (joinBlocked(req)) return bad(res, TOO_MANY, 429);
+  const c = joinCompany(x.s, 'code', txt(req.query.c, 10).toUpperCase());
+  if (!c) { joinFail(req); return bad(res, 'Codice azienda non riconosciuto: controlla il cartoncino del mattino o chiedilo al referente'); }
+  return { company: { name: c.name }, people: PM.peopleFor(x.s.id, c.id), functions: I.functions, privacyUrl: getSetting('privacy_url') || null };
+}));
+app.post('/api/pm/t/:code/join', wrap((req, res) => {
+  const x = pmTable(req, res); if (!x) return;
+  if (joinBlocked(req)) return bad(res, TOO_MANY, 429);
+  const c = joinCompany(x.s, 'code', txt(req.body?.companyCode, 10).toUpperCase());
+  if (!c) { joinFail(req); return bad(res, 'Codice azienda non riconosciuto'); }
+  const isNew = !req.body?.key;
+  if (isNew && !req.body?.privacyAck) return bad(res, 'Per proseguire conferma di aver letto come vengono usate le risposte');
+  const me = PM.joinPerson(x.s.id, c.id, { key: txt(req.body?.key, 20), name: req.body?.name, func: req.body?.func }, (f) => I.functions.some((y) => y.id === f));
+  if (me.ok === false) return bad(res, me.errors.join(' · '));
+  return PM.voterView(x.t, x.s, me);
+}));
+app.post('/api/pm/t/:code/vote', wrap((req, res) => {
+  const x = pmTable(req, res); if (!x) return;
+  const me = PM.personByToken(txt(req.body?.pmToken, 64));
+  if (!me) return bad(res, 'Non ti riconosco: ricarica la pagina', 401);
+  const out = PM.castVote(me, x.t, req.body || {});
+  if (!out.ok) return bad(res, out.errors.join(' · '), out.conflict ? 409 : 400);
+  return PM.voterView(x.t, x.s, me);
+}));
+// telefono del facilitatore del tavolo: vede e cambia solo il proprio tavolo
+const pmFac = (req, res) => {
+  const x = PM.facTable(txt(req.params.token, 64));
+  if (!x) { bad(res, 'Link del facilitatore non valido: chiedi alla regia ELIS quello nuovo', 404); return null; }
+  if (x.expired) { bad(res, 'Il pomeriggio è concluso: questo link non è più attivo', 410); return null; }
+  setRequestEnv(x.s.seeded);
+  return x;
+};
+const pmFacActor = (x) => `facilitatore_tavolo:${x.t.label}`;
+app.get('/api/pm/f/:token', wrap((req, res) => { const x = pmFac(req, res); if (!x) return; return PM.facView(x.t, x.s); }));
+app.put('/api/pm/f/:token/needs', wrap((req, res) => {
+  const x = pmFac(req, res); if (!x) return;
+  const out = PM.setNeeds(x.t.id, req.body?.needs, pmFacActor(x));
+  return out.ok ? PM.facView(PM.tableRow(x.t.id), x.s) : bad(res, out.errors.join(' · '));
+}));
+app.post('/api/pm/f/:token/open', wrap((req, res) => {
+  const x = pmFac(req, res); if (!x) return;
+  const out = PM.openVote(x.t.id, pmFacActor(x));
+  return out.ok ? PM.facView(PM.tableRow(x.t.id), x.s) : bad(res, out.errors.join(' · '));
+}));
+app.post('/api/pm/f/:token/close', wrap((req, res) => {
+  const x = pmFac(req, res); if (!x) return;
+  const out = PM.closeVote(x.t.id, pmFacActor(x));
+  return out.ok ? PM.facView(PM.tableRow(x.t.id), x.s) : bad(res, out.errors.join(' · '));
+}));
+// scelta finale dei 3 need: referente dal suo link o facilitatore ELIS dal tavolo dell'azienda (SCE-01)
+app.get(['/api/r/:t/pm/:sid', '/api/f/:c/pm/:sid'], wrap((req, res) => {
+  const r = referent(req, res); if (!r) return;
+  const s = refSession(r, req.params.sid, res); if (!s) return;
+  return PM.choiceState(s.id, r.company_id);
+}));
+app.put(['/api/r/:t/pm/:sid', '/api/f/:c/pm/:sid'], wrap((req, res) => {
+  const r = referent(req, res); if (!r) return;
+  const s = refSession(r, req.params.sid, res); if (!s) return;
+  const out = PM.saveChoice(s.id, r.company_id, req.body || {}, refActor(r), !!req.body?.confirm);
+  return out.ok ? PM.choiceState(s.id, r.company_id) : bad(res, out.errors.join(' · '));
 }));
 
 // ---------- Admin ELIS ----------
@@ -956,6 +1045,36 @@ const envCompany = (req, res) => {
   return c;
 };
 app.get('/api/admin/alignment', wrap((req) => AL.overview(envOf(req))));
+// Pomeriggio: scheda della regia. Le sessioni passano dal controllo d'ambiente di /api/admin/sessions/:id;
+// tavoli, need e voti prendono l'ambiente della loro sessione.
+const pmView = (sid) => ({ ...PM.consoleView(sid), baseUrl: baseUrl() });
+const pmOut = (res, out, sid) => (out.ok ? pmView(sid) : bad(res, out.errors.join(' · ')));
+const pmTableSid = (id) => PM.tableRow(id)?.session_id;
+app.get('/api/admin/sessions/:id/pm', wrap((req, res) => (L.getSession(req.params.id) ? pmView(Number(req.params.id)) : bad(res, 'Non trovata', 404))));
+app.post('/api/admin/sessions/:id/pm/phase', wrap((req, res) => pmOut(res, PM.setPhase(Number(req.params.id), txt(req.body?.phase, 20), txt(req.body?.reason, 1000), ADMIN), Number(req.params.id))));
+app.post('/api/admin/sessions/:id/pm/tables', wrap((req, res) => pmOut(res, PM.createTable(Number(req.params.id), req.body || {}, ADMIN), Number(req.params.id))));
+app.post('/api/admin/sessions/:id/pm/close-all', wrap((req, res) => {
+  const sid = Number(req.params.id);
+  for (const t of PM.tablesOf(sid).filter((x) => x.status === 'voto')) PM.closeVote(t.id, ADMIN);
+  return pmView(sid);
+}));
+app.post('/api/admin/sessions/:id/pm/choices/:cid/reopen', wrap((req, res) => {
+  const c = q.get('SELECT id FROM companies WHERE id = ? AND seeded = ?', req.params.cid, envOf(req)); if (!c) return bad(res, 'Azienda non trovata', 404);
+  return pmOut(res, PM.reopenChoice(Number(req.params.id), c.id, txt(req.body?.reason, 1000), ADMIN), Number(req.params.id));
+}));
+app.get('/api/admin/sessions/:id/pm/plenary', wrap((req, res) => (L.getSession(req.params.id) ? PM.plenary(Number(req.params.id)) : bad(res, 'Non trovata', 404))));
+app.put('/api/admin/pm/tables/:id', wrap((req, res) => pmOut(res, PM.updateTable(Number(req.params.id), req.body || {}, ADMIN), pmTableSid(req.params.id))));
+app.delete('/api/admin/pm/tables/:id', wrap((req, res) => { const sid = pmTableSid(req.params.id); return pmOut(res, PM.deleteTable(Number(req.params.id), ADMIN), sid); }));
+app.post('/api/admin/pm/tables/:id/regen', wrap((req, res) => pmOut(res, PM.regenFacToken(Number(req.params.id), txt(req.body?.reason, 1000), ADMIN), pmTableSid(req.params.id))));
+app.post('/api/admin/pm/tables/:id/close', wrap((req, res) => pmOut(res, PM.closeVote(Number(req.params.id), ADMIN), pmTableSid(req.params.id))));
+app.put('/api/admin/pm/needs/:id', wrap((req, res) => {
+  const sid = q.get('SELECT t.session_id FROM pm_needs n JOIN pm_tables t ON t.id = n.table_id WHERE n.id = ?', req.params.id)?.session_id;
+  return pmOut(res, PM.correctNeed(Number(req.params.id), req.body || {}, txt(req.body?.reason, 1000), ADMIN), sid);
+}));
+app.post('/api/admin/pm/votes/:id/cancel', wrap((req, res) => {
+  const sid = q.get('SELECT t.session_id FROM pm_votes v JOIN pm_tables t ON t.id = v.table_id WHERE v.id = ?', req.params.id)?.session_id;
+  return pmOut(res, PM.cancelVote(Number(req.params.id), txt(req.body?.reason, 1000), ADMIN), sid);
+}));
 // "Primi passi": le domande consultate valgono per tutto il team, non solo per il browser di chi le ha aperte
 app.get('/api/admin/flags', wrap((req) => ({ questionsSeen: getSetting(`questions_seen_${envOf(req) ? 'demo' : 'prod'}`) === '1' })));
 app.post('/api/admin/flags/questions-seen', wrap((req) => { setSetting(`questions_seen_${envOf(req) ? 'demo' : 'prod'}`, '1'); return { ok: true }; }));

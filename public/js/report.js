@@ -137,6 +137,18 @@ async function boot() {
     ${Object.values(R.profile).length ? `<table><tbody>${Object.values(R.profile).map((p) => `<tr><td>${esc(p.q)}</td><td><b>${esc(p.value)}${typeof p.value === 'number' ? '%' : ''}</b></td></tr>`).join('')}</tbody></table>` : '<p class="muted">Profilo non compilato.</p>'}
   </div>
 
+  ${(R.pomeriggio || []).map((D) => `<div class="card pm-report"><h2>Dai tavoli · sessione ${esc(D.session.name)}</h2>
+    <div class="explain">${esc(D.intro)}</div>
+    <h3>I need scelti dall'azienda per il vertice</h3>
+    ${D.confirmed ? '' : '<p class="small muted">La scelta dei need non è stata confermata.</p>'}
+    ${D.chosen.length ? `<ol>${D.chosen.map((c) => `<li><span class="pm-code">${esc(c.key)}</span> <b>${esc(c.title)}</b><div class="small muted">Tavolo ${esc(c.table)}${c.descr ? ` · ${esc(c.descr)}` : ''}</div>${c.ask ? `<p class="small" style="margin:4px 0 8px"><b>Che cosa chiediamo al vertice:</b> ${esc(c.ask)}</p>` : ''}</li>`).join('')}</ol>` : ''}
+    ${D.fewer ? `<p class="small muted">Le persone dell'azienda hanno votato ${D.available} need: i need scelti sono meno di 3.</p>` : ''}
+    <h3>Che cosa ha votato ogni persona</h3>
+    ${D.people.map((p) => `<div class="pm-nrow"><b>${esc(p.name)}</b> <span class="small muted">· tavolo ${esc(p.table)}</span>
+      ${p.none ? '<p class="small muted" style="margin:4px 0 0">Nessun need scelto.</p>' : ''}
+      <ul class="small" style="margin:6px 0 0;padding-left:18px">${p.needs.map((n) => `<li class="${n.chosen ? '' : 'muted'}">${n.chosen ? '<b>' : ''}${esc(n.code)} ${esc(n.title)}${n.chosen ? `</b> · votato: ${esc(n.priority)}, ${esc(n.horizon.toLowerCase())}` : ''}</li>`).join('')}</ul></div>`).join('')}
+  </div>`).join('')}
+
   <div class="card"><h2>Note metodologiche e limiti</h2>
     <p class="small ink2">Autovalutazione strutturata e consolidamento aziendale, non audit né certificazione. Il benchmark è "indicativo" sotto le ${SC.benchmark.stableN} aziende e non è mostrato sotto le ${SC.benchmark.minN}; nel report l'azienda è esclusa dal proprio benchmark quando il campione residuo resta di almeno ${SC.benchmark.looMinResidual} aziende. Le soglie (fasce 44/70, coerenza ${SC.coherenceThreshold} punti, quadranti) e i nomi dei quadranti sono quelli in uso nel pilot. Le regole di coerenza che confrontano sessioni diverse si discutono nella call con il leader. Le dimensioni misurate in sessioni diverse possono riflettere partecipanti diversi; a settembre 2027 l'allineamento finale le riporta a una data unica.</p>
   </div>

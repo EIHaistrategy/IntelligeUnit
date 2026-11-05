@@ -13,13 +13,14 @@ Gli utenti sono il team AI Strategy di ELIS: non sono sviluppatori. Rispondi in 
 | Facilitatore ELIS | come il team ELIS (console) | `/tavolo-elis/:cid`: la vista del referente per un'azienda; conduce confronto e consolidamento, corregge o rimuove i partecipanti in ogni fase |
 | Referente aziendale | link personale `/r/:token` | scheda pre-sessione, confronto, consolidamento, commitment, report rilasciati |
 | Partecipante | QR `/j/:code`, codice azienda, nessun account | risposte individuali dal telefono |
+| Pomeriggio (`docs/REQUISITI_POMERIGGIO.md`) | facilitatore del tavolo: link `/ft/:token`; persona: QR del tavolo `/t/:code` (riconosciuta dal codice del mattino salvato sul telefono, o codice azienda e nome) | need del tavolo, voto (max 2 need), plenaria `/plenaria-pomeriggio/:sid` (solo team ELIS), scelta dei 3 need dal referente (`#/pomeriggio/:sid`) |
 
 ## Stack e comandi
 
 - Node.js ≥ 22.13 con `node:sqlite` (nessun ORM), Express 4, ES modules. Front-end senza framework né build: HTML + JS moduli in `public/`.
 - Dipendenze **con versione esatta** (`package.json`): non usare `^` o `~`.
 - `npm install` · `npm start` (porta 3000; `PORT`, `AITO_DATA_DIR`, `ADMIN_PASSWORD`, `PUBLIC_URL`, `DEMO_DATA=1`, `DEMO_PASSWORD`, `SESSION_SECRET` facoltative; con `SESSION_SECRET` i cookie d'accesso firmati restano validi dopo i riavvii).
-- `npm test`: 41 test: 17 del motore di calcolo (`test/engine.test.js`), 13 dell'ambiente DEMO (`test/demo.test.js`: caricamento ripetibile, avanzamento, reset, separazione da Produzione anche via API, accesso del comitato, segnali del report) e 11 dell'allineamento finale e delle protezioni del server (compreso l'accesso firmato e la password DEMO stabile) (`test/alignment.test.js`). Devono passare tutti prima di ogni commit.
+- `npm test`: 48 test: 17 del motore di calcolo (`test/engine.test.js`), 13 dell'ambiente DEMO (`test/demo.test.js`: caricamento ripetibile, avanzamento, reset, separazione da Produzione anche via API, accesso del comitato, segnali del report) e 11 dell'allineamento finale e delle protezioni del server (compreso l'accesso firmato e la password DEMO stabile) (`test/alignment.test.js`), 7 del pomeriggio (`test/pomeriggio.test.js`). Devono passare tutti prima di ogni commit.
 - Prova completa nel browser: `test/e2e/e2e.mjs`. Le istruzioni sono in testa al file: server su database vuoto, porta 3100, password `testpass123`. Il messaggio di console "400 Bad Request" del referente è atteso (Chrome può scriverlo due volte, ma la richiesta è una sola): è la prova dell'override senza motivazione. Le richieste che modificano dati fatte da script (test, curl) devono mandare l'intestazione `Origin` del server: senza `Origin` né `Sec-Fetch-Site` il server le rifiuta (403).
 - Per controllare la grafica fai sempre schermate con Playwright, a 1440 px per la console e a 390 px per il telefono.
 
@@ -33,6 +34,8 @@ server/logic.js                  regole applicative: confronto, consolidamento, 
 server/index.js                  tutte le API e i ruoli
 server/db.js                     schema SQLite e migrazioni (ALTER in try)
 server/live.js · pdf.js · export.js · demo.js · alignment.js (allineamento finale §14.1)
+server/pomeriggio.js             pomeriggio: tavoli, need, voti, mappe, scelta, sezione «Dai tavoli»; separato dalla Map (R1)
+server/instrument/pomeriggio-1.0.json etichette, soglie della mappa e nomi dei quadranti del pomeriggio (non in scoring-1.0.json)
 public/                          pagine; public/js/admin.js è la console, charts.js e maps.js i grafici condivisi
 public/css/app.css               unico foglio di stile; public/fonts e server/fonts: Inter (OFL)
 ```
@@ -50,7 +53,8 @@ Vengono dalla nota metodologica: prima di cambiarle, chiedi.
 7. **Aziende TEST** (es. l'azienda amica) stanno in produzione ma non entrano mai nel benchmark.
 8. **Soglie e nomi** si cambiano solo in `scoring-1.0.json`, con una nuova versione dello scoring; mai nel codice.
 9. **Privacy.** Del partecipante si raccolgono solo nome e funzione. Niente risorse da siti esterni: caratteri e librerie sono serviti dal server. Non aggiungere CDN, analytics o font esterni.
-10. **Sicurezza.** Le API non-GET accettano solo richieste dallo stesso sito (controllo Sec-Fetch-Site/Origin). Gli input hanno limiti di lunghezza. I messaggi d'errore verso l'utente sono generici e in italiano.
+10. **Pomeriggio separato dalla Map** (`docs/REQUISITI_POMERIGGIO.md`, regole R1–R8): le sue API e pagine non leggono né mostrano score, fasce, benchmark, priorità o commitment; nessuna classifica (need in ordine di codice); la mappa di un tavolo solo a voto chiuso; un voto per persona; chi arriva solo al pomeriggio non entra tra i partecipanti della Map.
+11. **Sicurezza.** Le API non-GET accettano solo richieste dallo stesso sito (controllo Sec-Fetch-Site/Origin). Gli input hanno limiti di lunghezza. I messaggi d'errore verso l'utente sono generici e in italiano.
 
 ## Agenti del progetto
 

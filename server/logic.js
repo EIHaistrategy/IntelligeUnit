@@ -2,6 +2,7 @@
 import { q, tx, audit } from './db.js';
 import * as E from './engine/index.js';
 import * as A from './alignment.js';
+import * as PMX from './pomeriggio.js';
 
 const I = E.INSTRUMENT;
 const S = E.SCORING;
@@ -472,6 +473,8 @@ export function companyReport(companyId, { preview = false, final = false } = {}
     mapComplete: dims.every((d) => d.score != null),
     priorities: E.proposePriorities(itemScores, dimScores, peerMedians),
     pairs, profile, commitments, calls, sessions: sessionsDone,
+    // pomeriggio: sezione a sé, fuori da score e benchmark; si congela con il report (REP-01)
+    pomeriggio: PMX.reportPart(companyId),
     ...(final ? finalPart(companyId, company) : {}),
   };
 }

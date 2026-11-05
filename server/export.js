@@ -52,6 +52,21 @@ export async function buildExport() {
     FROM alignment_items x JOIN companies c ON c.id = x.company_id WHERE c.seeded = 0 ORDER BY c.name, x.item_id, x.id`));
   sheet(wb, 'Allineamento priorità', q.all(`SELECT p.id, c.name AS azienda, p.priorities_json AS priorita, p.note AS nota, p.is_current AS corrente, p.created_by AS autore, p.created_at,
     a.confirmed_at AS confermato FROM alignment_priorities p JOIN companies c ON c.id = p.company_id LEFT JOIN alignment a ON a.company_id = p.company_id WHERE c.seeded = 0 ORDER BY c.name, p.id`));
+  // pomeriggio: need per tavolo, voti per persona, scelte aziendali (EXP-01); solo Produzione
+  sheet(wb, 'Pomeriggio need', q.all(`SELECT s.title AS sessione, t.label AS tavolo, t.title AS titolo_tavolo, t.morning_theme AS tema, t.status AS stato,
+    t.label || '-' || n.code AS codice, n.title AS need, n.descr AS descrizione FROM pm_needs n JOIN pm_tables t ON t.id = n.table_id JOIN sessions s ON s.id = t.session_id
+    WHERE s.seeded = 0 ORDER BY s.id, t.label, n.code`));
+  sheet(wb, 'Pomeriggio voti', q.all(`SELECT s.title AS sessione, c.name AS azienda, p.name AS persona, p.func AS funzione, t.label AS tavolo,
+    CASE WHEN v.none = 1 THEN 'nessun need scelto' ELSE t.label || '-' || n.code END AS need, n.title AS titolo_need, i.priority AS priorita, i.horizon AS orizzonte,
+    v.is_current AS corrente, v.cancel_reason AS motivo_annullamento, v.created_at
+    FROM pm_votes v JOIN pm_people p ON p.id = v.person_id JOIN companies c ON c.id = p.company_id JOIN pm_tables t ON t.id = v.table_id JOIN sessions s ON s.id = t.session_id
+    LEFT JOIN pm_vote_items i ON i.vote_id = v.id LEFT JOIN pm_needs n ON n.id = i.need_id WHERE s.seeded = 0 ORDER BY s.id, c.name, p.name, v.id`));
+  sheet(wb, 'Pomeriggio scelte', q.all(`SELECT s.title AS sessione, c.name AS azienda, x.items_json AS need_scelti, x.confirmed_at AS confermata, x.is_current AS corrente, x.created_by AS autore, x.created_at
+    FROM pm_choices x JOIN companies c ON c.id = x.company_id JOIN sessions s ON s.id = x.session_id WHERE s.seeded = 0 ORDER BY s.id, c.name, x.id`).map((r) => {
+    // la scelta con i codici e il testo «che cosa chiediamo al vertice», leggibile
+    const items = (() => { try { return JSON.parse(r.need_scelti); } catch { return []; } })();
+    return { ...r, need_scelti: items.map((it) => { const n = q.get('SELECT n.code, n.title, t.label FROM pm_needs n JOIN pm_tables t ON t.id = n.table_id WHERE n.id = ?', it.needId); return n ? `${n.label}-${n.code} ${n.title}${it.ask ? ` (vertice: ${it.ask})` : ''}` : ''; }).join(' | ') };
+  }));
   // solo il registro di Produzione: le azioni fatte in DEMO restano fuori dall'export
   sheet(wb, 'Audit', q.all('SELECT id, ts, actor, entity, entity_id, action, before_json, after_json, reason FROM audit WHERE seeded = 0 ORDER BY id'));
   sheet(wb, 'Strumento', Object.entries(I.items).flatMap(([id, it]) => it.levels.flatMap((l) => (l.sub || [{ key: '', text: '' }]).map((s) => ({

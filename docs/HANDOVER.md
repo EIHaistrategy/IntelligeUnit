@@ -16,6 +16,7 @@ La piattaforma copre il ciclo completo di una sessione e il lavoro dopo la sessi
 | Ambiente DEMO separato dalla Produzione (cookie `aito_mode`, dati `seeded = 1`, registro modifiche per ambiente) | Completo |
 | Allineamento finale (§14.1): revisione delle 16 capacità con evidenza, spostamenti, tre priorità finali, vista d'insieme, report unificato web e PDF (`server/alignment.js`, `public/js/align.js`) | Completo, 9 test; manca il benchmark ricalcolato sui valori allineati |
 | Domande di S. Nocentini (comitato, 30/10/2026): nell'allineamento finale ogni modifica dice se è *cambiamento reale* o *revisione*, ogni conferma se l'azienda è soddisfatta o sperava in un miglioramento; vista per sessione in console. Nel consolidamento nota facoltativa sulle posizioni divergenti; testo per i temi tutti N.D.; avviso «tutto al livello 5» in Report e call | Completo, test nei file DEMO e allineamento. Da condividere con il comitato: chiarimenti sulle domande prima della sessione = risposta uguale per tutti (domande frequenti), modifiche alle domande solo nella V1.1 |
+| Pomeriggio: votazione dei need (`docs/REQUISITI_POMERIGGIO.md`): tavoli e QR, need dal telefono del facilitatore, voto (max 2 need, priorità e orizzonte), plenaria con una mappa per tavolo, scelta dei 3 need, sezione «Dai tavoli» nel report e nel PDF, export, DEMO (`server/pomeriggio.js`, `public/js/pm-*.js`) | Completo, 7 test; prova di carico locale: 100 telefoni in meno di 1 s. Da validare con il team: soglie della mappa e nomi dei quadranti (`pomeriggio-1.0.json`); nomi delle persone nel PDF da citare nell'informativa (Data Privacy Officer) |
 | Accesso DEMO per il comitato scientifico (password separata, solo ambiente DEMO; Impostazioni o variabile `DEMO_PASSWORD`) | Completo, 1 test |
 | Accesso firmato: cookie con ruolo e data firmati da `SESSION_SECRET`; con le variabili su Render si resta dentro dopo pubblicazioni e riavvii (14 giorni) | Completo, 1 test |
 | Percorso guidato DEMO: azienda fittizia dalla preparazione al report, vista admin e telefono, data simulata, reset (`server/demo.js`, dati in `server/demo/percorso-guidato.json`) | Completo, 10 test |
@@ -79,7 +80,7 @@ Limiti noti:
 ```
 git clone https://github.com/EIHaistrategy/IntelligeUnit.git && cd IntelligeUnit
 npm install
-npm test                                   # 41 test (17 motore + 13 DEMO + 11 allineamento, protezioni, accesso firmato e password DEMO stabile)
+npm test                                   # 48 test (17 motore + 13 DEMO + 11 allineamento e protezioni + 7 pomeriggio)
 ADMIN_PASSWORD=una-password npm start      # console su http://localhost:3000/admin
 ```
 

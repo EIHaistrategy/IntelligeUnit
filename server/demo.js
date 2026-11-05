@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { q, tx, shortCode, token, audit, getSetting, setSetting } from './db.js';
 import * as L from './logic.js';
 import * as AL from './alignment.js';
+import * as PM from './pomeriggio.js';
 import * as E from './engine/index.js';
 
 const I = E.INSTRUMENT;
@@ -87,6 +88,14 @@ export function removeDemo() {
   const ids = q.all('SELECT id FROM companies WHERE seeded = 1').map((r) => r.id);
   const sids = q.all('SELECT id FROM sessions WHERE seeded = 1').map((r) => r.id);
   tx(() => {
+    if (sids.length) {
+      // pomeriggio delle sessioni DEMO: voti, need, tavoli, persone e scelte
+      const sp = sids.map(() => '?').join(',');
+      q.run(`DELETE FROM pm_vote_items WHERE vote_id IN (SELECT v.id FROM pm_votes v JOIN pm_tables t ON t.id = v.table_id WHERE t.session_id IN (${sp}))`, ...sids);
+      q.run(`DELETE FROM pm_votes WHERE table_id IN (SELECT id FROM pm_tables WHERE session_id IN (${sp}))`, ...sids);
+      q.run(`DELETE FROM pm_needs WHERE table_id IN (SELECT id FROM pm_tables WHERE session_id IN (${sp}))`, ...sids);
+      for (const t of ['pm_tables', 'pm_people', 'pm_choices']) q.run(`DELETE FROM ${t} WHERE session_id IN (${sp})`, ...sids);
+    }
     if (ids.length) {
       const ph = ids.map(() => '?').join(',');
       const pids = q.all(`SELECT id FROM participants WHERE company_id IN (${ph})`, ...ids).map((r) => r.id);
@@ -224,6 +233,7 @@ function enter(i, k, S) {
       q.run('UPDATE session_company SET leader_call_note = ?, leader_call_transcript = ?, leader_call_at = ? WHERE session_id = ? AND company_id = ?',
         sc.call.esito || null, sc.call.trascrizione || null, sc.call.data || null, sess.id, g.id);
     }
+    afternoon(sess, g, S);
     if (!q.get('SELECT 1 FROM report_snapshots WHERE session_id = ? AND company_id = ?', sess.id, g.id)) { L.releaseReport(sess.id, g.id, ACTOR); simStamp(g.id, addDays(sess.date, 7)); }
     q.run("UPDATE session_company SET consolidated_at = ?, report_released_at = ? WHERE session_id = ? AND company_id = ?", `${sess.date} 12:00:00`, `${addDays(sess.date, 7)} 10:00:00`, sess.id, g.id);
   }
@@ -279,6 +289,51 @@ function consolidate(sess, g, sc) {
 }
 
 // la community consolida a ogni sessione: valori attorno alla "maturità" di ogni azienda, sempre uguali
+// Pomeriggio dimostrativo della sessione, con le regole vere: tavoli, need, voti di tutte le aziende DEMO e scelta dei 3 need.
+// Le persone dell'azienda guidata sono quelle del mattino; per le aziende della community due persone dimostrative ciascuna.
+function afternoon(sess, g, S) {
+  const plan = S.pomeriggio?.[sess.base];
+  if (!plan || q.get('SELECT 1 FROM pm_tables WHERE session_id = ?', sess.id)) return;
+  const must = (out) => { if (out && out.ok === false) throw new Error(`Pomeriggio demo non riuscito: ${out.errors.join(' · ')}`); return out; };
+  must(PM.setPhase(sess.id, 'tavoli', null, ACTOR));
+  const tables = plan.map((t) => {
+    const { id } = must(PM.createTable(sess.id, { label: t.tavolo, title: t.titolo, theme: t.tema }, ACTOR));
+    must(PM.setNeeds(id, t.need.map(([title, descr]) => ({ title, descr })), FAC));
+    must(PM.openVote(id, FAC));
+    return PM.tableRow(id);
+  });
+  const rnd = prng(500 + BASES.indexOf(sess.base));
+  const vote = (person, ti) => {
+    const t = tables[ti % tables.length];
+    const needs = q.all('SELECT id FROM pm_needs WHERE table_id = ? ORDER BY code', t.id);
+    if (rnd() < 0.08) return must(PM.castVote(person, t, { none: true }));
+    // i primi need del tavolo un po' più scelti degli ultimi, così la mappa ha punti in quadranti diversi
+    const pickOne = () => needs[Math.min(needs.length - 1, Math.floor(rnd() * rnd() * needs.length * 1.6))].id;
+    const ids = [...new Set([pickOne(), pickOne()])];
+    must(PM.castVote(person, t, { items: ids.map((id) => ({ needId: id, priority: clamp(Math.round(2.4 + rnd() * 2.8)), horizon: PM.PM.horizon[Math.floor(rnd() * PM.PM.horizon.length)].value })) }));
+  };
+  const parts = q.all('SELECT * FROM participants WHERE session_id = ? AND company_id = ? AND removed = 0 ORDER BY id', sess.id, g.id);
+  parts.forEach((p, i) => vote(PM.identify(tables[0], { morningToken: p.token }), i));
+  const comps = q.all("SELECT * FROM companies WHERE seeded = 1 AND kind = 'DEMO' ORDER BY id");
+  comps.forEach((c, n) => {
+    for (const k of [1, 2]) {
+      const short = c.name.replace(' (demo)', '').split(' ')[0];
+      vote(PM.joinPerson(sess.id, c.id, { name: `Persona ${k} ${short}`, func: k === 1 ? 'STRAT' : 'IT' }, () => true), n + k);
+    }
+  });
+  must(PM.setPhase(sess.id, 'plenaria', null, ACTOR));
+  must(PM.setPhase(sess.id, 'scelta', null, ACTOR));
+  // scelta dei need: i più votati dalle persone dell'azienda (fino a 3), con una richiesta al vertice per il primo
+  for (const c of [g, ...comps]) {
+    const st = PM.choiceState(sess.id, c.id);
+    if (!st.available) continue;
+    const all = st.groups.flatMap((x) => x.needs).sort((a, b) => b.voters.length - a.voters.length || a.key.localeCompare(b.key));
+    const items = all.slice(0, st.required).map((x, i) => ({ needId: x.needId, ask: i === 0 && c.id === g.id ? 'Un responsabile e un budget dedicati per i prossimi sei mesi' : '' }));
+    must(PM.saveChoice(sess.id, c.id, { items }, c.id === g.id ? FAC : ACTOR, true));
+  }
+  must(PM.setPhase(sess.id, 'chiuso_def', null, ACTOR));
+}
+
 function community(sess, S) {
   const def = E.sessionDef(sess.base);
   const comps = q.all("SELECT * FROM companies WHERE seeded = 1 AND kind = 'DEMO' ORDER BY id");

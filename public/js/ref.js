@@ -1,5 +1,6 @@
 import { api, esc, $, $$, toast, ask, askText, poll, distBars, confTag, phaseChips, qrImg, fmtScore, fmtDate, bandTag, levelLabel, alt, icon, demoBar } from './ui.js';
 import { renderAlignment } from './align.js';
+import { renderPmChoice } from './pm-choice.js';
 
 const T = location.pathname.split('/').pop();
 // La stessa pagina serve al facilitatore ELIS (/tavolo-elis/:azienda, dalla console): conduce confronto e consolidamento
@@ -38,7 +39,7 @@ async function boot() {
 function route() {
   if (stopPoll) { stopPoll(); stopPoll = null; }
   const [, view, arg] = location.hash.split('/');
-  const go = view === 'scheda' ? renderScheda(arg) : view === 'sessione' ? renderSession(Number(arg)) : view === 'allineamento' ? renderAlignment(app, { API, FAC }) : renderHome();
+  const go = view === 'scheda' ? renderScheda(arg) : view === 'sessione' ? renderSession(Number(arg)) : view === 'allineamento' ? renderAlignment(app, { API, FAC }) : view === 'pomeriggio' ? renderPmChoice(app, { API, FAC, sid: Number(arg) }) : renderHome();
   // un link vecchio o di un altro ambiente non lascia la pagina bianca
   return Promise.resolve(go).catch((e) => { app.innerHTML = `<div class="card" role="alert"><h2>Pagina non disponibile</h2><p>${esc(e.message)}</p><a class="btn" href="#/">Torna alle sessioni</a></div>`; });
 }
@@ -51,7 +52,7 @@ async function renderHome() {
   const prep = active.find((s) => s.mode === 'workshop' && s.phase === 'preparazione');
   // ... ma solo prima della prima sessione: dopo, il referente entra soprattutto per il report e il commitment appena fatti
   const between = !FAC && prep && active.every((s) => s.phase === 'preparazione') && (done.length || me.reports.length);
-  if (!FAC && prep && active.every((s) => s.phase === 'preparazione') && !between) return renderQuestions(prep.base);
+  if (!FAC && prep && active.every((s) => s.phase === 'preparazione') && !between && !me.sessions.some((s) => s.pm_phase === 'scelta')) return renderQuestions(prep.base);
   const finished = !active.length && done.length;
   const activeTitle = finished ? 'Programma' : !active.length || active.every((s) => s.phase === 'preparazione') ? 'Prossima sessione' : 'Sessione in corso';
   const A = me.alignment || {};
@@ -62,6 +63,7 @@ async function renderHome() {
     <div class="pagehead"><div><h1>${esc(me.referent.company)}</h1>
       <p>Perimetro valutato: <b>${esc(me.referent.perimeter || 'non indicato')}</b></p></div></div>
     ${A.open || A.reviewed ? alignCard(A) : ''}
+    ${pmCards(me.sessions)}
     ${between ? `${reportsCard()}${sessionsCard('Ultima sessione', done.slice(-1), 'Da qui leggete il report e completate il commitment, se manca.', true)}
       ${sessionsCard(activeTitle, active, 'Prima della sessione potete consultare le domande e inoltrarle ai colleghi: si risponde in sala.', true)}
       ${done.length > 1 ? sessionsCard('Sessioni concluse', done.slice(0, -1), '', false) : ''}`
@@ -70,6 +72,10 @@ async function renderHome() {
     ${done.length ? sessionsCard('Sessioni concluse', done, '', false) : ''}`}`;
 }
 
+// pomeriggio: la scelta dei 3 need in alto mentre è aperta (fasi proprie, separate dalla Map)
+const pmCards = (ss) => ss.filter((s) => s.pm_phase === 'scelta').map((s) => `<div class="card al-card"><h2 style="margin:0">Dai tavoli: i 3 need da portare al vertice</h2>
+  <p class="small ink2" style="margin:6px 0 12px">${esc(s.title)}. Tra i need votati dalle persone dell'azienda al pomeriggio, scegliete i 3 da portare al vertice.</p>
+  <a class="btn primary" href="#/pomeriggio/${s.id}">Scegli i need</a></div>`).join('');
 // allineamento finale (§14.1): in alto quando è aperto
 const alignCard = (A) => `<div class="card al-card"><div class="row between"><h2 style="margin:0">Allineamento finale</h2>
     <span class="tag ${A.confirmedAt ? 'ok' : A.reviewed ? 'navy' : 'warn'}">${A.confirmedAt ? 'confermato' : A.reviewed ? 'in corso' : 'da fare'}</span></div>

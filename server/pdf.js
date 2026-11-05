@@ -318,6 +318,34 @@ export function buildCompanyPdf(R) {
     kv(prof.map((p) => [p.q, `${p.value}${typeof p.value === 'number' ? '%' : ''}`]), 300);
   }
 
+  // ---------- Dai tavoli: votazione del pomeriggio (sezione a sé, nessun punteggio né fascia: R7) ----------
+  for (const D of R.pomeriggio || []) {
+    h2(`Dai tavoli · sessione ${D.session.name}`);
+    explain(D.intro);
+    para('I need scelti dall\'azienda per il vertice', { size: 9, bold: true });
+    doc.moveDown(0.2);
+    if (!D.confirmed) para('La scelta dei need non è stata confermata.', { size: 8.5, color: C.ink3 });
+    D.chosen.forEach((c, i) => {
+      ensure(40);
+      para(`${i + 1}. ${c.key} ${c.title}`, { size: 9, bold: true });
+      para(`Tavolo ${c.table}${c.descr ? ` · ${c.descr}` : ''}`, { size: 8, color: C.ink3 });
+      if (c.ask) para(`Che cosa chiediamo al vertice: ${c.ask}`, { size: 8.5, color: C.ink2 });
+      doc.moveDown(0.3);
+    });
+    if (D.fewer) para(`Le persone dell'azienda hanno votato ${D.available} ${D.available === 1 ? 'need' : 'need'}: i need scelti sono meno di 3.`, { size: 8, color: C.ink3 });
+    doc.moveDown(0.5);
+    para('Che cosa ha votato ogni persona', { size: 9, bold: true });
+    doc.moveDown(0.2);
+    for (const p of D.people) {
+      ensure(30 + p.needs.length * 12);
+      para(`${p.name} · tavolo ${p.table}`, { size: 8.8, bold: true });
+      if (p.none) para('Nessun need scelto.', { size: 8.2, color: C.ink3 });
+      // i need votati in grassetto con priorità e orizzonte; gli altri del tavolo in grigio
+      for (const n of p.needs) para(`${n.code} ${n.title}${n.chosen ? ` · votato: ${n.priority}, ${n.horizon.toLowerCase()}` : ''}`, { size: 8.2, color: n.chosen ? C.ink : C.ink3, bold: n.chosen, x: X0 + 10, w: W - 10 });
+      doc.moveDown(0.35);
+    }
+  }
+
   // ---------- Note ----------
   h2('Note metodologiche e limiti');
   para(`Autovalutazione strutturata e consolidamento aziendale: non è un audit né una certificazione. Il benchmark è "indicativo" sotto le ${SC.benchmark.stableN} aziende e non è mostrato sotto le ${SC.benchmark.minN}; i sotto-livelli si mostrano solo con almeno ${SC.benchmark.subLevelMinN} aziende per categoria. Le soglie (fasce 44/70, coerenza ${SC.coherenceThreshold} punti, quadranti) e i nomi dei quadranti sono quelli in uso nel pilot. Le regole di coerenza che confrontano sessioni diverse si discutono nella call con il leader. Le dimensioni misurate in sessioni diverse possono riflettere partecipanti diversi; a settembre 2027 l'allineamento finale le riporta a una data unica. Il benchmark usato è una versione congelata: i report consegnati non cambiano.`, { size: 8, color: C.ink2 });

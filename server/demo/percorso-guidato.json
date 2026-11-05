@@ -151,6 +151,32 @@
     "priorita": ["F", "H", "G"],
     "nota_priorita": "Industrializzare i rilasci, misurare il valore dei casi replicati e allargare le competenze alle funzioni di business."
   },
+  "pomeriggio": {
+    "GOV": [
+      { "tavolo": "1", "titolo": "Chi decide sull'AI", "tema": "Strategia e sponsorship", "need": [
+        ["Un mandato chiaro dal vertice", "Sapere chi decide su priorità e budget AI"], ["Un comitato AI che si riunisce davvero", ""], ["Obiettivi AI nei piani di business", "Legare i progetti agli obiettivi delle funzioni"], ["Un budget dedicato", ""], ["Comunicare la direzione alle persone", "Dire a tutti dove si va e perché"] ] },
+      { "tavolo": "2", "titolo": "Regole e rischi", "tema": "Governance, rischio e compliance", "need": [
+        ["Regole d'uso semplici", "Che cosa si può fare con l'AI generativa"], ["Pronti per l'AI Act", "Inventario dei sistemi e classi di rischio"], ["Controllo dei fornitori", "Clausole e verifiche sui modelli esterni"], ["Un referente per il rischio AI", ""] ] }
+    ],
+    "EFF": [
+      { "tavolo": "3", "titolo": "Dati che si trovano", "tema": "Dati e knowledge readiness", "need": [
+        ["Un catalogo dei dati critici", "Sapere dove stanno e di chi sono"], ["Documenti aggiornati e trovabili", ""], ["Qualità dei dati misurata", ""], ["Accesso ai dati più veloce", "Meno settimane di attesa per un progetto"], ["Dati dei clienti usabili nel rispetto della privacy", ""] ] },
+      { "tavolo": "4", "titolo": "Persone e competenze", "tema": "Persone, competenze e adozione", "need": [
+        ["Formazione per ruolo", "Non solo per l'IT"], ["Tempo per sperimentare", ""], ["Ambasciatori AI nelle funzioni", ""], ["Misurare l'adozione", "Chi usa gli strumenti e per che cosa"] ] }
+    ],
+    "GROW": [
+      { "tavolo": "5", "titolo": "Scegliere i casi d'uso", "tema": "Portfolio e prioritizzazione", "need": [
+        ["Criteri comuni per scegliere", ""], ["Decisioni di stop sui progetti fermi", ""], ["Un portafoglio unico delle iniziative", ""], ["Business case semplici", "Valore atteso e costi prima di partire"] ] },
+      { "tavolo": "6", "titolo": "Misurare il valore", "tema": "Valore, impatto e scalabilità", "need": [
+        ["KPI di valore per ogni caso d'uso", ""], ["Replicare i casi che funzionano", ""], ["Raccontare i risultati al vertice", ""], ["Benefici misurati dopo sei mesi", ""], ["Un metodo per replicare in altre funzioni", ""] ] }
+    ],
+    "SCALE": [
+      { "tavolo": "7", "titolo": "Architettura e piattaforme", "tema": "Tecnologia e architettura", "need": [
+        ["Una piattaforma comune", "Non uno strumento per ogni progetto"], ["Uscire da un fornitore senza perdere tutto", ""], ["Costi del cloud sotto controllo", ""], ["Sicurezza degli agenti", ""] ] },
+      { "tavolo": "8", "titolo": "Portare in produzione", "tema": "Operating model e delivery", "need": [
+        ["Un team stabile per i rilasci", ""], ["Monitorare i modelli in produzione", ""], ["Tempi di rilascio più brevi", ""], ["Ruoli chiari tra IT e business", ""] ] }
+    ]
+  },
   "community": [
     { "nome": "Aurora Energia", "settore": "Energia", "maturita": 3.4 },
     { "nome": "Borealis Telecom", "settore": "Telecomunicazioni", "maturita": 3.8 },

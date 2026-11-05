@@ -1,4 +1,5 @@
 import { api, esc, $, $$, toast, ask, askText, poll, phaseChips, PHASES, qrImg, qrLabeled, downloadQrPng, icon, fmtDate, fmtScore, levelLabel, alt } from './ui.js';
+import { renderPmConsole, viewPmQr } from './pm-admin.js';
 
 const app = $('#app');
 let INST, SC, NET;
@@ -151,7 +152,7 @@ async function route() {
   const arg = rest.join('/');
   await buildNav(view, arg);
   ({ programma: viewProgram, sessione: viewControl, adhoc: viewAdhoc, report: viewReports, commitment: viewCommitments, aziende: viewCompanies, azienda: viewCompany,
-    benchmark: viewBenchmark, audit: viewAudit, impostazioni: viewSettings, qr: viewQr, tavolo: viewTableCard, tavoli: viewTables, mappe: viewMaps, domande: viewQuestions, percorso: viewTour, allineamento: viewAlignment }[view] || viewProgram)(arg);
+    benchmark: viewBenchmark, audit: viewAudit, impostazioni: viewSettings, qr: viewQr, tavolo: viewTableCard, tavoli: viewTables, mappe: viewMaps, domande: viewQuestions, percorso: viewTour, allineamento: viewAlignment, 'pm-qr': (a) => viewPmQr(app, a) }[view] || viewProgram)(arg);
 }
 
 // ---------- DEMO: percorso guidato con un'azienda fittizia ----------
@@ -675,6 +676,7 @@ const nextStepText = (phase) => ({ preparazione: 'Prossimo passo: aprire le risp
 const TABS = [
   { id: 'prima', label: 'Prima', steps: ['preparazione'] },
   { id: 'sala', label: 'In sala', steps: ['individuale', 'confronto', 'consolidamento'] },
+  { id: 'pomeriggio', label: 'Pomeriggio', steps: [] },
   { id: 'risultati', label: 'Mappe', steps: [] },
   { id: 'dopo', label: 'Follow up', steps: ['benchmark', 'report', 'call'] },
 ];
@@ -885,7 +887,7 @@ async function viewControl(arg) {
     // navigazione tra le schede: Indietro / Avanti in fondo, scorciatoie da tastiera 1–4 e frecce
     const ti = TABS.indexOf(T2), prevT = TABS[ti - 1], nextT = TABS[ti + 1];
     const tabnav = `<nav class="tabnav" aria-label="Schede della sessione">${prevT ? `<button type="button" class="ghost" data-tab="${prevT.id}">${icon('back')} ${esc(prevT.label)}</button>` : '<span></span>'}
-      <span class="small muted kbdhint">Scorciatoie: <kbd>1</kbd>–<kbd>4</kbd> per le schede, <kbd>←</kbd> <kbd>→</kbd> per passare alla precedente o alla successiva</span>
+      <span class="small muted kbdhint">Scorciatoie: <kbd>1</kbd>–<kbd>${TABS.length}</kbd> per le schede, <kbd>←</kbd> <kbd>→</kbd> per passare alla precedente o alla successiva</span>
       ${nextT ? `<button type="button" class="ghost" data-tab="${nextT.id}">${esc(nextT.label)} <span aria-hidden="true">→</span></button>` : '<span></span>'}</nav>`;
     app.innerHTML = `<a class="back" href="#/programma">${icon('back')} Programma</a>
       <div class="pagehead"><div><h1>${esc(s.title)}</h1><p class="small">Domande della sessione: ${esc(C.def.items.map((i) => `${i} ${INST.items[i].title}`).join(' · '))}</p></div>
@@ -893,7 +895,7 @@ async function viewControl(arg) {
           <a class="btn sm ghost" href="/plenaria/${s.base}" target="_blank">Plenaria</a><a class="btn sm ghost" href="/mappe/${s.base}" target="_blank">Mappe</a><a class="btn sm ghost" href="#/report">Report e call</a><a class="btn sm ghost" href="#/domande/${s.base}">Domande</a></div></div>
       <div class="tabs" role="tablist" aria-label="Momenti della sessione">${TABS.map((t) => `<button type="button" role="tab" class="tab ${tabState(t)} ${t.id === tab ? 'on' : ''}" aria-selected="${t.id === tab}" data-tab="${t.id}">
         <span class="tdot" aria-hidden="true">${tabState(t) === 'done' ? icon('check') : ''}</span>${esc(t.label)}${tabState(t) === 'now' ? '<span class="sr-only"> (in corso)</span>' : ''}</button>`).join('')}</div>
-      ${tab === 'risultati' ? results : `
+      ${tab === 'pomeriggio' ? '<div id="pm-host"><p class="muted">Caricamento…</p></div>' : tab === 'risultati' ? results : `
       ${T2.steps.length > 1 ? `<div class="substeps">${T2.steps.map((x) => { const fx = FLOW.find((f2) => f2.id === x); const stx = state(fx); return `<button type="button" class="fstep ${stx} ${x === sel ? 'sel' : ''}" data-step="${x}" ${x === sel ? 'aria-current="step"' : ''}>
           <span class="fnum" aria-hidden="true">${stx === 'done' ? icon('check') : FLOW.indexOf(fx) + 1}</span><span class="ftxt"><b>${esc(fx.title)}</b><small>${summary[x]}</small></span></button>`; }).join('')}</div>` : ''}
       <section class="card flowpanel" aria-live="polite">
@@ -903,7 +905,7 @@ async function viewControl(arg) {
         ${extra}
         ${action}${back}
       </section>`}
-      ${tab === 'risultati' ? '' : s.phase === 'preparazione' ? prepTable() : `<div class="card"><h2>Aziende in questa sessione</h2><div class="tablewrap"><table>
+      ${['risultati', 'pomeriggio'].includes(tab) ? '' : s.phase === 'preparazione' ? prepTable() : `<div class="card"><h2>Aziende in questa sessione</h2><div class="tablewrap"><table>
         <thead><tr><th>Azienda</th><th class="num">Partecipanti</th><th>Risposte</th><th>Funzioni</th><th>Consolidato</th><th>Follow up</th><th><span class="sr-only">Azioni</span></th></tr></thead>
         <tbody>${cos.filter((c) => c.participants || c.consolidated_at).map(row).join('') || `<tr><td colspan="7" class="muted">${cos.length ? 'Nessuna azienda ancora attiva in questa sessione.' : 'Nessuna azienda: aggiungile da <a href="#/aziende">Aziende e referenti</a>.'}</td></tr>`}</tbody></table></div>
         ${cos.some((c) => !(c.participants || c.consolidated_at)) ? `<details style="margin-top:10px"><summary class="small">Altre aziende censite (${cos.filter((c) => !(c.participants || c.consolidated_at)).length})</summary><table><tbody>${cos.filter((c) => !(c.participants || c.consolidated_at)).map(row).join('')}</tbody></table></details>` : ''}</div>`}
@@ -928,11 +930,12 @@ async function viewControl(arg) {
     if ($('#genqr')) $('#genqr').onclick = () => genQr(null);
     const goTab = (t) => { tab = t; sel = null; confirming = false; history.replaceState(null, '', `#/sessione/${s.id}/${tab}`); draw(); scrollTo({ top: 0 }); };
     $$('[data-tab]').forEach((b) => b.onclick = () => goTab(b.dataset.tab));
+    if (tab === 'pomeriggio') renderPmConsole($('#pm-host'), s.id).catch((e) => { $('#pm-host').innerHTML = `<div class="card"><p class="banner risk">${esc(e.message)}</p></div>`; });
     // scorciatoie: 1–4 aprono le schede, ← → la precedente o la successiva (mai mentre si scrive in un campo)
     keyHandler = (e) => {
       if (e.altKey || e.ctrlKey || e.metaKey || e.target.closest('input, textarea, select, [contenteditable], dialog')) return;
       const i = TABS.findIndex((t) => t.id === tab);
-      const to = /^[1-4]$/.test(e.key) ? TABS[Number(e.key) - 1] : e.key === 'ArrowLeft' ? TABS[i - 1] : e.key === 'ArrowRight' ? TABS[i + 1] : null;
+      const to = /^[1-9]$/.test(e.key) && TABS[Number(e.key) - 1] ? TABS[Number(e.key) - 1] : e.key === 'ArrowLeft' ? TABS[i - 1] : e.key === 'ArrowRight' ? TABS[i + 1] : null;
       if (to && to.id !== tab) { e.preventDefault(); goTab(to.id); }
     };
     $$('[data-goto]').forEach((b) => b.onclick = () => { sel = b.dataset.goto; tab = TABS.find((t) => t.steps.includes(sel)).id; draw(); });

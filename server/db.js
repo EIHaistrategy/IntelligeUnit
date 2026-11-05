@@ -174,6 +174,61 @@ CREATE TABLE IF NOT EXISTS alignment_items (  -- allineamento finale (§14.1): c
   is_current INTEGER NOT NULL DEFAULT 1,
   created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+-- Pomeriggio delle sessioni: votazione dei need (docs/REQUISITI_POMERIGGIO.md). Tabelle proprie, separate dalla Map (R1);
+-- l'ambiente (DEMO o Produzione) è quello della sessione.
+CREATE TABLE IF NOT EXISTS pm_tables (
+  id INTEGER PRIMARY KEY,
+  session_id INTEGER NOT NULL REFERENCES sessions(id),
+  label TEXT NOT NULL, title TEXT NOT NULL, morning_theme TEXT,
+  status TEXT NOT NULL DEFAULT 'bozza',      -- bozza | voto | chiuso
+  code TEXT UNIQUE NOT NULL,                 -- QR del tavolo (/t/:code)
+  fac_token TEXT UNIQUE NOT NULL,            -- link del facilitatore (/ft/:token), si rigenera
+  frozen_at TEXT, closed_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(session_id, label)
+);
+CREATE TABLE IF NOT EXISTS pm_needs (
+  id INTEGER PRIMARY KEY,
+  table_id INTEGER NOT NULL REFERENCES pm_tables(id),
+  code TEXT NOT NULL,                        -- T1…T5, dato dalla piattaforma
+  title TEXT NOT NULL, descr TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(table_id, code)
+);
+CREATE TABLE IF NOT EXISTS pm_people (      -- chi vota: il profilo del mattino se c'è, altrimenti solo nome e funzione (R6)
+  id INTEGER PRIMARY KEY,
+  session_id INTEGER NOT NULL REFERENCES sessions(id),
+  company_id INTEGER NOT NULL REFERENCES companies(id),
+  participant_id INTEGER REFERENCES participants(id),
+  name TEXT NOT NULL, func TEXT,
+  token TEXT UNIQUE NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS pm_votes (       -- un voto per persona nella sessione (R5); le correzioni della regia lasciano lo storico
+  id INTEGER PRIMARY KEY,
+  person_id INTEGER NOT NULL REFERENCES pm_people(id),
+  table_id INTEGER NOT NULL REFERENCES pm_tables(id),
+  none INTEGER NOT NULL DEFAULT 0,
+  is_current INTEGER NOT NULL DEFAULT 1,
+  cancel_reason TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')), created_by TEXT
+);
+CREATE TABLE IF NOT EXISTS pm_vote_items (
+  vote_id INTEGER NOT NULL REFERENCES pm_votes(id),
+  need_id INTEGER NOT NULL REFERENCES pm_needs(id),
+  priority INTEGER NOT NULL, horizon TEXT NOT NULL,
+  PRIMARY KEY (vote_id, need_id)
+);
+CREATE TABLE IF NOT EXISTS pm_choices (     -- i 3 need dell'azienda; ogni salvataggio è una riga nuova
+  id INTEGER PRIMARY KEY,
+  session_id INTEGER NOT NULL REFERENCES sessions(id),
+  company_id INTEGER NOT NULL REFERENCES companies(id),
+  items_json TEXT NOT NULL,                  -- [{ needId, ask }]
+  confirmed_at TEXT,
+  is_current INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')), created_by TEXT
+);
+
 CREATE TABLE IF NOT EXISTS alignment (  -- stato dell'allineamento per azienda: tre priorità finali e conferma
   company_id INTEGER PRIMARY KEY REFERENCES companies(id),
   priorities_json TEXT, priorities_note TEXT,
@@ -214,7 +269,9 @@ for (const sql of ["ALTER TABLE commitments ADD COLUMN status_note TEXT", "ALTER
   // allineamento finale: perché cambia il livello (evoluzione | revisione) e giudizio sulla conferma (soddisfatti | speravamo)
   "ALTER TABLE alignment_items ADD COLUMN motive TEXT", "ALTER TABLE alignment_items ADD COLUMN judgment TEXT",
   // consolidamento: posizioni rimaste divergenti dopo la discussione, annotate per il report
-  "ALTER TABLE consolidated ADD COLUMN dissent_note TEXT"]) {
+  "ALTER TABLE consolidated ADD COLUMN dissent_note TEXT",
+  // pomeriggio: fasi proprie, indipendenti da quelle della Map (R2)
+  "ALTER TABLE sessions ADD COLUMN pm_phase TEXT NOT NULL DEFAULT 'chiuso'"]) {
   try { db.exec(sql); } catch { /* colonna già presente */ }
 }
 db.exec("UPDATE audit SET seeded = 1 WHERE seeded = 0 AND actor LIKE 'demo%'");

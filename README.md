@@ -110,6 +110,30 @@ Dopo la sessione: *Rilascia* il report al referente (lo vede dal suo link), regi
 I nomi delle aziende sono nascosti di default (pagina proiettabile); *mostra i nomi* li rivela per l'uso interno ELIS.
 Dove compaiono: voce *Mappe* nel menu della console; pulsante nella control room; la **plenaria** mostra in fondo le mappe §10.3 e §10.4 (solo dati aggregati); il **report aziendale** (web e PDF) ha la sezione *La dimensione nella community*, che per ogni dimensione dell'azienda indica il quadrante delle due mappe di community, senza nomi di altre aziende.
 
+## 4 bis. Pomeriggio: votazione dei need
+
+Requisiti completi in `docs/REQUISITI_POMERIGGIO.md`. Il pomeriggio è una sezione a sé: non usa e non mostra nessun dato della Map (score, fasce, benchmark, priorità, commitment) e ha fasi proprie, indipendenti da quelle della mattina. I need si mostrano sempre in ordine di codice (T1–T5), senza classifiche.
+
+**Prima (anche la mattina stessa).** Control room della sessione → scheda **Pomeriggio**. Aggiungi i tavoli con numero e titolo (un tavolo replicato è un tavolo in più: 4a, 4b) e, se vuoi, il tema del mattino. Per ogni tavolo:
+- *QR dei tavoli* prepara un cartoncino A4 da stampare, con numero, titolo e QR per votare;
+- *Copia il link del facilitatore* dà il link da aprire sul telefono del facilitatore del tavolo. Se il link si perde, *Altro → Revoca e rigenera* ne crea uno nuovo (quello vecchio smette di funzionare).
+
+**Le fasi**, una alla volta (per tornare indietro serve un motivo, che va nel registro):
+
+| Fase | Che cosa succede |
+|---|---|
+| Non iniziato | La regia prepara i tavoli. I facilitatori possono già scrivere e salvare i need. |
+| Tavoli e voto | Ogni facilitatore scrive fino a 5 need (titolo fino a 90 caratteri, descrizione facoltativa fino a 200) e preme **Conferma e apri il voto**: da lì i need non si aggiungono né si tolgono. Le persone inquadrano il QR del tavolo e votano. Il facilitatore vede solo quante persone hanno votato. Il voto di un tavolo si chiude dal telefono del facilitatore o dalla console (anche tutti insieme). |
+| Plenaria | I tavoli ancora aperti si chiudono. Si proietta *Plenaria del pomeriggio*: una mappa per tavolo, tavoli in ordine, con le frecce o la vista con tutti i tavoli. |
+| Scelta dei 3 need | Il referente (dal suo link) o il facilitatore (dal tavolo dell'azienda) sceglie i 3 need da portare al vertice tra quelli votati dalle persone dell'azienda, con il campo facoltativo «Che cosa chiediamo al vertice?», e preme **Conferma i 3 need**. Se le persone hanno votato meno di 3 need, si scelgono tutti. La regia vede lo stato per azienda e può riaprire una scelta con un motivo. |
+| Concluso | La scelta non si modifica più e i link dei facilitatori scadono. |
+
+**Il voto dal telefono.** Chi usa lo stesso telefono del mattino viene riconosciuto e vede «Sei *Nome*, *Azienda*. Tavolo *4 · titolo*». Altrimenti inserisce il codice azienda e sceglie il proprio nome; se il nome aveva un profilo al mattino, il voto si collega a quello. Chi arriva solo al pomeriggio si aggiunge con nome e funzione e non entra tra i partecipanti della Map. Si scelgono da 0 a 2 need e per ciascuno priorità (da «Nessuna priorità» a «Priorità massima») e orizzonte (da «Entro 3 mesi» a «Orizzonte non definito»); c'è anche «Non scelgo nessun need». Prima dell'invio un riepilogo; dopo, il voto non si cambia dal telefono e non si vedono risultati. Ogni persona vota una volta sola, a un solo tavolo: per spostare o annullare un voto, la regia usa *Altro → Annulla il voto di una persona* (con motivo; il voto resta nello storico).
+
+**La mappa del tavolo** si vede solo a voto chiuso. Orizzontale: quanto è condiviso, cioè la quota dei votanti del tavolo che hanno scelto il need (soglia: la quota media attesa, 2 voti diviso il numero di need; con 5 need il 40%). Verticale: quanto è prioritario per chi l'ha scelto, cioè la quota con priorità alta o massima (soglia 50%). Un need senza voti non è sulla mappa ed è elencato sotto; uno con 1–2 voti è un cerchio vuoto («pochi voti»). Accanto, la tabella con voti, priorità e orizzonte per need, con le etichette a parole e nessuna media. Soglie, etichette e nomi dei quadranti stanno in `server/instrument/pomeriggio-1.0.json` (versione P1.0, da validare con il team).
+
+**Nel report** (web e PDF) la sezione **«Dai tavoli · sessione …»**, dopo le sezioni della Map: i need scelti dall'azienda con la richiesta al vertice, e che cosa ha votato ogni persona (nome, tavolo, need del tavolo con quelli votati in evidenza, priorità e orizzonte). Si congela nella stessa copia del report rilasciato; se nessuno dell'azienda ha votato, non compare. L'export Excel ha tre fogli in più: *Pomeriggio need*, *Pomeriggio voti*, *Pomeriggio scelte*. Nella DEMO ogni sessione ha un pomeriggio dimostrativo con due tavoli.
+
 ## 5. Che cosa c'è in questa versione
 
 - Strumento V1 completo come dati (`server/instrument/v1.0.json`): 16 item, descrittori, sotto-opzioni, opzioni valoriali, 30 dati fattuali della scheda, 14 domande di profilo, 6 regole di coerenza. Le quattro sessioni sono già create.

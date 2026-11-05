@@ -1,0 +1,53 @@
+{
+  "version": "P1.0",
+  "name": "Pomeriggio delle sessioni: votazione dei need",
+  "source": "AITO · Agenda del pomeriggio v14 (3/11/2026), con le decisioni del team del 5/11/2026",
+  "status": "da validare con il team: soglie della mappa e nomi dei quadranti",
+  "maxNeeds": 5,
+  "maxChoices": 2,
+  "finalChoices": 3,
+  "limits": { "needTitle": 90, "needDescr": 200, "ask": 300, "tableLabel": 10, "tableTitle": 120, "theme": 120 },
+  "texts": {
+    "choose": "Quali di questi bisogni o problemi sono più rilevanti per la tua azienda? Puoi sceglierne al massimo due, oppure nessuno.",
+    "none": "Non scelgo nessun need",
+    "priority": "Quanto è prioritario per la tua azienda affrontare questo bisogno o problema?",
+    "horizon": "Entro quando sarebbe necessario iniziare ad affrontarlo?",
+    "ask": "Che cosa chiediamo al vertice?",
+    "askNote": "Facoltativo. Non inserire dati personali né informazioni riservate.",
+    "reportIntro": "Questi dati vengono dalla votazione del pomeriggio: non entrano nello score né nel benchmark della Map."
+  },
+  "priority": [
+    { "value": 1, "label": "Nessuna priorità" },
+    { "value": 2, "label": "Priorità bassa" },
+    { "value": 3, "label": "Priorità media" },
+    { "value": 4, "label": "Priorità alta" },
+    { "value": 5, "label": "Priorità massima" }
+  ],
+  "horizon": [
+    { "value": "3m", "label": "Entro 3 mesi" },
+    { "value": "6m", "label": "Tra 3 e 6 mesi" },
+    { "value": "12m", "label": "Tra 6 e 12 mesi" },
+    { "value": "oltre", "label": "Oltre 12 mesi" },
+    { "value": "nd", "label": "Orizzonte non definito" }
+  ],
+  "map": {
+    "x": "Quanto è condiviso: quota dei votanti del tavolo che l'hanno scelto",
+    "y": "Quanto è prioritario per chi l'ha scelto: quota con priorità alta o massima",
+    "highPriorityMin": 4,
+    "yThreshold": 0.5,
+    "fewVotes": 3,
+    "quadrants": {
+      "HH": "Condiviso e prioritario",
+      "HL": "Condiviso, priorità più bassa",
+      "LH": "Meno condiviso, prioritario per chi l'ha scelto",
+      "LL": "Meno condiviso, priorità più bassa"
+    }
+  },
+  "phases": [
+    { "id": "chiuso", "label": "Non iniziato" },
+    { "id": "tavoli", "label": "Tavoli e voto" },
+    { "id": "plenaria", "label": "Plenaria" },
+    { "id": "scelta", "label": "Scelta dei 3 need" },
+    { "id": "chiuso_def", "label": "Concluso" }
+  ]
+}
